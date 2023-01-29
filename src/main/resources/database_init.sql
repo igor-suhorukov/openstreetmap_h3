@@ -8,7 +8,6 @@ ALTER SYSTEM SET effective_io_concurrency = 200;
 ALTER SYSTEM SET enable_partitionwise_join = ON;
 ALTER SYSTEM SET enable_partitionwise_aggregate = ON;
 ALTER SYSTEM SET parallel_leader_participation = on;
-ALTER SYSTEM SET columnar.compression TO 'none';
 SELECT pg_reload_conf();
 
 --ALTER SYSTEM SET max_connections = '40';
