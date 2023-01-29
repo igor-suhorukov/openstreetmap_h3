@@ -1,0 +1,184 @@
+{
+  "fields" : [ {
+    "name" : "id",
+    "nullable" : false,
+    "type" : {
+      "name" : "int",
+      "bitWidth" : 64,
+      "isSigned" : true
+    },
+    "children" : [ ]
+  }, {
+    "name" : "h33",
+    "nullable" : false,
+    "type" : {
+      "name" : "int",
+      "bitWidth" : 16,
+      "isSigned" : true
+    },
+    "children" : [ ]
+  }, {
+    "name" : "h38",
+    "nullable" : false,
+    "type" : {
+      "name" : "int",
+      "bitWidth" : 32,
+      "isSigned" : true
+    },
+    "children" : [ ]
+  }, {
+    "name" : "latitude",
+    "nullable" : false,
+    "type" : {
+      "name" : "floatingpoint",
+      "precision" : "DOUBLE"
+    },
+    "children" : [ ]
+  }, {
+    "name" : "longitude",
+    "nullable" : false,
+    "type" : {
+      "name" : "floatingpoint",
+      "precision" : "DOUBLE"
+    },
+    "children" : [ ]
+  }, {
+    "name" : "tags",
+    "nullable" : true,
+    "type" : {
+      "name" : "map",
+      "keysSorted" : true
+    },
+    "children" : [ {
+      "name" : "key",
+      "nullable" : false,
+      "type" : {
+        "name" : "struct"
+      },
+      "children" : [ {
+        "name" : "key",
+        "nullable" : false,
+        "type" : {
+          "name" : "utf8"
+        },
+        "children" : [ ]
+      }, {
+        "name" : "value",
+        "nullable" : false,
+        "type" : {
+          "name" : "utf8"
+        },
+        "children" : [ ]
+      } ]
+    } ]
+  }, {
+    "name" : "pointIdxs",
+    "nullable" : false,
+    "type" : {
+      "name" : "list"
+    },
+    "children" : [ {
+      "name" : "point",
+      "nullable" : false,
+      "type" : {
+        "name" : "int",
+        "bitWidth" : 64,
+        "isSigned" : true
+      },
+      "children" : [ ]
+    } ]
+  }, {
+    "name" : "h33Center",
+    "nullable" : false,
+    "type" : {
+      "name" : "int",
+      "bitWidth" : 16,
+      "isSigned" : true
+    },
+    "children" : [ ]
+  }, {
+    "name" : "closed",
+    "nullable" : false,
+    "type" : {
+      "name" : "bool"
+    },
+    "children" : [ ]
+  }, {
+    "name" : "building",
+    "nullable" : false,
+    "type" : {
+      "name" : "bool"
+    },
+    "children" : [ ]
+  }, {
+    "name" : "highway",
+    "nullable" : false,
+    "type" : {
+      "name" : "bool"
+    },
+    "children" : [ ]
+  }, {
+    "name" : "scale",
+    "nullable" : false,
+    "type" : {
+      "name" : "floatingpoint",
+      "precision" : "SINGLE"
+    },
+    "children" : [ ]
+  }, {
+    "name" : "lineStringWkb",
+    "nullable" : false,
+    "type" : {
+      "name" : "binary"
+    },
+    "children" : [ ]
+  }, {
+    "name" : "h38Indexes",
+    "nullable" : true,
+    "type" : {
+      "name" : "list"
+    },
+    "children" : [ {
+      "name" : "h38Idx",
+      "nullable" : false,
+      "type" : {
+        "name" : "int",
+        "bitWidth" : 32,
+        "isSigned" : true
+      },
+      "children" : [ ]
+    } ]
+  }, {
+    "name" : "bboxMinX",
+    "nullable" : false,
+    "type" : {
+      "name" : "floatingpoint",
+      "precision" : "DOUBLE"
+    },
+    "children" : [ ]
+  }, {
+    "name" : "bboxMaxX",
+    "nullable" : false,
+    "type" : {
+      "name" : "floatingpoint",
+      "precision" : "DOUBLE"
+    },
+    "children" : [ ]
+  }, {
+    "name" : "bboxMinY",
+    "nullable" : false,
+    "type" : {
+      "name" : "floatingpoint",
+      "precision" : "DOUBLE"
+    },
+    "children" : [ ]
+  }, {
+    "name" : "bboxMaxY",
+    "nullable" : false,
+    "type" : {
+      "name" : "floatingpoint",
+      "precision" : "DOUBLE"
+    },
+    "children" : [ ]
+  } ]
+}

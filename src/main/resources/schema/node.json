@@ -1,0 +1,75 @@
+{
+  "fields" : [ {
+    "name" : "id",
+    "nullable" : false,
+    "type" : {
+      "name" : "int",
+      "bitWidth" : 64,
+      "isSigned" : true
+    },
+    "children" : [ ]
+  }, {
+    "name" : "h33",
+    "nullable" : false,
+    "type" : {
+      "name" : "int",
+      "bitWidth" : 16,
+      "isSigned" : true
+    },
+    "children" : [ ]
+  }, {
+    "name" : "h38",
+    "nullable" : false,
+    "type" : {
+      "name" : "int",
+      "bitWidth" : 32,
+      "isSigned" : true
+    },
+    "children" : [ ]
+  }, {
+    "name" : "latitude",
+    "nullable" : false,
+    "type" : {
+      "name" : "floatingpoint",
+      "precision" : "DOUBLE"
+    },
+    "children" : [ ]
+  }, {
+    "name" : "longitude",
+    "nullable" : false,
+    "type" : {
+      "name" : "floatingpoint",
+      "precision" : "DOUBLE"
+    },
+    "children" : [ ]
+  }, {
+    "name" : "tags",
+    "nullable" : true,
+    "type" : {
+      "name" : "map",
+      "keysSorted" : true
+    },
+    "children" : [ {
+      "name" : "key",
+      "nullable" : false,
+      "type" : {
+        "name" : "struct"
+      },
+      "children" : [ {
+        "name" : "key",
+        "nullable" : false,
+        "type" : {
+          "name" : "utf8"
+        },
+        "children" : [ ]
+      }, {
+        "name" : "value",
+        "nullable" : false,
+        "type" : {
+          "name" : "utf8"
+        },
+        "children" : [ ]
+      } ]
+    } ]
+  } ]
+}

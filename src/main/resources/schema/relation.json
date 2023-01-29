@@ -1,0 +1,87 @@
+{
+  "fields" : [ {
+    "name" : "id",
+    "nullable" : false,
+    "type" : {
+      "name" : "int",
+      "bitWidth" : 64,
+      "isSigned" : true
+    },
+    "children" : [ ]
+  }, {
+    "name" : "tags",
+    "nullable" : true,
+    "type" : {
+      "name" : "map",
+      "keysSorted" : true
+    },
+    "children" : [ {
+      "name" : "key",
+      "nullable" : false,
+      "type" : {
+        "name" : "struct"
+      },
+      "children" : [ {
+        "name" : "key",
+        "nullable" : false,
+        "type" : {
+          "name" : "utf8"
+        },
+        "children" : [ ]
+      }, {
+        "name" : "value",
+        "nullable" : false,
+        "type" : {
+          "name" : "utf8"
+        },
+        "children" : [ ]
+      } ]
+    } ]
+  }, {
+    "name" : "memberId",
+    "nullable" : false,
+    "type" : {
+      "name" : "list"
+    },
+    "children" : [ {
+      "name" : "memberId",
+      "nullable" : false,
+      "type" : {
+        "name" : "int",
+        "bitWidth" : 64,
+        "isSigned" : true
+      },
+      "children" : [ ]
+    } ]
+  }, {
+    "name" : "memberType",
+    "nullable" : false,
+    "type" : {
+      "name" : "list"
+    },
+    "children" : [ {
+      "name" : "memberType",
+      "nullable" : false,
+      "type" : {
+        "name" : "int",
+        "bitWidth" : 8,
+        "isSigned" : true
+      },
+      "children" : [ ]
+    } ]
+  }, {
+    "name" : "memberRole",
+    "nullable" : false,
+    "type" : {
+      "name" : "list"
+    },
+    "children" : [ {
+      "name" : "memberRole",
+      "nullable" : false,
+      "type" : {
+        "name" : "utf8"
+      },
+      "children" : [ ]
+    } ]
+  } ]
+}

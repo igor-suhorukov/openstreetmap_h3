@@ -1,0 +1,12 @@
+<configuration>
+  <appender name="FILE" class="ch.qos.logback.core.FileAppender">
+	  <file>/home/iam/dev/projects/osm_to_osmosisdb_ng/myApp.log</file>
+    <encoder>
+      <pattern>%msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <root level="trace">
+    <appender-ref ref="FILE" />
+  </root>
+</configuration>
