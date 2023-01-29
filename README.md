@@ -331,5 +331,74 @@ osmworld=# \d
  public | ways_32767             | table             | postgres
 (49 rows)
 
+osmworld=# explain select h3_3, count(*) from ways group by 1;
+                                        QUERY PLAN                                         
+-------------------------------------------------------------------------------------------
+ Gather  (cost=34456.99..97465.64 rows=76 width=10)
+   Workers Planned: 4
+   ->  Parallel Append  (cost=33456.99..96458.04 rows=19 width=10)
+         ->  HashAggregate  (cost=96457.88..96457.95 rows=7 width=10)
+               Group Key: ways_4.h3_3
+               ->  Seq Scan on ways_004 ways_4  (cost=0.00..90269.92 rows=1237592 width=2)
+         ->  HashAggregate  (cost=60359.46..60359.53 rows=7 width=10)
+               Group Key: ways_9.h3_3
+               ->  Seq Scan on ways_009 ways_9  (cost=0.00..56666.64 rows=738564 width=2)
+         ->  HashAggregate  (cost=39018.48..39018.54 rows=6 width=10)
+               Group Key: ways_7.h3_3
+               ->  Seq Scan on ways_007 ways_7  (cost=0.00..36567.32 rows=490232 width=2)
+         ->  HashAggregate  (cost=33456.99..33457.06 rows=7 width=10)
+               Group Key: ways_2.h3_3
+               ->  Seq Scan on ways_002 ways_2  (cost=0.00..31580.66 rows=375266 width=2)
+         ->  HashAggregate  (cost=30029.44..30029.53 rows=9 width=10)
+               Group Key: ways_5.h3_3
+               ->  Seq Scan on ways_005 ways_5  (cost=0.00..28346.96 rows=336496 width=2)
+         ->  HashAggregate  (cost=26775.62..26775.72 rows=10 width=10)
+               Group Key: ways.h3_3
+               ->  Seq Scan on ways_000 ways  (cost=0.00..25251.75 rows=304775 width=2)
+         ->  HashAggregate  (cost=19023.96..19024.03 rows=7 width=10)
+               Group Key: ways_1.h3_3
+               ->  Seq Scan on ways_001 ways_1  (cost=0.00..17901.97 rows=224397 width=2)
+         ->  HashAggregate  (cost=15682.35..15682.43 rows=8 width=10)
+               Group Key: ways_6.h3_3
+               ->  Seq Scan on ways_006 ways_6  (cost=0.00..14803.23 rows=175823 width=2)
+         ->  HashAggregate  (cost=13881.85..13881.90 rows=5 width=10)
+               Group Key: ways_3.h3_3
+               ->  Seq Scan on ways_003 ways_3  (cost=0.00..13173.90 rows=141590 width=2)
+         ->  HashAggregate  (cost=6970.89..6970.92 rows=3 width=10)
+               Group Key: ways_8.h3_3
+               ->  Seq Scan on ways_008 ways_8  (cost=0.00..6567.26 rows=80726 width=2)
+         ->  HashAggregate  (cost=2385.09..2385.10 rows=1 width=10)
+               Group Key: ways_11.h3_3
+               ->  Seq Scan on ways_32767 ways_11  (cost=0.00..2327.06 rows=11606 width=2)
+         ->  HashAggregate  (cost=37.55..37.59 rows=4 width=10)
+               Group Key: ways_10.h3_3
+               ->  Seq Scan on ways_010 ways_10  (cost=0.00..36.70 rows=170 width=2)
+(39 rows)
+
+osmworld=# select h3_3, count(*) from ways group by 1 order by 2 desc limit 20;
+ h3_3  | count  
+-------+--------
+ 25764 | 890643
+ 26010 | 329973
+ 25994 | 203645
+ 25730 | 188810
+ 25995 | 139373
+ 26011 | 136930
+ 25780 | 118165
+ 25765 | 105996
+ 26009 | 100196
+ 25762 |  91177
+ 26014 |  75555
+ 26003 |  71479
+ 26008 |  70353
+ 25883 |  60808
+ 25634 |  59705
+ 25777 |  58151
+ 16749 |  57887
+ 25782 |  57509
+ 25638 |  57296
+ 25880 |  56838
+(20 rows)
+
 
 ```
