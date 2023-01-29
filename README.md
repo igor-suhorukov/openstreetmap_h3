@@ -217,3 +217,119 @@ cat /home/acc/dev/map/thailand/thailand-latest_loc_ways/multipolygon/source.tsv 
 ```
 
 ![image](https://user-images.githubusercontent.com/10332206/215318316-300e4ff0-167b-4250-9771-a39917f1e550.png)
+
+## Run PostGIS and import data:
+```
+docker run --name postgis14-thailand --memory=12g --memory-swap=12g --memory-swappiness 0 --shm-size=1g -v /home/acc/dev/map/database/thailand:/var/lib/postgresql/data -v /home/acc/dev/map/thailand/thailand-latest_loc_ways:/input -e POSTGRES_PASSWORD=osmworld -e LD_LIBRARY_PATH=/usr/lib/jvm/java-11-openjdk-amd64/lib/server/ -d -p 5432:5432 -p 5005:5005 5d411c3be57f -c checkpoint_timeout='15 min' -c checkpoint_completion_target=0.9 -c shared_buffers='4096 MB' -c wal_buffers=-1 -c bgwriter_delay=200ms -c bgwriter_lru_maxpages=100 -c bgwriter_lru_multiplier=2.0 -c bgwriter_flush_after=0 -c max_wal_size='32768 MB' -c min_wal_size='16384 MB'
+
+docker logs postgis14-thailand | tail -n 40
+initdb: warning: enabling "trust" authentication for local connections
+You can change this by editing pg_hba.conf or using the option -A, or
+--auth-local and --auth-host, the next time you run initdb.
+2023-01-29 10:22:09.841 UTC [1] LOG:  starting PostgreSQL 14.1 (Debian 14.1-1.pgdg110+1) on x86_64-pc-linux-gnu, compiled by gcc (Debian 10.2.1-6) 10.2.1 20210110, 64-bit
+2023-01-29 10:22:09.841 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+2023-01-29 10:22:09.841 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+2023-01-29 10:22:09.847 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+2023-01-29 10:22:09.855 UTC [163] LOG:  database system was shut down at 2023-01-29 10:22:08 UTC
+2023-01-29 10:22:09.863 UTC [1] LOG:  database system is ready to accept connections
+Time: 16.011 ms
+ANALYZE
+Time: 49.590 ms
+CREATE TABLE
+Time: 1.509 ms
+COPY 1
+Time: 1.110 ms
+ANALYZE
+Time: 1.167 ms
+CREATE TABLE
+Time: 1.284 ms
+COPY 566
+Time: 2.092 ms
+ANALYZE
+Time: 1.880 ms
+CREATE TABLE
+Time: 1.210 ms
+COPY 17482
+Time: 19.023 ms
+ANALYZE
+Time: 27.044 ms
+SELECT 80
+Time: 8.333 ms
+ANALYZE
+Time: 1.533 ms
+SELECT 75
+Time: 9.650 ms
+ANALYZE
+Time: 1.213 ms
+
+2023-01-29 10:22:07.219 UTC [49] LOG:  received fast shutdown request
+waiting for server to shut down....2023-01-29 10:22:07.222 UTC [49] LOG:  aborting any active transactions
+2023-01-29 10:22:07.223 UTC [49] LOG:  background worker "logical replication launcher" (PID 56) exited with exit code 1
+2023-01-29 10:22:07.392 UTC [51] LOG:  shutting down
+..2023-01-29 10:22:09.631 UTC [49] LOG:  database system is shut down
+ done
+server stopped
+
+PostgreSQL init process complete; ready for start up.
+
+docker exec -it postgis14-thailand psql -U postgres -d osmworld
+psql (14.1 (Debian 14.1-1.pgdg110+1))
+Type "help" for help.
+
+osmworld=# \d
+                       List of relations
+ Schema |          Name          |       Type        |  Owner   
+--------+------------------------+-------------------+----------
+ public | geography_columns      | view              | postgres
+ public | geometry_columns       | view              | postgres
+ public | h3_3_bounds_complex    | table             | postgres
+ public | multipolygon           | partitioned table | postgres
+ public | multipolygon_000       | table             | postgres
+ public | multipolygon_001       | table             | postgres
+ public | multipolygon_002       | table             | postgres
+ public | multipolygon_003       | table             | postgres
+ public | multipolygon_004       | table             | postgres
+ public | multipolygon_005       | table             | postgres
+ public | multipolygon_006       | table             | postgres
+ public | multipolygon_007       | table             | postgres
+ public | multipolygon_008       | table             | postgres
+ public | multipolygon_009       | table             | postgres
+ public | multipolygon_010       | table             | postgres
+ public | multipolygon_32767     | table             | postgres
+ public | nodes                  | partitioned table | postgres
+ public | nodes_000              | table             | postgres
+ public | nodes_001              | table             | postgres
+ public | nodes_002              | table             | postgres
+ public | nodes_003              | table             | postgres
+ public | nodes_004              | table             | postgres
+ public | nodes_005              | table             | postgres
+ public | nodes_006              | table             | postgres
+ public | nodes_007              | table             | postgres
+ public | nodes_008              | table             | postgres
+ public | nodes_009              | table             | postgres
+ public | nodes_010              | table             | postgres
+ public | osm_file_block         | table             | postgres
+ public | osm_file_block_content | table             | postgres
+ public | osm_file_statistics    | table             | postgres
+ public | osm_stat_nodes_3_3     | table             | postgres
+ public | osm_stat_ways_3_3      | table             | postgres
+ public | relation_members       | table             | postgres
+ public | relations              | table             | postgres
+ public | spatial_ref_sys        | table             | postgres
+ public | ways                   | partitioned table | postgres
+ public | ways_000               | table             | postgres
+ public | ways_001               | table             | postgres
+ public | ways_002               | table             | postgres
+ public | ways_003               | table             | postgres
+ public | ways_004               | table             | postgres
+ public | ways_005               | table             | postgres
+ public | ways_006               | table             | postgres
+ public | ways_007               | table             | postgres
+ public | ways_008               | table             | postgres
+ public | ways_009               | table             | postgres
+ public | ways_010               | table             | postgres
+ public | ways_32767             | table             | postgres
+(49 rows)
+
+
+```
