@@ -218,6 +218,204 @@ cat /home/acc/dev/map/thailand/thailand-latest_loc_ways/multipolygon/source.tsv 
 
 ![image](https://user-images.githubusercontent.com/10332206/215318316-300e4ff0-167b-4250-9771-a39917f1e550.png)
 
+```
+~/dev/map/thailand/thailand-latest_loc_ways$ tree
+.
+├── import_related_metadata
+│   ├── osm_file_block_content.tsv
+│   ├── osm_file_block.tsv
+│   └── osm_file_statistics.tsv
+├── multipolygon
+│   ├── multipolygon_aa
+│   ├── multipolygon_ab
+│   ├── multipolygon_ac
+│   ├── multipolygon_ad
+│   └── multipolygon_ae
+├── nodes
+│   ├── 16713.tsv
+│   ├── 16717.tsv
+│   ├── 16744.tsv
+│   ├── 16745.tsv
+│   ├── 16747.tsv
+│   ├── 16748.tsv
+│   ├── 16749.tsv
+│   ├── 25600.tsv
+│   ├── 25601.tsv
+│   ├── 25606.tsv
+│   ├── 25620.tsv
+│   ├── 25622.tsv
+│   ├── 25632.tsv
+│   ├── 25634.tsv
+│   ├── 25636.tsv
+│   ├── 25638.tsv
+│   ├── 25648.tsv
+│   ├── 25649.tsv
+│   ├── 25650.tsv
+│   ├── 25651.tsv
+│   ├── 25652.tsv
+│   ├── 25653.tsv
+│   ├── 25654.tsv
+│   ├── 25728.tsv
+│   ├── 25729.tsv
+│   ├── 25730.tsv
+│   ├── 25731.tsv
+│   ├── 25732.tsv
+│   ├── 25733.tsv
+│   ├── 25734.tsv
+│   ├── 25744.tsv
+│   ├── 25745.tsv
+│   ├── 25748.tsv
+│   ├── 25749.tsv
+│   ├── 25756.tsv
+│   ├── 25760.tsv
+│   ├── 25761.tsv
+│   ├── 25762.tsv
+│   ├── 25763.tsv
+│   ├── 25764.tsv
+│   ├── 25765.tsv
+│   ├── 25766.tsv
+│   ├── 25774.tsv
+│   ├── 25776.tsv
+│   ├── 25777.tsv
+│   ├── 25778.tsv
+│   ├── 25779.tsv
+│   ├── 25780.tsv
+│   ├── 25781.tsv
+│   ├── 25782.tsv
+│   ├── 25873.tsv
+│   ├── 25880.tsv
+│   ├── 25881.tsv
+│   ├── 25882.tsv
+│   ├── 25883.tsv
+│   ├── 25884.tsv
+│   ├── 25885.tsv
+│   ├── 25886.tsv
+│   ├── 25985.tsv
+│   ├── 25989.tsv
+│   ├── 25992.tsv
+│   ├── 25993.tsv
+│   ├── 25994.tsv
+│   ├── 25995.tsv
+│   ├── 25996.tsv
+│   ├── 25998.tsv
+│   ├── 26000.tsv
+│   ├── 26001.tsv
+│   ├── 26003.tsv
+│   ├── 26008.tsv
+│   ├── 26009.tsv
+│   ├── 26010.tsv
+│   ├── 26011.tsv
+│   ├── 26012.tsv
+│   ├── 26013.tsv
+│   ├── 26014.tsv
+│   ├── 26019.tsv
+│   ├── 26026.tsv
+│   ├── 26029.tsv
+│   └── 26030.tsv
+├── relations
+│   ├── 00000.tsv
+│   └── 00001.tsv
+├── sql
+│   ├── nodes_import_000.sql
+│   ├── nodes_import_001.sql
+│   ├── nodes_import_002.sql
+│   ├── nodes_import_003.sql
+│   ├── ways_import_000.sql
+│   ├── ways_import_001.sql
+│   ├── ways_import_002.sql
+│   ├── ways_import_003.sql
+│   ├── y_multipoly_aa.sql
+│   ├── y_multipoly_ab.sql
+│   ├── y_multipoly_ac.sql
+│   ├── y_multipoly_ad.sql
+│   └── y_multipoly_ae.sql
+├── static
+│   ├── database_after_init.sql
+│   ├── database_init.sql
+│   ├── h3_poly.tsv.gz
+│   ├── multipolygon.sql
+│   ├── multipolygon_tables.sql
+│   └── osmium_export.json
+└── ways
+    ├── 16717.tsv
+    ├── 16744.tsv
+    ├── 16745.tsv
+    ├── 16747.tsv
+    ├── 16748.tsv
+    ├── 16749.tsv
+    ├── 25620.tsv
+    ├── 25622.tsv
+    ├── 25634.tsv
+    ├── 25638.tsv
+    ├── 25648.tsv
+    ├── 25649.tsv
+    ├── 25650.tsv
+    ├── 25651.tsv
+    ├── 25652.tsv
+    ├── 25653.tsv
+    ├── 25654.tsv
+    ├── 25728.tsv
+    ├── 25729.tsv
+    ├── 25730.tsv
+    ├── 25731.tsv
+    ├── 25732.tsv
+    ├── 25733.tsv
+    ├── 25734.tsv
+    ├── 25744.tsv
+    ├── 25745.tsv
+    ├── 25748.tsv
+    ├── 25749.tsv
+    ├── 25756.tsv
+    ├── 25760.tsv
+    ├── 25761.tsv
+    ├── 25762.tsv
+    ├── 25763.tsv
+    ├── 25764.tsv
+    ├── 25765.tsv
+    ├── 25766.tsv
+    ├── 25774.tsv
+    ├── 25776.tsv
+    ├── 25777.tsv
+    ├── 25778.tsv
+    ├── 25779.tsv
+    ├── 25780.tsv
+    ├── 25781.tsv
+    ├── 25782.tsv
+    ├── 25873.tsv
+    ├── 25880.tsv
+    ├── 25881.tsv
+    ├── 25882.tsv
+    ├── 25883.tsv
+    ├── 25884.tsv
+    ├── 25886.tsv
+    ├── 25984.tsv
+    ├── 25985.tsv
+    ├── 25989.tsv
+    ├── 25992.tsv
+    ├── 25993.tsv
+    ├── 25994.tsv
+    ├── 25995.tsv
+    ├── 25996.tsv
+    ├── 25998.tsv
+    ├── 26000.tsv
+    ├── 26001.tsv
+    ├── 26003.tsv
+    ├── 26008.tsv
+    ├── 26009.tsv
+    ├── 26010.tsv
+    ├── 26011.tsv
+    ├── 26012.tsv
+    ├── 26013.tsv
+    ├── 26014.tsv
+    ├── 26017.tsv
+    ├── 26019.tsv
+    ├── 26026.tsv
+    ├── 26030.tsv
+    └── 32767.tsv
+
+7 directories, 184 files
+```
+
 ## Run PostGIS and import data:
 ```
 docker run --name postgis14-thailand --memory=12g --memory-swap=12g --memory-swappiness 0 --shm-size=1g -v /home/acc/dev/map/database/thailand:/var/lib/postgresql/data -v /home/acc/dev/map/thailand/thailand-latest_loc_ways:/input -e POSTGRES_PASSWORD=osmworld -e LD_LIBRARY_PATH=/usr/lib/jvm/java-11-openjdk-amd64/lib/server/ -d -p 5432:5432 -p 5005:5005 5d411c3be57f -c checkpoint_timeout='15 min' -c checkpoint_completion_target=0.9 -c shared_buffers='4096 MB' -c wal_buffers=-1 -c bgwriter_delay=200ms -c bgwriter_lru_maxpages=100 -c bgwriter_lru_multiplier=2.0 -c bgwriter_flush_after=0 -c max_wal_size='32768 MB' -c min_wal_size='16384 MB'
