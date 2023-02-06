@@ -1,5 +1,5 @@
 # openstreetmap_h3
-Transform OpenStreetMap World/Region PBF dump into partitioned by [H3 regions](https://h3geo.org) PostGIS pgsnapshot (lossless) OSM schema representation and/or into ArrowIPC/Parquet dumps
+OSM planet dump high performance data loader. Transform OpenStreetMap World/Region PBF dump into partitioned by [H3 regions](https://h3geo.org) PostGIS pgsnapshot (lossless) OSM schema representation and/or into ArrowIPC/Parquet dumps
 
 More details is coming on [PGConf.Russia 2023](https://pgconf.ru/2023) and my blog posts...
 
