@@ -11,6 +11,8 @@ public class CliParameters {
     boolean collectOnlyStat = false;
     @Parameter(names = {"-skip_buildings"}, description = "Skip any ways with 'building' tag")
     boolean skipBuildings = false;
+    @Parameter(names = {"-skip_highway"}, description = "Skip any ways with 'highway' tag")
+    boolean skipHighway = false;
     @Parameter(names = {"-result_in_arrow"}, description = "Save data transforming and enrichment in Apache Arrow format")
     boolean saveArrow = false;
     @Parameter(names = {"-result_in_tsv"}, description = "Save result data in TabSeparatedValue format for PostgreSQL COPY")

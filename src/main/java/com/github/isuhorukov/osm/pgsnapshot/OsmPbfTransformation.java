@@ -167,7 +167,8 @@ public class OsmPbfTransformation {
                             map(entityContainer -> ((WayContainer) entityContainer).getEntity()).map(entity -> {
                             prepareWayData(geometryFactory, csvResultPerH33, binaryWriter,  wkbWriter,
                                     arrowNodeOrWays, wayStat, entity, h3Core,
-                                    parameters.scaleApproximation, parameters.collectOnlyStat, parameters.skipBuildings,
+                                    parameters.scaleApproximation, parameters.collectOnlyStat,
+                                    parameters.skipBuildings, parameters.skipHighway,
                                     coordinateReferenceSystem, parameters.saveArrow, parameters.savePostgresqlTsv);
                                 return null;
                             }).filter(Objects::isNull).count();
@@ -835,10 +836,16 @@ idMetadata.put("max_values", Long.toString(arrowRelations.stream().mapToLong(Arr
                                        List<ArrowNodeOrWay> arrowNodeOrWays,
                                        Map<Short, Stat> wayStat,
                                        org.openstreetmap.osmosis.core.domain.v0_6.Way entity, H3Core h3Core,
-                                       boolean scaleApproximation, boolean collectOnlyStat, boolean skipBuildings,
+                                       boolean scaleApproximation, boolean collectOnlyStat,
+                                       boolean skipBuildings, boolean skipHighway,
                                        CoordinateReferenceSystem coordinateReferenceSystem, boolean saveArrow, boolean savePostgresqlTsv) {
         if(skipBuildings) {
             if(entity.getTags().stream().anyMatch(tag -> "building".equals(tag.getKey()))){
+                return;
+            }
+        }
+        if(skipHighway) {
+            if(entity.getTags().stream().anyMatch(tag -> "highway".equals(tag.getKey()))){
                 return;
             }
         }
