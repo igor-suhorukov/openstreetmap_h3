@@ -11,7 +11,7 @@ CREATE INDEX idx_preimport_multipolygon_relations_id ON preimport_multipolygon_r
 CREATE INDEX idx_preimport_circle_multipolygon_id ON preimport_circle_multipolygon USING btree (id);
 insert into multipolygon select
 CASE WHEN cardinality(h3_3)=1 THEN h3_3[1] ELSE 32767 END h3_3,
-to_short_h3_8(CAST(h3_geo_to_h3((replace(replace(boundingradius,'(','{'),')','}')::text[])[1]::geometry(Geometry,4326),8) as bigint)) h3_8,
+to_short_h3_8(CAST(h3_lat_lng_to_cell((replace(replace(boundingradius,'(','{'),')','}')::text[])[1]::geometry(Geometry,4326)::point,8) as bigint)) h3_8,
 ST_DistanceSpheroid((replace(replace(boundingradius,'(','{'),')','}')::text[])[1]::geometry(Geometry,4326), ST_Point(ST_X((replace(replace(boundingradius,'(','{'),')','}')::text[])[1]::geometry(Geometry,4326)) + (replace(replace(boundingradius,'(','{'),')','}')::text[])[2]::real, ST_Y((replace(replace(boundingradius,'(','{'),')','}')::text[])[1]::geometry(Geometry,4326)), 4326), 'SPHEROID["WGS 84",6378137,298.257223563]') scale,
 tags,
 ST_Envelope(polygon) as bbox,
