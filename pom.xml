@@ -29,7 +29,7 @@
         <dependency>
             <groupId>com.uber</groupId>
             <artifactId>h3</artifactId>
-            <version>4.0.0-rc2</version>
+            <version>4.1.1</version>
         </dependency>
         <dependency>
             <groupId>net.postgis</groupId>
