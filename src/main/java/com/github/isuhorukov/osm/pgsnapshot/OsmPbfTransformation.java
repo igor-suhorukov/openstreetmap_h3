@@ -724,7 +724,7 @@ idMetadata.put("max_values", Long.toString(arrowRelations.stream().mapToLong(Arr
         copyResource("/h3_poly.tsv.gz",new File(staticDir,"h3_poly.tsv.gz"));
         copyResourceWithSubstitute("/database_init.sql",
                 new File(staticDir,"database_init.sql"),
-                columnarStorage? "CREATE EXTENSION citus;\nALTER SYSTEM SET columnar.compression TO 'none';":"");
+                columnarStorage? "CREATE EXTENSION citus;\nALTER SYSTEM SET columnar.compression TO 'none';\nSELECT pg_reload_conf();":"");
         copyResourceWithSubstitute("/multipolygon.sql",new File(staticDir,"multipolygon.sql"),
                 columnarStorage? "USING COLUMNAR":"");
         copyResourceWithSubstitute("/database_after_init.sql",
