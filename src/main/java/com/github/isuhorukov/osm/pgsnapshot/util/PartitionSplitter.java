@@ -99,6 +99,9 @@ public class PartitionSplitter {
     }
 
     public static List<Partition> distributeH33ByPartitionsForWays(Map<Short, Long> waysSizeStat, double thresholdPercentFromMaxPartition){
+        if(waysSizeStat==null || waysSizeStat.isEmpty()){
+            throw new IllegalArgumentException("'Ways' statistics is absent");
+        }
         Map<Short, Partition> h3RangeInH2 = null;
         Map<Short, Short> h33to2 = null;
         try {
