@@ -13,6 +13,8 @@ public class CliParameters {
     boolean skipBuildings = false;
     @Parameter(names = {"-skip_highway"}, description = "Skip any ways with 'highway' tag")
     boolean skipHighway = false;
+    @Parameter(names = {"-preserve_all_nodes"}, description = "Preserve all nodes information in case of 'true' or only nodes with tags or referenced from relations in other case")
+    boolean preserveAllNodes = false;
     @Parameter(names = {"-result_in_arrow"}, description = "Save data transforming and enrichment in Apache Arrow format")
     boolean saveArrow = false;
     @Parameter(names = {"-result_in_tsv"}, description = "Save result data in TabSeparatedValue format for PostgreSQL COPY")

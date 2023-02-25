@@ -94,7 +94,7 @@ public class OsmPbfTransformation {
             throw new IllegalArgumentException("Input pbf should exists and should be non empty");
         }
 
-        Splitter.Blocks blocks =ExternalProcessing.enrichSourcePbfAndSplitIt(sourcePbfFile);
+        Splitter.Blocks blocks =ExternalProcessing.enrichSourcePbfAndSplitIt(sourcePbfFile, parameters.preserveAllNodes);
 
         File inputDirectory = new File(blocks.getDirectory());
         File[] files = inputDirectory.listFiles();

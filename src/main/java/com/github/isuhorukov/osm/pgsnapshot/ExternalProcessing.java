@@ -15,22 +15,6 @@ import java.util.stream.Collectors;
 public class ExternalProcessing {
     public static final String MULTIPOLYGON_SOURCE_TSV = "/multipolygon/source.tsv";
 
-    public static void main(String[] args) throws Exception{
-
-        String sourceFilePath = "/home/iam/dev/map/maldives-latest.osm.pbf";
-
-        File sourcePbfFile = new File(sourceFilePath);
-        Splitter.Blocks blocks = ExternalProcessing.enrichSourcePbfAndSplitIt(sourcePbfFile);
-        System.out.println(blocks.getBlobCount());
-
-        File resultDirectory = new File("/home/iam/dev/map/maldives-latest_loc_ways");
-        int scriptCount  = 4;
-        long multipolygonCount = 1066;
-
-        ExternalProcessing.prepareMultipolygonDataAndScripts(sourcePbfFile, resultDirectory, scriptCount, multipolygonCount);
-
-    }
-
     public static MultipolygonTime prepareMultipolygonDataAndScripts(File sourcePbfFile, File resultDirectory,
                                                                      int scriptCount, long multipolygonCount)
             throws IOException, InterruptedException {
@@ -73,7 +57,8 @@ public class ExternalProcessing {
         }
     }
 
-    public static Splitter.Blocks enrichSourcePbfAndSplitIt(File sourcePbfFile) throws IOException, InterruptedException {
+    public static Splitter.Blocks enrichSourcePbfAndSplitIt(File sourcePbfFile, boolean preserveAllNodes)
+            throws IOException, InterruptedException {
         String basePath = sourcePbfFile.getParent();
         String sourcePbfName= sourcePbfFile.getName();
         String resultPbfName = sourcePbfName.replace(".osm","").replace(".pbf","_loc_ways.pbf");
@@ -88,8 +73,9 @@ public class ExternalProcessing {
         long addLocationStart = System.currentTimeMillis();
         if(!resultPbfNameFile.exists()){
             String enrichCommand="docker run -w /wkd -v "+basePath+":/wkd mschilde/osmium-tool osmium add-locations-to-ways " +
-                    sourcePbfName + " -v --output-format pbf,pbf_compression=none --keep-member-nodes -i " +
-                    indexType + " -o " + resultPbfName;
+                    sourcePbfName + " -v --output-format pbf,pbf_compression=none "+
+                    (preserveAllNodes ? "--keep-untagged-nodes" : "--keep-member-nodes")+
+                    " -i " + indexType + " -o " + resultPbfName;
             runCliCommand(enrichCommand, basePath);
         }
 
