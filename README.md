@@ -74,6 +74,10 @@ Usage: <main class> [options]
     -pg_script_count
       Script count for PostgreSQL parallel COPY
       Default: 4
+    -preserve_all_nodes
+      Preserve all nodes information in case of 'true' or only nodes with tags 
+      or referenced from relations in other case
+      Default: false
     -result_in_arrow
       Save data transforming and enrichment in Apache Arrow format
       Default: false
@@ -85,6 +89,9 @@ Usage: <main class> [options]
       Default: false
     -skip_buildings
       Skip any ways with 'building' tag
+      Default: false
+    -skip_highway
+      Skip any ways with 'highway' tag
       Default: false
     -worker_threads
       Worker threads count for data processing
