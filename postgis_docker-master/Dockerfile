@@ -2,6 +2,7 @@ FROM postgis/postgis:15-3.3
 #citusdata/citus:11.0.3
 RUN apt-get update
 RUN apt-get install -y pgxnclient make pip git postgresql-server-dev-all clang-format clang-tidy g++ zstd
+RUN apt-get update && apt-get install -y python3-requests postgresql-plpython3-${PG_MAJOR} apt-utils
 RUN pip install cmake --upgrade
 RUN pgxn install h3
 
@@ -14,21 +15,21 @@ ADD docker-entrypoint-initdb.d /docker-entrypoint-initdb.d
 
 RUN apt-get install -y openjdk-11-jdk
 RUN git clone https://github.com/pgspider/jdbc_fdw.git /home/jdbc_fwd --branch v0.3.0
-RUN cd /home/jdbc_fwd/ && PATH=/usr/lib/postgresql/14/bin/:$PATH make USE_PGXS=1 clean
+RUN cd /home/jdbc_fwd/ && PATH=/usr/lib/postgresql/15/bin/:$PATH make USE_PGXS=1 clean
 RUN mkdir /usr/lib64
 RUN ln -s /usr/lib/jvm/java-11-openjdk-amd64/lib/server/libjvm.so /usr/lib64/libjvm.so
-RUN cd /home/jdbc_fwd/ && PATH=/usr/lib/postgresql/14/bin/:$PATH make USE_PGXS=1 install
+RUN cd /home/jdbc_fwd/ && PATH=/usr/lib/postgresql/15/bin/:$PATH make USE_PGXS=1 install
 RUN cd / && rm -rf /home/jdbc_fwd/
 
 #LD_LIBRARY_PATH=/usr/lib/jvm/java-11-openjdk-amd64/lib/server/
 RUN cd /home && git clone https://github.com/heterodb/pg-strom.git
-RUN cd /home/pg-strom/arrow-tools && make PG_CONFIG=/usr/lib/postgresql/14/bin/pg_config PROG=pg2arrow install-pg2arrow
+RUN cd /home/pg-strom/arrow-tools && make PG_CONFIG=/usr/lib/postgresql/15/bin/pg_config PROG=pg2arrow install-pg2arrow
 
 #docker build -t postgis_java .
 
 RUN apt-get install -y curl
 RUN curl https://install.citusdata.com/community/deb.sh | bash
 RUN apt-get purge -y --auto-remove curl
-RUN apt-get -y install apt-utils postgresql-15-citus-11.1
+RUN apt-get -y install apt-utils postgresql-15-citus-11.2
 RUN echo "shared_preload_libraries='citus'" >> /usr/share/postgresql/postgresql.conf.sample
 RUN echo "shared_preload_libraries='citus'" >> /var/lib/postgresql/data/postgresql.conf
