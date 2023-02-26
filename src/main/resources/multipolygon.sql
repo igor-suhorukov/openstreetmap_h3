@@ -16,7 +16,7 @@ ST_DistanceSpheroid((replace(replace(boundingradius,'(','{'),')','}')::text[])[1
 tags,
 ST_Envelope(polygon) as bbox,
 p.id,
-(replace(replace(boundingradius,'(','{'),')','}')::text[])[1]::geometry(Point,4326) center,
+(replace(replace(boundingradius,'(','{'),')','}')::text[])[1]::geometry(Point,4326) centre,
 polygon,
 CASE WHEN cardinality(h3_3)>1 THEN h3_3 ELSE null END h3_3_multi_regions
 
