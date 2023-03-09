@@ -17,7 +17,7 @@ public class CliParameters {
     boolean preserveAllNodes = false;
     @Parameter(names = {"-result_in_arrow"}, description = "Save data transforming and enrichment in Apache Arrow format")
     boolean saveArrow = false;
-    @Parameter(names = {"-result_in_tsv"}, description = "Save result data in TabSeparatedValue format for PostgreSQL COPY")
+    @Parameter(names = {"-result_in_tsv"}, arity = 1, description = "Save result data in TabSeparatedValue format for PostgreSQL COPY")
     boolean savePostgresqlTsv = true;
     @Parameter(names = {"-columnar_storage"}, description = "Use columnar storage in PostgreSql tables for nodes/ways/multipolygon")
     boolean columnarStorage = false;

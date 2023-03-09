@@ -289,13 +289,13 @@ public class OsmPbfTransformation {
         System.out.println("multipolygon count "+ multipolygonCount);
 
 
-        if(!parameters.collectOnlyStat) {
+        if(!parameters.collectOnlyStat && parameters.savePostgresqlTsv) {
             savePartitioningScripts(resultDirectory, parameters.scriptCount,
                     parameters.thresholdPercentFromMaxPartition, blockStatistics, parameters.columnarStorage);
         }
 
         MultipolygonTime multipolygonTime = new MultipolygonTime(); //multipolygonCount calculation is only one reason why this generator at the end of process
-        if(!parameters.collectOnlyStat) {
+        if(!parameters.collectOnlyStat && parameters.savePostgresqlTsv) {
             multipolygonTime = ExternalProcessing.prepareMultipolygonDataAndScripts(sourcePbfFile,
                     resultDirectory, parameters.scriptCount, multipolygonCount);
         }
