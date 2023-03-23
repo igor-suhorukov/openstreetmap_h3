@@ -18,6 +18,8 @@ import net.postgis.jdbc.geometry.LinearRing;
 import net.postgis.jdbc.geometry.Point;
 import net.postgis.jdbc.geometry.Polygon;
 import net.postgis.jdbc.geometry.binary.BinaryWriter;
+import org.apache.arrow.c.ArrowArrayStream;
+import org.apache.arrow.c.Data;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
@@ -27,12 +29,14 @@ import org.apache.arrow.vector.complex.MapVector;
 import org.apache.arrow.vector.complex.impl.UnionListWriter;
 import org.apache.arrow.vector.complex.impl.UnionMapWriter;
 import org.apache.arrow.vector.ipc.ArrowFileWriter;
+import org.apache.arrow.vector.ipc.ArrowReader;
 import org.apache.arrow.vector.types.FloatingPointPrecision;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.commons.io.IOUtils;
+import org.duckdb.DuckDBConnection;
 import org.geotools.geometry.jts.JTS;
 import org.geotools.referencing.CRS;
 import org.h2gis.functions.spatial.properties.ST_IsClosed;
@@ -57,6 +61,9 @@ import org.openstreetmap.osmosis.pgsnapshot.v0_6.impl.MemberTypeValueMapper;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -242,10 +249,12 @@ public class OsmPbfTransformation {
                             if(parameters.saveArrow){
                                 long startSaveTime = System.currentTimeMillis();
                                 if(!arrowNodeOrWays.isEmpty()){
-                                    saveArrowNodesOrWays(arrowNodeOrWays, blockNumber, new File(resultDirectory,ARROW_DIR));
+                                    saveArrowNodesOrWays(arrowNodeOrWays, blockNumber,
+                                            new File(resultDirectory,ARROW_DIR), parameters.arrowFormat);
                                 }
                                 if(!arrowRelations.isEmpty()){
-                                    saveArrowRelations(arrowRelations, blockNumber, new File(resultDirectory, ARROW_DIR));
+                                    saveArrowRelations(arrowRelations, blockNumber,
+                                            new File(resultDirectory, ARROW_DIR), parameters.arrowFormat);
                                 }
                                 blockStatistic.setSaveTime(System.currentTimeMillis()-startSaveTime);
                             }
@@ -329,7 +338,8 @@ public class OsmPbfTransformation {
         return parameters;
     }
 
-    private static void saveArrowRelations(ArrayList<ArrowRelation> arrowRelations,  Long blockNumber, File resultDirectory) {
+    private static void saveArrowRelations(ArrayList<ArrowRelation> arrowRelations,  Long blockNumber,
+                                           File resultDirectory, ArrowFormat arrowFormat) {
         if(arrowRelations==null || arrowRelations.isEmpty()){
             return;
         }
@@ -397,22 +407,27 @@ public class OsmPbfTransformation {
                 memberRoleVector.setValueCount(arrowRelations.size());
                 mapWriter.setValueCount(arrowRelations.size());
                 vectorSchemaRoot.setRowCount(arrowRelations.size());
-                try (
-                        FileOutputStream fileOutputStream = new FileOutputStream(new File(resultDirectory, String.format("%s/%08d.arrow", RELATIONS_DIR, blockNumber)));
-                        ArrowFileWriter writer = new ArrowFileWriter(vectorSchemaRoot, null,  fileOutputStream.getChannel())
-                ) {
-                    writer.start();
-                    writer.writeBatch();
-                    writer.end();
-                } catch (IOException e) {
-                    e.printStackTrace();
+                String fileName = String.format("%s/%08d", RELATIONS_DIR, blockNumber);
+                switch (arrowFormat){
+                    case PARQUET:
+                        saveParquet(resultDirectory, allocator, vectorSchemaRoot, fileName);
+                        break;
+                    case ARROW_IPC:
+                        saveArrowIPC(resultDirectory, vectorSchemaRoot, fileName);
+                        break;
+                    default:
+                        throw new IllegalArgumentException(arrowFormat.name());
                 }
             }
-
+        } catch (Throwable e){
+            System.out.println("block "+blockNumber+" "+e.getMessage());
+            e.printStackTrace();
+            System.exit(-1);
         }
     }
 
-    private static void saveArrowNodesOrWays(ArrayList<ArrowNodeOrWay> arrowNodeOrWays, Long blockNumber, File resultDirectory) {
+    private static void saveArrowNodesOrWays(ArrayList<ArrowNodeOrWay> arrowNodeOrWays, Long blockNumber,
+                                             File resultDirectory, ArrowFormat arrowFormat) {
         if(arrowNodeOrWays ==null || arrowNodeOrWays.isEmpty()){
             return;
         }
@@ -532,24 +547,51 @@ public class OsmPbfTransformation {
                     h38IndexesVector.setValueCount(arrowNodeOrWays.size());
                 }
                 vectorSchemaRoot.setRowCount(arrowNodeOrWays.size());
-                try (
-                        FileOutputStream fileOutputStream = new FileOutputStream(new File(resultDirectory, String.format("%s/%08d.arrow",isWays ? WAYS_DIR:NODES_DIR,blockNumber)));
-                        ArrowFileWriter writer = new ArrowFileWriter(vectorSchemaRoot, null, fileOutputStream.getChannel())
-                ) {
-                    writer.start();
-                    writer.writeBatch();
-                    writer.end();
-                    //https://arrow.apache.org/cookbook/java/io.html#writing
-/*                    System.out.println("Record batches written: " + writer.getRecordBlocks().size() +
-                            ". Number of rows written: " + vectorSchemaRoot.getRowCount());*/
-                } catch (IOException e) {
-                    e.printStackTrace();
+
+                String fileName = String.format("%s/%08d", isWays ? WAYS_DIR : NODES_DIR, blockNumber);
+                switch (arrowFormat){
+                    case PARQUET:
+                        saveParquet(resultDirectory, allocator, vectorSchemaRoot, fileName);
+                        break;
+                    case ARROW_IPC:
+                        saveArrowIPC(resultDirectory, vectorSchemaRoot, fileName);
+                        break;
+                    default:
+                        throw new IllegalArgumentException(arrowFormat.name());
+
                 }
+
             }
         } catch (Throwable e){
             System.out.println("block "+blockNumber+" "+e.getMessage());
             e.printStackTrace();
             System.exit(-1);
+        }
+    }
+
+    private static void saveParquet(File resultDirectory, BufferAllocator allocator, VectorSchemaRoot vectorSchemaRoot, String fileName) throws IOException, SQLException {
+        try (ArrowReader reader = RootArrowReader.fromRoot(allocator, vectorSchemaRoot);
+             var arrowArrayStream = ArrowArrayStream.allocateNew(allocator)) {
+            Data.exportArrayStream(allocator, reader, arrowArrayStream);
+            String filePath = resultDirectory.getAbsolutePath()+"/"+ fileName;
+            //JniWrapper.get().writeFromScannerToFile(arrowArrayStream.memoryAddress(),FileFormat.PARQUET.id(), "file://"+filePath, new String[0], 1024, "{i}");
+            try (DuckDBConnection connection = (DuckDBConnection) DriverManager.getConnection("jdbc:duckdb:")){
+                connection.registerArrowStream("arrow_stream", arrowArrayStream);
+                try (Statement preparedStatement = connection.createStatement()){
+                    preparedStatement.executeUpdate("COPY (SELECT * FROM arrow_stream) TO '"+filePath+".parquet' (FORMAT 'PARQUET', CODEC 'ZSTD')");
+                }
+            }
+        }
+    }
+
+    private static void saveArrowIPC(File resultDirectory, VectorSchemaRoot vectorSchemaRoot, String fileName) throws IOException {
+        try (
+                FileOutputStream fileOutputStream = new FileOutputStream(new File(resultDirectory, fileName +".arrow"));
+                ArrowFileWriter writer = new ArrowFileWriter(vectorSchemaRoot, null, fileOutputStream.getChannel())
+        ) {
+            writer.start();
+            writer.writeBatch();
+            writer.end();
         }
     }
 

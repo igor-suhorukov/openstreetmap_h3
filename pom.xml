@@ -11,7 +11,7 @@
     <properties>
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
-        <arrow.version>9.0.0</arrow.version>
+        <arrow.version>11.0.0</arrow.version>
     </properties>
 
     <dependencies>
@@ -51,6 +51,7 @@
             <artifactId>gt-epsg-wkt</artifactId>
             <version>27.0</version>
         </dependency>
+        <!-- https://github.com/opengeospatial/geoparquet/blob/main/format-specs/geoparquet.md -->
         <dependency>
             <groupId>org.apache.arrow</groupId>
             <artifactId>arrow-vector</artifactId>
@@ -60,6 +61,21 @@
             <groupId>org.apache.arrow</groupId>
             <artifactId>arrow-memory-unsafe</artifactId>
             <version>${arrow.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.arrow</groupId>
+            <artifactId>arrow-c-data</artifactId>
+            <version>${arrow.version}</version>
+        </dependency>
+<!--        <dependency>
+            <groupId>org.apache.arrow</groupId>
+            <artifactId>arrow-dataset</artifactId>
+            <version>${arrow.version}</version>
+        </dependency>-->
+        <dependency>
+            <groupId>org.duckdb</groupId>
+            <artifactId>duckdb_jdbc</artifactId>
+            <version>0.7.1</version>
         </dependency>
         <dependency>
             <groupId>com.beust</groupId>
