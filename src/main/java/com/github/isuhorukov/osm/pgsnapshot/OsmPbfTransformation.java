@@ -93,6 +93,9 @@ public class OsmPbfTransformation {
         if (parameters == null){
             return;
         }
+        if(!parameters.isSaveArrow() && !parameters.savePostgresqlTsv){
+            throw new IllegalArgumentException("result_in_tsv or/and arrow_format parameters should be specified");
+        }
         long commandStartTime = System.currentTimeMillis();
 
         String sourceFilePath = parameters.sourceFilePath;
@@ -108,7 +111,7 @@ public class OsmPbfTransformation {
         Arrays.sort(Objects.requireNonNull(files));
         File resultDirectory = prepareResultDirectories(new File(inputDirectory.getParent(),
                                                             resultDirectoryNameFromSource(inputDirectory)),
-                parameters.savePostgresqlTsv, parameters.saveArrow);
+                parameters.savePostgresqlTsv, parameters.isSaveArrow());
 
         copyOsmiumSettings(resultDirectory);
         if(parameters.savePostgresqlTsv) {
@@ -164,7 +167,8 @@ public class OsmPbfTransformation {
                                 filter(entityContainer -> entityContainer instanceof NodeContainer).
                             map(entityContainer -> ((NodeContainer) entityContainer).getEntity()).map(entity -> {
                                 prepareNodeData(csvResultPerH33, binaryWriter, arrowNodeOrWays,
-                                        nodeStat, entity, h3Core, parameters.collectOnlyStat, parameters.saveArrow, parameters.savePostgresqlTsv);
+                                        nodeStat, entity, h3Core, parameters.collectOnlyStat,
+                                        parameters.isSaveArrow(), parameters.savePostgresqlTsv);
                                 return null;
                             }).filter(Objects::isNull).count();
 
@@ -176,7 +180,7 @@ public class OsmPbfTransformation {
                                     arrowNodeOrWays, wayStat, entity, h3Core,
                                     parameters.scaleApproximation, parameters.collectOnlyStat,
                                     parameters.skipBuildings, parameters.skipHighway,
-                                    coordinateReferenceSystem, parameters.saveArrow, parameters.savePostgresqlTsv);
+                                    coordinateReferenceSystem, parameters.isSaveArrow(), parameters.savePostgresqlTsv);
                                 return null;
                             }).filter(Objects::isNull).count();
                         BlockStat blockStatistic = new BlockStat(blockNumber);
@@ -199,7 +203,7 @@ public class OsmPbfTransformation {
                                     }
 
                                     ArrowRelation arrowRelation = null;
-                                    if(parameters.saveArrow){
+                                    if(parameters.isSaveArrow()){
                                         arrowRelation = new ArrowRelation(relationId, TagsUtil.tagsToMap(entity.getTags()));
                                         arrowRelations.add(arrowRelation);
                                     }
@@ -210,7 +214,7 @@ public class OsmPbfTransformation {
                                         long memberId = relationMember.getMemberId();
                                         String memberType = memberTypeValueMapper.getMemberType(relationMember.getMemberType());
                                         String memberRole = relationMember.getMemberRole();
-                                        if(parameters.saveArrow){
+                                        if(parameters.isSaveArrow()){
                                             arrowRelation.getRelationMembers().add(
                                                     new ArrowRelationMember(memberId, memberType.charAt(0), memberRole));
                                         }
@@ -246,7 +250,7 @@ public class OsmPbfTransformation {
                         blockStatistic.setProcessingTime(System.currentTimeMillis()-blockStartTime);
 
                         if(!parameters.collectOnlyStat) {
-                            if(parameters.saveArrow){
+                            if(parameters.isSaveArrow()){
                                 long startSaveTime = System.currentTimeMillis();
                                 if(!arrowNodeOrWays.isEmpty()){
                                     saveArrowNodesOrWays(arrowNodeOrWays, blockNumber,

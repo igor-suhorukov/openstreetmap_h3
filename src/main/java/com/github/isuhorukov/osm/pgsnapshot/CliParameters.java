@@ -15,10 +15,8 @@ public class CliParameters {
     boolean skipHighway = false;
     @Parameter(names = {"-preserve_all_nodes"}, description = "Preserve all nodes information in case of 'true' or only nodes with tags or referenced from relations in other case")
     boolean preserveAllNodes = false;
-    @Parameter(names = {"-result_in_arrow"}, description = "Save data transforming and enrichment by Apache Arrow")
-    boolean saveArrow = false;
-    @Parameter(names = {"-arrow_format"}, description = "Save Arrow data serialization: ARROW_IPC or PARQUET")
-    ArrowFormat arrowFormat = ArrowFormat.ARROW_IPC;
+    @Parameter(names = {"-arrow_format"}, description = "In case of not null parameter save data in Arrow serialization: ARROW_IPC or PARQUET")
+    ArrowFormat arrowFormat;
     @Parameter(names = {"-result_in_tsv"}, arity = 1, description = "Save result data in TabSeparatedValue format for PostgreSQL COPY")
     boolean savePostgresqlTsv = true;
     @Parameter(names = {"-columnar_storage"}, description = "Use columnar storage in PostgreSql tables for nodes/ways/multipolygon")
@@ -31,4 +29,8 @@ public class CliParameters {
     double thresholdPercentFromMaxPartition = 0.48;
     @Parameter(names = "-help", help = true, description = "Information about command line parameters")
     boolean help;
+
+    public boolean isSaveArrow() {
+        return arrowFormat != null;
+    }
 }
