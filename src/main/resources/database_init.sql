@@ -85,7 +85,7 @@ CREATE TABLE multipolygon(
     tags hstore,
     bbox geometry(POLYGON,4326) NOT NULL,
     id bigint NOT NULL,
-    center geometry(Point,4326) NOT NULL,
+    centre geometry(Point,4326) NOT NULL,
     polygon geometry(MULTIPOLYGON,4326) NOT NULL,
     h3_3_multi_regions smallint[]
 ) PARTITION BY RANGE (h3_3);

@@ -7,6 +7,9 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.Statement;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -14,22 +17,6 @@ import java.util.stream.Collectors;
 
 public class ExternalProcessing {
     public static final String MULTIPOLYGON_SOURCE_TSV = "/multipolygon/source.tsv";
-
-    public static void main(String[] args) throws Exception{
-
-        String sourceFilePath = "/home/iam/dev/map/maldives-latest.osm.pbf";
-
-        File sourcePbfFile = new File(sourceFilePath);
-        Splitter.Blocks blocks = ExternalProcessing.enrichSourcePbfAndSplitIt(sourcePbfFile);
-        System.out.println(blocks.getBlobCount());
-
-        File resultDirectory = new File("/home/iam/dev/map/maldives-latest_loc_ways");
-        int scriptCount  = 4;
-        long multipolygonCount = 1066;
-
-        ExternalProcessing.prepareMultipolygonDataAndScripts(sourcePbfFile, resultDirectory, scriptCount, multipolygonCount);
-
-    }
 
     public static MultipolygonTime prepareMultipolygonDataAndScripts(File sourcePbfFile, File resultDirectory,
                                                                      int scriptCount, long multipolygonCount)
@@ -40,9 +27,10 @@ public class ExternalProcessing {
         String resultDirName = resultDirectory.getName();
         String basePath = resultDirectory.getParent();
         String indexType = getIndexType(sourcePbfFile);
-        String multipolygonCommand = "docker run -w /wkd -v "+basePath+":/wkd mschilde/osmium-tool osmium export  -e --config=" + resultDirName + "/static/osmium_export.json --fsync -i "+indexType+" --geometry-types polygon  -v -f pg -x tags_type=hstore " + sourcePbfFile.getName() + " -o " + (resultDirName + MULTIPOLYGON_SOURCE_TSV);
         long osmiumExportStart = System.currentTimeMillis();
-        runCliCommand(multipolygonCommand, basePath);
+        executeMultipolygonExport(sourcePbfFile, resultDirName, basePath, indexType);
+        transformMultipolygonToParquet(resultDirectory);
+
         multipolygonTime.setMultipolygonExportTime(System.currentTimeMillis()-osmiumExportStart);
 
         long partSize = multipolygonCount / scriptCount +1;
@@ -60,6 +48,24 @@ public class ExternalProcessing {
         return multipolygonTime;
     }
 
+    public static void transformMultipolygonToParquet(File resultDirectory) {
+        try (Connection connection = DriverManager.getConnection("jdbc:duckdb:");
+             Statement statement = connection.createStatement();){
+            statement.executeUpdate("COPY (SELECT  column2 id, column0 wkb_hex," + //todo wait for from_hex from https://github.com/duckdb/duckdb/commits/master/test/sql/function/string/hex.test
+                    "'{'||replace(column3,'\"=>\"','\":\"')||'}' tags_json FROM read_csv_auto('"
+                        + resultDirectory.getAbsolutePath()+MULTIPOLYGON_SOURCE_TSV+
+                    "', HEADER=false) where column1='relation') TO '"
+                    + resultDirectory.getAbsolutePath()+"/arrow/multipolygon.parquet' (FORMAT 'PARQUET', CODEC 'ZSTD')");
+        } catch (Exception ex){
+            throw new RuntimeException(ex);
+        }
+    }
+
+    public static void executeMultipolygonExport(File sourcePbfFile, String resultDirName, String basePath, String indexType) throws IOException, InterruptedException {
+        String multipolygonCommand = "docker run -w /wkd -v " + basePath + ":/wkd mschilde/osmium-tool osmium export  -e --config=" + resultDirName + "/static/osmium_export.json --fsync -i " + indexType + " --geometry-types polygon  -v -f pg -x tags_type=hstore " + sourcePbfFile.getName() + " -o " + (resultDirName + MULTIPOLYGON_SOURCE_TSV);
+        runCliCommand(multipolygonCommand, basePath);
+    }
+
     static void generateMultipolygonCopyScripts(String resultDirFullPath) throws IOException {
         List<String> multipolyParts = Arrays.stream(
                 Objects.requireNonNull(new File(resultDirFullPath, "multipolygon").listFiles())).
@@ -73,7 +79,8 @@ public class ExternalProcessing {
         }
     }
 
-    public static Splitter.Blocks enrichSourcePbfAndSplitIt(File sourcePbfFile) throws IOException, InterruptedException {
+    public static Splitter.Blocks enrichSourcePbfAndSplitIt(File sourcePbfFile, boolean preserveAllNodes)
+            throws IOException, InterruptedException {
         String basePath = sourcePbfFile.getParent();
         String sourcePbfName= sourcePbfFile.getName();
         String resultPbfName = sourcePbfName.replace(".osm","").replace(".pbf","_loc_ways.pbf");
@@ -88,8 +95,9 @@ public class ExternalProcessing {
         long addLocationStart = System.currentTimeMillis();
         if(!resultPbfNameFile.exists()){
             String enrichCommand="docker run -w /wkd -v "+basePath+":/wkd mschilde/osmium-tool osmium add-locations-to-ways " +
-                    sourcePbfName + " -v --output-format pbf,pbf_compression=none --keep-member-nodes -i " +
-                    indexType + " -o " + resultPbfName;
+                    sourcePbfName + " -v --output-format pbf,pbf_compression=none "+
+                    (preserveAllNodes ? "--keep-untagged-nodes" : "--keep-member-nodes")+
+                    " -i " + indexType + " -o " + resultPbfName;
             runCliCommand(enrichCommand, basePath);
         }
 
@@ -108,7 +116,7 @@ public class ExternalProcessing {
         }
     }
 
-    private static String getIndexType(File sourcePbfFile) {
+    public static String getIndexType(File sourcePbfFile) {
         long sourceFileLength = sourcePbfFile.length();
         long maxMemory = Runtime.getRuntime().maxMemory();
 

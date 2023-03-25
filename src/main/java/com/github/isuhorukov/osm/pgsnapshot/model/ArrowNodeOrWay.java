@@ -22,6 +22,7 @@ public class ArrowNodeOrWay {
     double bboxMaxY;
     byte[] lineStringWkb;
     int[] h38Indexes;
+    byte[] bboxWkb;
 
     public ArrowNodeOrWay(long id, short h33, int h38, double latitude, double longitude, Collection<Tag> entityTags) {
         this.id = id;
@@ -142,5 +143,13 @@ public class ArrowNodeOrWay {
 
     public int[] getH38Indexes() {
         return h38Indexes;
+    }
+
+    public byte[] getBboxWkb() {
+        return bboxWkb;
+    }
+
+    public void setBboxWkb(byte[] bboxWkb) {
+        this.bboxWkb = bboxWkb;
     }
 }

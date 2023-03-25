@@ -78,9 +78,14 @@ Usage: <main class> [options]
     -pg_script_count
       Script count for PostgreSQL parallel COPY
       Default: 4
-    -result_in_arrow
-      Save data transforming and enrichment in Apache Arrow format
+    -preserve_all_nodes
+      Preserve all nodes information in case of 'true' or only nodes with tags 
+      or referenced from relations in other case
       Default: false
+    -arrow_format
+      In case of not null parameter save Arrow data serialization: ARROW_IPC 
+      or PARQUET
+      Possible Values: [PARQUET, ARROW_IPC]
     -result_in_tsv
       Save result data in TabSeparatedValue format for PostgreSQL COPY
       Default: true
@@ -89,6 +94,9 @@ Usage: <main class> [options]
       Default: false
     -skip_buildings
       Skip any ways with 'building' tag
+      Default: false
+    -skip_highway
+      Skip any ways with 'highway' tag
       Default: false
     -worker_threads
       Worker threads count for data processing

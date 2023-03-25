@@ -18,6 +18,8 @@ import net.postgis.jdbc.geometry.LinearRing;
 import net.postgis.jdbc.geometry.Point;
 import net.postgis.jdbc.geometry.Polygon;
 import net.postgis.jdbc.geometry.binary.BinaryWriter;
+import org.apache.arrow.c.ArrowArrayStream;
+import org.apache.arrow.c.Data;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
@@ -27,12 +29,14 @@ import org.apache.arrow.vector.complex.MapVector;
 import org.apache.arrow.vector.complex.impl.UnionListWriter;
 import org.apache.arrow.vector.complex.impl.UnionMapWriter;
 import org.apache.arrow.vector.ipc.ArrowFileWriter;
+import org.apache.arrow.vector.ipc.ArrowReader;
 import org.apache.arrow.vector.types.FloatingPointPrecision;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.commons.io.IOUtils;
+import org.duckdb.DuckDBConnection;
 import org.geotools.geometry.jts.JTS;
 import org.geotools.referencing.CRS;
 import org.h2gis.functions.spatial.properties.ST_IsClosed;
@@ -57,6 +61,9 @@ import org.openstreetmap.osmosis.pgsnapshot.v0_6.impl.MemberTypeValueMapper;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -86,6 +93,9 @@ public class OsmPbfTransformation {
         if (parameters == null){
             return;
         }
+        if(!parameters.isSaveArrow() && !parameters.savePostgresqlTsv){
+            throw new IllegalArgumentException("result_in_tsv or/and arrow_format parameters should be specified");
+        }
         long commandStartTime = System.currentTimeMillis();
 
         String sourceFilePath = parameters.sourceFilePath;
@@ -94,14 +104,14 @@ public class OsmPbfTransformation {
             throw new IllegalArgumentException("Input pbf should exists and should be non empty");
         }
 
-        Splitter.Blocks blocks =ExternalProcessing.enrichSourcePbfAndSplitIt(sourcePbfFile);
+        Splitter.Blocks blocks =ExternalProcessing.enrichSourcePbfAndSplitIt(sourcePbfFile, parameters.preserveAllNodes);
 
         File inputDirectory = new File(blocks.getDirectory());
         File[] files = inputDirectory.listFiles();
         Arrays.sort(Objects.requireNonNull(files));
         File resultDirectory = prepareResultDirectories(new File(inputDirectory.getParent(),
                                                             resultDirectoryNameFromSource(inputDirectory)),
-                parameters.savePostgresqlTsv, parameters.saveArrow);
+                parameters.savePostgresqlTsv, parameters.isSaveArrow());
 
         copyOsmiumSettings(resultDirectory);
         if(parameters.savePostgresqlTsv) {
@@ -157,7 +167,8 @@ public class OsmPbfTransformation {
                                 filter(entityContainer -> entityContainer instanceof NodeContainer).
                             map(entityContainer -> ((NodeContainer) entityContainer).getEntity()).map(entity -> {
                                 prepareNodeData(csvResultPerH33, binaryWriter, arrowNodeOrWays,
-                                        nodeStat, entity, h3Core, parameters.collectOnlyStat, parameters.saveArrow, parameters.savePostgresqlTsv);
+                                        nodeStat, entity, h3Core, parameters.collectOnlyStat,
+                                        parameters.isSaveArrow(), parameters.savePostgresqlTsv);
                                 return null;
                             }).filter(Objects::isNull).count();
 
@@ -169,7 +180,7 @@ public class OsmPbfTransformation {
                                     arrowNodeOrWays, wayStat, entity, h3Core,
                                     parameters.scaleApproximation, parameters.collectOnlyStat,
                                     parameters.skipBuildings, parameters.skipHighway,
-                                    coordinateReferenceSystem, parameters.saveArrow, parameters.savePostgresqlTsv);
+                                    coordinateReferenceSystem, parameters.isSaveArrow(), parameters.savePostgresqlTsv);
                                 return null;
                             }).filter(Objects::isNull).count();
                         BlockStat blockStatistic = new BlockStat(blockNumber);
@@ -192,7 +203,7 @@ public class OsmPbfTransformation {
                                     }
 
                                     ArrowRelation arrowRelation = null;
-                                    if(parameters.saveArrow){
+                                    if(parameters.isSaveArrow()){
                                         arrowRelation = new ArrowRelation(relationId, TagsUtil.tagsToMap(entity.getTags()));
                                         arrowRelations.add(arrowRelation);
                                     }
@@ -203,7 +214,7 @@ public class OsmPbfTransformation {
                                         long memberId = relationMember.getMemberId();
                                         String memberType = memberTypeValueMapper.getMemberType(relationMember.getMemberType());
                                         String memberRole = relationMember.getMemberRole();
-                                        if(parameters.saveArrow){
+                                        if(parameters.isSaveArrow()){
                                             arrowRelation.getRelationMembers().add(
                                                     new ArrowRelationMember(memberId, memberType.charAt(0), memberRole));
                                         }
@@ -239,13 +250,15 @@ public class OsmPbfTransformation {
                         blockStatistic.setProcessingTime(System.currentTimeMillis()-blockStartTime);
 
                         if(!parameters.collectOnlyStat) {
-                            if(parameters.saveArrow){
+                            if(parameters.isSaveArrow()){
                                 long startSaveTime = System.currentTimeMillis();
                                 if(!arrowNodeOrWays.isEmpty()){
-                                    saveArrowNodesOrWays(arrowNodeOrWays, blockNumber, new File(resultDirectory,ARROW_DIR));
+                                    saveArrowNodesOrWays(arrowNodeOrWays, blockNumber,
+                                            new File(resultDirectory,ARROW_DIR), parameters.arrowFormat);
                                 }
                                 if(!arrowRelations.isEmpty()){
-                                    saveArrowRelations(arrowRelations, blockNumber, new File(resultDirectory, ARROW_DIR));
+                                    saveArrowRelations(arrowRelations, blockNumber,
+                                            new File(resultDirectory, ARROW_DIR), parameters.arrowFormat);
                                 }
                                 blockStatistic.setSaveTime(System.currentTimeMillis()-startSaveTime);
                             }
@@ -289,15 +302,24 @@ public class OsmPbfTransformation {
         System.out.println("multipolygon count "+ multipolygonCount);
 
 
-        if(!parameters.collectOnlyStat) {
+        if(!parameters.collectOnlyStat && parameters.savePostgresqlTsv) {
             savePartitioningScripts(resultDirectory, parameters.scriptCount,
                     parameters.thresholdPercentFromMaxPartition, blockStatistics, parameters.columnarStorage);
         }
 
         MultipolygonTime multipolygonTime = new MultipolygonTime(); //multipolygonCount calculation is only one reason why this generator at the end of process
-        if(!parameters.collectOnlyStat) {
+        if(!parameters.collectOnlyStat && parameters.savePostgresqlTsv) {
             multipolygonTime = ExternalProcessing.prepareMultipolygonDataAndScripts(sourcePbfFile,
                     resultDirectory, parameters.scriptCount, multipolygonCount);
+        } else if(parameters.isSaveArrow()){
+            String resultDirName = resultDirectory.getName();
+            String basePath = resultDirectory.getParent();
+            String indexType = ExternalProcessing.getIndexType(sourcePbfFile);
+            File multipolygonDirectory = checkAndMakeMultipolygonDirectory(resultDirectory);
+            ExternalProcessing.executeMultipolygonExport(sourcePbfFile, resultDirName, basePath, indexType);
+            ExternalProcessing.transformMultipolygonToParquet(resultDirectory);
+            multipolygonDirectory.listFiles()[0].delete();
+            multipolygonDirectory.delete();
         }
         PbfStatistics statistics = new PbfStatistics(blockStatistics);
         statistics.setMultipolygonCount(multipolygonCount);
@@ -329,7 +351,8 @@ public class OsmPbfTransformation {
         return parameters;
     }
 
-    private static void saveArrowRelations(ArrayList<ArrowRelation> arrowRelations,  Long blockNumber, File resultDirectory) {
+    private static void saveArrowRelations(ArrayList<ArrowRelation> arrowRelations,  Long blockNumber,
+                                           File resultDirectory, ArrowFormat arrowFormat) {
         if(arrowRelations==null || arrowRelations.isEmpty()){
             return;
         }
@@ -397,22 +420,27 @@ public class OsmPbfTransformation {
                 memberRoleVector.setValueCount(arrowRelations.size());
                 mapWriter.setValueCount(arrowRelations.size());
                 vectorSchemaRoot.setRowCount(arrowRelations.size());
-                try (
-                        FileOutputStream fileOutputStream = new FileOutputStream(new File(resultDirectory, String.format("%s/%08d.arrow", RELATIONS_DIR, blockNumber)));
-                        ArrowFileWriter writer = new ArrowFileWriter(vectorSchemaRoot, null,  fileOutputStream.getChannel())
-                ) {
-                    writer.start();
-                    writer.writeBatch();
-                    writer.end();
-                } catch (IOException e) {
-                    e.printStackTrace();
+                String fileName = String.format("%s/%08d", RELATIONS_DIR, blockNumber);
+                switch (arrowFormat){
+                    case PARQUET:
+                        saveParquet(resultDirectory, allocator, vectorSchemaRoot, fileName);
+                        break;
+                    case ARROW_IPC:
+                        saveArrowIPC(resultDirectory, vectorSchemaRoot, fileName);
+                        break;
+                    default:
+                        throw new IllegalArgumentException(arrowFormat.name());
                 }
             }
-
+        } catch (Throwable e){
+            System.out.println("block "+blockNumber+" "+e.getMessage());
+            e.printStackTrace();
+            System.exit(-1);
         }
     }
 
-    private static void saveArrowNodesOrWays(ArrayList<ArrowNodeOrWay> arrowNodeOrWays, Long blockNumber, File resultDirectory) {
+    private static void saveArrowNodesOrWays(ArrayList<ArrowNodeOrWay> arrowNodeOrWays, Long blockNumber,
+                                             File resultDirectory, ArrowFormat arrowFormat) {
         if(arrowNodeOrWays ==null || arrowNodeOrWays.isEmpty()){
             return;
         }
@@ -444,6 +472,7 @@ public class OsmPbfTransformation {
                 BitVector highway = null;
                 Float4Vector scale = null;
                 VarBinaryVector lineStringWkb = null;
+                VarBinaryVector bboxWkb = null;
                 ListVector h38IndexesVector = null;
                 Float8Vector bboxMinX = null;
                 Float8Vector bboxMaxX = null;
@@ -460,6 +489,7 @@ public class OsmPbfTransformation {
                     highway = (BitVector) vectorSchemaRoot.getVector("highway");
                     scale = (Float4Vector) vectorSchemaRoot.getVector("scale");
                     lineStringWkb = (VarBinaryVector) vectorSchemaRoot.getVector("lineStringWkb");
+                    bboxWkb = (VarBinaryVector) vectorSchemaRoot.getVector("bboxWkb");
                     h38IndexesVector = (ListVector) vectorSchemaRoot.getVector("h38Indexes");
                     bboxMinX = (Float8Vector) vectorSchemaRoot.getVector("bboxMinX");
                     bboxMaxX = (Float8Vector) vectorSchemaRoot.getVector("bboxMaxX");
@@ -475,6 +505,7 @@ public class OsmPbfTransformation {
                     highway.allocateNew(arrowNodeOrWays.size());
                     scale.allocateNew(arrowNodeOrWays.size());
                     lineStringWkb.allocateNew(1024*1024*10, arrowNodeOrWays.size());
+                    bboxWkb.allocateNew(8000 * 94, arrowNodeOrWays.size());
                     bboxMinX.allocateNew(arrowNodeOrWays.size());
                     bboxMaxX.allocateNew(arrowNodeOrWays.size());
                     bboxMinY.allocateNew(arrowNodeOrWays.size());
@@ -519,6 +550,7 @@ public class OsmPbfTransformation {
                         highway.set(idx, arrowNodeOrWay.isHighway()?1:0);
                         scale.set(idx, arrowNodeOrWay.getScaleDim());
                         lineStringWkb.set(idx, arrowNodeOrWay.getLineStringWkb());
+                        bboxWkb.set(idx, arrowNodeOrWay.getBboxWkb());
                         bboxMinX.set(idx, arrowNodeOrWay.getBboxMinX());
                         bboxMaxX.set(idx, arrowNodeOrWay.getBboxMaxX());
                         bboxMinY.set(idx, arrowNodeOrWay.getBboxMinY());
@@ -532,24 +564,49 @@ public class OsmPbfTransformation {
                     h38IndexesVector.setValueCount(arrowNodeOrWays.size());
                 }
                 vectorSchemaRoot.setRowCount(arrowNodeOrWays.size());
-                try (
-                        FileOutputStream fileOutputStream = new FileOutputStream(new File(resultDirectory, String.format("%s/%08d.arrow",isWays ? WAYS_DIR:NODES_DIR,blockNumber)));
-                        ArrowFileWriter writer = new ArrowFileWriter(vectorSchemaRoot, null, fileOutputStream.getChannel())
-                ) {
-                    writer.start();
-                    writer.writeBatch();
-                    writer.end();
-                    //https://arrow.apache.org/cookbook/java/io.html#writing
-/*                    System.out.println("Record batches written: " + writer.getRecordBlocks().size() +
-                            ". Number of rows written: " + vectorSchemaRoot.getRowCount());*/
-                } catch (IOException e) {
-                    e.printStackTrace();
+
+                String fileName = String.format("%s/%08d", isWays ? WAYS_DIR : NODES_DIR, blockNumber);
+                switch (arrowFormat){
+                    case PARQUET:
+                        saveParquet(resultDirectory, allocator, vectorSchemaRoot, fileName);
+                        break;
+                    case ARROW_IPC:
+                        saveArrowIPC(resultDirectory, vectorSchemaRoot, fileName);
+                        break;
+                    default:
+                        throw new IllegalArgumentException(arrowFormat.name());
                 }
             }
         } catch (Throwable e){
             System.out.println("block "+blockNumber+" "+e.getMessage());
             e.printStackTrace();
             System.exit(-1);
+        }
+    }
+
+    private static void saveParquet(File resultDirectory, BufferAllocator allocator, VectorSchemaRoot vectorSchemaRoot, String fileName) throws IOException, SQLException {
+        try (ArrowReader reader = RootArrowReader.fromRoot(allocator, vectorSchemaRoot);
+             var arrowArrayStream = ArrowArrayStream.allocateNew(allocator)) {
+            Data.exportArrayStream(allocator, reader, arrowArrayStream);
+            String filePath = resultDirectory.getAbsolutePath()+"/"+ fileName;
+            //JniWrapper.get().writeFromScannerToFile(arrowArrayStream.memoryAddress(),FileFormat.PARQUET.id(), "file://"+filePath, new String[0], 1024, "{i}");
+            try (DuckDBConnection connection = (DuckDBConnection) DriverManager.getConnection("jdbc:duckdb:")){
+                connection.registerArrowStream("arrow_stream", arrowArrayStream);
+                try (Statement preparedStatement = connection.createStatement()){
+                    preparedStatement.executeUpdate("COPY (SELECT * FROM arrow_stream) TO '"+filePath+".parquet' (FORMAT 'PARQUET', CODEC 'ZSTD')");
+                }
+            }
+        }
+    }
+
+    private static void saveArrowIPC(File resultDirectory, VectorSchemaRoot vectorSchemaRoot, String fileName) throws IOException {
+        try (
+                FileOutputStream fileOutputStream = new FileOutputStream(new File(resultDirectory, fileName +".arrow"));
+                ArrowFileWriter writer = new ArrowFileWriter(vectorSchemaRoot, null, fileOutputStream.getChannel())
+        ) {
+            writer.start();
+            writer.writeBatch();
+            writer.end();
         }
     }
 
@@ -592,6 +649,7 @@ public class OsmPbfTransformation {
                     , new Field("highway", FieldType.notNullable(new ArrowType.Bool()), null)
                     , new Field("scale", FieldType.notNullable(new ArrowType.FloatingPoint(FloatingPointPrecision.SINGLE)), null)
                     , new Field("lineStringWkb", FieldType.notNullable(new ArrowType.Binary()), null)
+                    , new Field("bboxWkb", FieldType.notNullable(new ArrowType.Binary()), null)
                     , new Field("h38Indexes", FieldType.nullable(new ArrowType.List()), Collections.singletonList(new Field("h38Idx", FieldType.notNullable(new ArrowType.Int(32, true)), null)))
                     , new Field("bboxMinX", FieldType.notNullable(new ArrowType.FloatingPoint(FloatingPointPrecision.DOUBLE)), null)
                     , new Field("bboxMaxX", FieldType.notNullable(new ArrowType.FloatingPoint(FloatingPointPrecision.DOUBLE)), null)
@@ -724,7 +782,7 @@ idMetadata.put("max_values", Long.toString(arrowRelations.stream().mapToLong(Arr
         copyResource("/h3_poly.tsv.gz",new File(staticDir,"h3_poly.tsv.gz"));
         copyResourceWithSubstitute("/database_init.sql",
                 new File(staticDir,"database_init.sql"),
-                columnarStorage? "CREATE EXTENSION citus;\nALTER SYSTEM SET columnar.compression TO 'none';":"");
+                columnarStorage? "CREATE EXTENSION citus;\nALTER SYSTEM SET columnar.compression TO 'none';\nSELECT pg_reload_conf();":"");
         copyResourceWithSubstitute("/multipolygon.sql",new File(staticDir,"multipolygon.sql"),
                 columnarStorage? "USING COLUMNAR":"");
         copyResourceWithSubstitute("/database_after_init.sql",
@@ -757,15 +815,11 @@ idMetadata.put("max_values", Long.toString(arrowRelations.stream().mapToLong(Arr
             if(relationsDir.exists() && relationsDir.list().length>0){
                 throw new IllegalArgumentException("Relations directory contains files "+relationsDir.getAbsolutePath());
             }
-            File multipolygonDir = new File(resultDir, MULTIPOLYGON_DIR);
-            if(multipolygonDir.exists() && multipolygonDir.list().length>0){
-                throw new IllegalArgumentException("Multipolygon directory contains files "+multipolygonDir.getAbsolutePath());
-            }
+            checkAndMakeMultipolygonDirectory(resultDir);
             nodesDir.mkdir();
             waysDir.mkdir();
             relationsDir.mkdir();
             new File(resultDir, SQL_DIR).mkdirs();
-            multipolygonDir.mkdirs();
         }
         new File(resultDir, IMPORT_RELATED_METADATA_DIR).mkdirs();
         if(saveArrow){
@@ -778,6 +832,15 @@ idMetadata.put("max_values", Long.toString(arrowRelations.stream().mapToLong(Arr
         File staticDir = new File(resultDir, STATIC_DIR);
         staticDir.mkdir();
         return resultDir;
+    }
+
+    private static File checkAndMakeMultipolygonDirectory(File resultDir) {
+        File multipolygonDir = new File(resultDir, MULTIPOLYGON_DIR);
+        if(multipolygonDir.exists() && multipolygonDir.list().length>0){
+            throw new IllegalArgumentException("Multipolygon directory contains files "+multipolygonDir.getAbsolutePath());
+        }
+        multipolygonDir.mkdirs();
+        return multipolygonDir;
     }
 
     public static void copyResource(String classpath,File destination) throws IOException{
@@ -921,6 +984,13 @@ idMetadata.put("max_values", Long.toString(arrowRelations.stream().mapToLong(Arr
         final double minY = envelopeInternal.getMinY();
         final double maxX = envelopeInternal.getMaxX() + Double.MIN_VALUE;
         final double maxY = envelopeInternal.getMaxY() + Double.MIN_VALUE;
+        Geometry envelope = geometryFactory.createPolygon(new Coordinate[]{
+                new CoordinateXY(minX, minY),
+                new CoordinateXY(minX, maxY),
+                new CoordinateXY(maxX, maxY),
+                new CoordinateXY(maxX, minY),
+                new CoordinateXY(minX, minY)
+        });
         Polygon bboxGeometry = new Polygon(new LinearRing[] {
                 new LinearRing(new Point[]{
                         new Point(minX, minY),
@@ -1014,6 +1084,7 @@ idMetadata.put("max_values", Long.toString(arrowRelations.stream().mapToLong(Arr
             arrowNodeOrWay.setH38Indexes(wayIntersectionH38Indexes!=null&&!wayIntersectionH38Indexes.isEmpty()?wayIntersectionH38Indexes.stream().mapToInt(Integer::intValue).toArray():null);
             arrowNodeOrWay.setH33Center(CompactH3.serialize3(h3Core.latLngToCell(latitude, longitude, 3)));
             arrowNodeOrWay.setLineStringWkb(wkbWriter.write(currentWayGeometry));
+            arrowNodeOrWay.setBboxWkb(wkbWriter.write(envelope));
         }
         if(savePostgresqlTsv){
             StringBuilder resultBuilder = csvResultPerH33.computeIfAbsent(h33, h33Key -> new StringBuilder());
