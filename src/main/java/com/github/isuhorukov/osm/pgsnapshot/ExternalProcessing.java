@@ -7,6 +7,9 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.Statement;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -24,9 +27,10 @@ public class ExternalProcessing {
         String resultDirName = resultDirectory.getName();
         String basePath = resultDirectory.getParent();
         String indexType = getIndexType(sourcePbfFile);
-        String multipolygonCommand = "docker run -w /wkd -v "+basePath+":/wkd mschilde/osmium-tool osmium export  -e --config=" + resultDirName + "/static/osmium_export.json --fsync -i "+indexType+" --geometry-types polygon  -v -f pg -x tags_type=hstore " + sourcePbfFile.getName() + " -o " + (resultDirName + MULTIPOLYGON_SOURCE_TSV);
         long osmiumExportStart = System.currentTimeMillis();
-        runCliCommand(multipolygonCommand, basePath);
+        executeMultipolygonExport(sourcePbfFile, resultDirName, basePath, indexType);
+        transformMultipolygonToParquet(resultDirectory);
+
         multipolygonTime.setMultipolygonExportTime(System.currentTimeMillis()-osmiumExportStart);
 
         long partSize = multipolygonCount / scriptCount +1;
@@ -42,6 +46,24 @@ public class ExternalProcessing {
 
         generateMultipolygonCopyScripts(resultDirFullPath);
         return multipolygonTime;
+    }
+
+    public static void transformMultipolygonToParquet(File resultDirectory) {
+        try (Connection connection = DriverManager.getConnection("jdbc:duckdb:");
+             Statement statement = connection.createStatement();){
+            statement.executeUpdate("COPY (SELECT  column2 id, column0 wkb_hex," + //todo wait for from_hex from https://github.com/duckdb/duckdb/commits/master/test/sql/function/string/hex.test
+                    "'{'||replace(column3,'\"=>\"','\":\"')||'}' tags_json FROM read_csv_auto('"
+                        + resultDirectory.getAbsolutePath()+MULTIPOLYGON_SOURCE_TSV+
+                    "', HEADER=false) where column1='relation') TO '"
+                    + resultDirectory.getAbsolutePath()+"/arrow/multipolygon.parquet' (FORMAT 'PARQUET', CODEC 'ZSTD')");
+        } catch (Exception ex){
+            throw new RuntimeException(ex);
+        }
+    }
+
+    public static void executeMultipolygonExport(File sourcePbfFile, String resultDirName, String basePath, String indexType) throws IOException, InterruptedException {
+        String multipolygonCommand = "docker run -w /wkd -v " + basePath + ":/wkd mschilde/osmium-tool osmium export  -e --config=" + resultDirName + "/static/osmium_export.json --fsync -i " + indexType + " --geometry-types polygon  -v -f pg -x tags_type=hstore " + sourcePbfFile.getName() + " -o " + (resultDirName + MULTIPOLYGON_SOURCE_TSV);
+        runCliCommand(multipolygonCommand, basePath);
     }
 
     static void generateMultipolygonCopyScripts(String resultDirFullPath) throws IOException {
@@ -94,7 +116,7 @@ public class ExternalProcessing {
         }
     }
 
-    private static String getIndexType(File sourcePbfFile) {
+    public static String getIndexType(File sourcePbfFile) {
         long sourceFileLength = sourcePbfFile.length();
         long maxMemory = Runtime.getRuntime().maxMemory();
 

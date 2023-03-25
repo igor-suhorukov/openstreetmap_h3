@@ -311,6 +311,15 @@ public class OsmPbfTransformation {
         if(!parameters.collectOnlyStat && parameters.savePostgresqlTsv) {
             multipolygonTime = ExternalProcessing.prepareMultipolygonDataAndScripts(sourcePbfFile,
                     resultDirectory, parameters.scriptCount, multipolygonCount);
+        } else if(parameters.isSaveArrow()){
+            String resultDirName = resultDirectory.getName();
+            String basePath = resultDirectory.getParent();
+            String indexType = ExternalProcessing.getIndexType(sourcePbfFile);
+            File multipolygonDirectory = checkAndMakeMultipolygonDirectory(resultDirectory);
+            ExternalProcessing.executeMultipolygonExport(sourcePbfFile, resultDirName, basePath, indexType);
+            ExternalProcessing.transformMultipolygonToParquet(resultDirectory);
+            multipolygonDirectory.listFiles()[0].delete();
+            multipolygonDirectory.delete();
         }
         PbfStatistics statistics = new PbfStatistics(blockStatistics);
         statistics.setMultipolygonCount(multipolygonCount);
@@ -806,15 +815,11 @@ idMetadata.put("max_values", Long.toString(arrowRelations.stream().mapToLong(Arr
             if(relationsDir.exists() && relationsDir.list().length>0){
                 throw new IllegalArgumentException("Relations directory contains files "+relationsDir.getAbsolutePath());
             }
-            File multipolygonDir = new File(resultDir, MULTIPOLYGON_DIR);
-            if(multipolygonDir.exists() && multipolygonDir.list().length>0){
-                throw new IllegalArgumentException("Multipolygon directory contains files "+multipolygonDir.getAbsolutePath());
-            }
+            checkAndMakeMultipolygonDirectory(resultDir);
             nodesDir.mkdir();
             waysDir.mkdir();
             relationsDir.mkdir();
             new File(resultDir, SQL_DIR).mkdirs();
-            multipolygonDir.mkdirs();
         }
         new File(resultDir, IMPORT_RELATED_METADATA_DIR).mkdirs();
         if(saveArrow){
@@ -827,6 +832,15 @@ idMetadata.put("max_values", Long.toString(arrowRelations.stream().mapToLong(Arr
         File staticDir = new File(resultDir, STATIC_DIR);
         staticDir.mkdir();
         return resultDir;
+    }
+
+    private static File checkAndMakeMultipolygonDirectory(File resultDir) {
+        File multipolygonDir = new File(resultDir, MULTIPOLYGON_DIR);
+        if(multipolygonDir.exists() && multipolygonDir.list().length>0){
+            throw new IllegalArgumentException("Multipolygon directory contains files "+multipolygonDir.getAbsolutePath());
+        }
+        multipolygonDir.mkdirs();
+        return multipolygonDir;
     }
 
     public static void copyResource(String classpath,File destination) throws IOException{
