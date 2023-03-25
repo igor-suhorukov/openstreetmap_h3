@@ -132,6 +132,13 @@
       "name" : "binary"
     },
     "children" : [ ]
+  },{
+    "name" : "bboxWkb",
+    "nullable" : false,
+    "type" : {
+      "name" : "binary"
+    },
+    "children" : [ ]
   }, {
     "name" : "h38Indexes",
     "nullable" : true,

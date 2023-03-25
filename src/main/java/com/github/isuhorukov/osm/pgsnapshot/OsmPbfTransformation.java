@@ -463,6 +463,7 @@ public class OsmPbfTransformation {
                 BitVector highway = null;
                 Float4Vector scale = null;
                 VarBinaryVector lineStringWkb = null;
+                VarBinaryVector bboxWkb = null;
                 ListVector h38IndexesVector = null;
                 Float8Vector bboxMinX = null;
                 Float8Vector bboxMaxX = null;
@@ -479,6 +480,7 @@ public class OsmPbfTransformation {
                     highway = (BitVector) vectorSchemaRoot.getVector("highway");
                     scale = (Float4Vector) vectorSchemaRoot.getVector("scale");
                     lineStringWkb = (VarBinaryVector) vectorSchemaRoot.getVector("lineStringWkb");
+                    bboxWkb = (VarBinaryVector) vectorSchemaRoot.getVector("bboxWkb");
                     h38IndexesVector = (ListVector) vectorSchemaRoot.getVector("h38Indexes");
                     bboxMinX = (Float8Vector) vectorSchemaRoot.getVector("bboxMinX");
                     bboxMaxX = (Float8Vector) vectorSchemaRoot.getVector("bboxMaxX");
@@ -494,6 +496,7 @@ public class OsmPbfTransformation {
                     highway.allocateNew(arrowNodeOrWays.size());
                     scale.allocateNew(arrowNodeOrWays.size());
                     lineStringWkb.allocateNew(1024*1024*10, arrowNodeOrWays.size());
+                    bboxWkb.allocateNew(8000 * 94, arrowNodeOrWays.size());
                     bboxMinX.allocateNew(arrowNodeOrWays.size());
                     bboxMaxX.allocateNew(arrowNodeOrWays.size());
                     bboxMinY.allocateNew(arrowNodeOrWays.size());
@@ -538,6 +541,7 @@ public class OsmPbfTransformation {
                         highway.set(idx, arrowNodeOrWay.isHighway()?1:0);
                         scale.set(idx, arrowNodeOrWay.getScaleDim());
                         lineStringWkb.set(idx, arrowNodeOrWay.getLineStringWkb());
+                        bboxWkb.set(idx, arrowNodeOrWay.getBboxWkb());
                         bboxMinX.set(idx, arrowNodeOrWay.getBboxMinX());
                         bboxMaxX.set(idx, arrowNodeOrWay.getBboxMaxX());
                         bboxMinY.set(idx, arrowNodeOrWay.getBboxMinY());
@@ -562,9 +566,7 @@ public class OsmPbfTransformation {
                         break;
                     default:
                         throw new IllegalArgumentException(arrowFormat.name());
-
                 }
-
             }
         } catch (Throwable e){
             System.out.println("block "+blockNumber+" "+e.getMessage());
@@ -638,6 +640,7 @@ public class OsmPbfTransformation {
                     , new Field("highway", FieldType.notNullable(new ArrowType.Bool()), null)
                     , new Field("scale", FieldType.notNullable(new ArrowType.FloatingPoint(FloatingPointPrecision.SINGLE)), null)
                     , new Field("lineStringWkb", FieldType.notNullable(new ArrowType.Binary()), null)
+                    , new Field("bboxWkb", FieldType.notNullable(new ArrowType.Binary()), null)
                     , new Field("h38Indexes", FieldType.nullable(new ArrowType.List()), Collections.singletonList(new Field("h38Idx", FieldType.notNullable(new ArrowType.Int(32, true)), null)))
                     , new Field("bboxMinX", FieldType.notNullable(new ArrowType.FloatingPoint(FloatingPointPrecision.DOUBLE)), null)
                     , new Field("bboxMaxX", FieldType.notNullable(new ArrowType.FloatingPoint(FloatingPointPrecision.DOUBLE)), null)
@@ -967,6 +970,13 @@ idMetadata.put("max_values", Long.toString(arrowRelations.stream().mapToLong(Arr
         final double minY = envelopeInternal.getMinY();
         final double maxX = envelopeInternal.getMaxX() + Double.MIN_VALUE;
         final double maxY = envelopeInternal.getMaxY() + Double.MIN_VALUE;
+        Geometry envelope = geometryFactory.createPolygon(new Coordinate[]{
+                new CoordinateXY(minX, minY),
+                new CoordinateXY(minX, maxY),
+                new CoordinateXY(maxX, maxY),
+                new CoordinateXY(maxX, minY),
+                new CoordinateXY(minX, minY)
+        });
         Polygon bboxGeometry = new Polygon(new LinearRing[] {
                 new LinearRing(new Point[]{
                         new Point(minX, minY),
@@ -1060,6 +1070,7 @@ idMetadata.put("max_values", Long.toString(arrowRelations.stream().mapToLong(Arr
             arrowNodeOrWay.setH38Indexes(wayIntersectionH38Indexes!=null&&!wayIntersectionH38Indexes.isEmpty()?wayIntersectionH38Indexes.stream().mapToInt(Integer::intValue).toArray():null);
             arrowNodeOrWay.setH33Center(CompactH3.serialize3(h3Core.latLngToCell(latitude, longitude, 3)));
             arrowNodeOrWay.setLineStringWkb(wkbWriter.write(currentWayGeometry));
+            arrowNodeOrWay.setBboxWkb(wkbWriter.write(envelope));
         }
         if(savePostgresqlTsv){
             StringBuilder resultBuilder = csvResultPerH33.computeIfAbsent(h33, h33Key -> new StringBuilder());
