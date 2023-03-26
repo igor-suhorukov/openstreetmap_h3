@@ -54,7 +54,7 @@ public class ExternalProcessing {
         try (Connection connection = DriverManager.getConnection("jdbc:duckdb:");
              Statement statement = connection.createStatement();){
             statement.executeUpdate("COPY (SELECT  column2 id, column0 wkb_hex," + //todo wait for release version with from_hex from https://github.com/duckdb/duckdb/commits/master/test/sql/function/string/hex.test
-                    "'{'||replace(column3,'\"=>\"','\":\"')||'}' tags_json FROM read_csv_auto('"
+                    "'{'||replace(replace(column3,'\"=>\"','\":\"'),'\\\\','\\')||'}' tags_json FROM read_csv_auto('"
                         + resultDirectory.getAbsolutePath()+MULTIPOLYGON_SOURCE_TSV+
                     "', HEADER=false) where column1='relation') TO '"
                     + resultDirectory.getAbsolutePath()+"/arrow/multipolygon.parquet' (FORMAT 'PARQUET', CODEC 'ZSTD')");
