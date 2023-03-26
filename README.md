@@ -609,6 +609,177 @@ osmworld=# select h3_3, count(*) from ways group by 1 order by 2 desc limit 20;
  25638 |  57296
  25880 |  56838
 (20 rows)
+```
 
+## Apache Parquet export
 
+Parquet export activated with "-arrow_format PARQUET" command line parameter.
+OpenStreetMap H3 also allows you to convert data to Apache Parquet and process it in Hadoop and Apache Spark/Sedona. In this project, it allows you to do the same as osm-parquetizer but with additional data and collected geo coordinates for ways, as well as enriched h3 geo indexes. The files are successfully uploaded to the DuckDB Geo extension, I checked this and I will tell you the details in the publication.
+
+```
+./spark-shell --packages org.apache.sedona:sedona-python-adapter-3.0_2.12:1.3.1-incubating,org.apache.sedona:sedona-viz-3.0_2.12:1.3.1-incubating,org.datasyslab:geotools-wrapper:1.3.0-27.2 --conf spark.sql.extensions=org.apache.sedona.sql.SedonaSqlExtensions
+
+23/03/26 21:36:19 WARN Utils: Your hostname, geohost resolves to a loopback address: 127.0.1.1; using 192.168.0.209 instead (on interface wlp0s20f3)
+23/03/26 21:36:19 WARN Utils: Set SPARK_LOCAL_IP if you need to bind to another address
+WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform (file:/home/geo/dev/tools/spark-3.2.2-bin-hadoop3.2/jars/spark-unsafe_2.12-3.2.2.jar) to constructor java.nio.DirectByteBuffer(long,int)
+WARNING: Please consider reporting this to the maintainers of org.apache.spark.unsafe.Platform
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+:: loading settings :: url = jar:file:/home/geo/dev/tools/spark-3.2.2-bin-hadoop3.2/jars/ivy-2.5.0.jar!/org/apache/ivy/core/settings/ivysettings.xml
+Ivy Default Cache set to: /home/geo/.ivy2/cache
+The jars for the packages stored in: /home/geo/.ivy2/jars
+org.apache.sedona#sedona-python-adapter-3.0_2.12 added as a dependency
+org.apache.sedona#sedona-viz-3.0_2.12 added as a dependency
+org.datasyslab#geotools-wrapper added as a dependency
+:: resolving dependencies :: org.apache.spark#spark-submit-parent-47c49091-20ed-49ad-88f1-026d43baeed8;1.0
+	confs: [default]
+	found org.apache.sedona#sedona-python-adapter-3.0_2.12;1.3.1-incubating in central
+	found org.locationtech.jts#jts-core;1.18.2 in local-m2-cache
+	found org.wololo#jts2geojson;0.16.1 in central
+	found org.apache.sedona#sedona-core-3.0_2.12;1.3.1-incubating in central
+	found org.apache.sedona#sedona-common;1.3.1-incubating in central
+	found org.apache.sedona#sedona-sql-3.0_2.12;1.3.1-incubating in central
+	found org.scala-lang.modules#scala-collection-compat_2.12;2.5.0 in central
+	found org.apache.sedona#sedona-viz-3.0_2.12;1.3.1-incubating in central
+	found org.beryx#awt-color-factory;1.0.0 in central
+	found org.datasyslab#geotools-wrapper;1.3.0-27.2 in central
+:: resolution report :: resolve 275ms :: artifacts dl 11ms
+	:: modules in use:
+	org.apache.sedona#sedona-common;1.3.1-incubating from central in [default]
+	org.apache.sedona#sedona-core-3.0_2.12;1.3.1-incubating from central in [default]
+	org.apache.sedona#sedona-python-adapter-3.0_2.12;1.3.1-incubating from central in [default]
+	org.apache.sedona#sedona-sql-3.0_2.12;1.3.1-incubating from central in [default]
+	org.apache.sedona#sedona-viz-3.0_2.12;1.3.1-incubating from central in [default]
+	org.beryx#awt-color-factory;1.0.0 from central in [default]
+	org.datasyslab#geotools-wrapper;1.3.0-27.2 from central in [default]
+	org.locationtech.jts#jts-core;1.18.2 from local-m2-cache in [default]
+	org.scala-lang.modules#scala-collection-compat_2.12;2.5.0 from central in [default]
+	org.wololo#jts2geojson;0.16.1 from central in [default]
+	---------------------------------------------------------------------
+	|                  |            modules            ||   artifacts   |
+	|       conf       | number| search|dwnlded|evicted|| number|dwnlded|
+	---------------------------------------------------------------------
+	|      default     |   10  |   0   |   0   |   0   ||   10  |   0   |
+	---------------------------------------------------------------------
+:: retrieving :: org.apache.spark#spark-submit-parent-47c49091-20ed-49ad-88f1-026d43baeed8
+	confs: [default]
+	0 artifacts copied, 10 already retrieved (0kB/7ms)
+23/03/26 21:36:19 WARN NativeCodeLoader: Unable to load native-hadoop library for your platform... using builtin-java classes where applicable
+Using Spark's default log4j profile: org/apache/spark/log4j-defaults.properties
+Setting default log level to "WARN".
+To adjust logging level use sc.setLogLevel(newLevel). For SparkR, use setLogLevel(newLevel).
+Spark context Web UI available at http://192.168.0.209:4040
+Spark context available as 'sc' (master = local[*], app id = local-1679855783524).
+Spark session available as 'spark'.
+Welcome to
+      ____              __
+     / __/__  ___ _____/ /__
+    _\ \/ _ \/ _ `/ __/  '_/
+   /___/ .__/\_,_/_/ /_/\_\   version 3.2.2
+      /_/
+         
+Using Scala version 2.12.15 (OpenJDK 64-Bit Server VM, Java 11.0.18)
+Type in expressions to have them evaluated.
+Type :help for more information.
+
+scala> 
+
+scala> val ways = spark.read.parquet("/home/geo/dev/map/phuket3/phuket_loc_ways/arrow/ways/*.parquet")
+ways: org.apache.spark.sql.DataFrame = [id: bigint, h33: smallint ... 17 more fields]
+
+scala> ways.createOrReplaceTempView("ways")
+
+scala> spark.time(sql("select id,h33,tags,ST_SetSRID(ST_GeomFromWKB(lineStringWkb),4326) wkb_str from ways where closed and (tags['building']='school' or (tags['building'] is not null and tags['amenity']='school')) limit 50")).show()
+Time taken: 126 ms
++---------+-----+--------------------+--------------------+                     
+|       id|  h33|                tags|             wkb_str|
++---------+-----+--------------------+--------------------+
+| 31985155|25764|{building -> scho...|LINESTRING (100.5...|
+| 31985189|25764|{building -> scho...|LINESTRING (100.5...|
+| 31985207|25764|{building -> scho...|LINESTRING (100.5...|
+| 31988377|25764|{building -> scho...|LINESTRING (100.5...|
+| 31988502|25764|{amenity -> libra...|LINESTRING (100.5...|
+| 31988658|25764|{building -> scho...|LINESTRING (100.5...|
+| 31988661|25764|{building -> scho...|LINESTRING (100.5...|
+| 31988692|25764|{building -> scho...|LINESTRING (100.5...|
+| 31988865|25764|{building -> scho...|LINESTRING (100.5...|
+| 31989612|25764|{building -> scho...|LINESTRING (100.5...|
+|101939892|25880|{building -> school}|LINESTRING (100.5...|
+|492451660|25880|{building -> school}|LINESTRING (100.5...|
+|492451661|25880|{building -> school}|LINESTRING (100.5...|
+|492451663|25880|{building -> school}|LINESTRING (100.5...|
+|492451668|25880|{building -> school}|LINESTRING (100.5...|
+|492451672|25880|{building -> school}|LINESTRING (100.5...|
+|492483595|25880|{building -> school}|LINESTRING (100.5...|
+|272560749|25764|{building -> scho...|LINESTRING (100.5...|
+|272560751|25764|{building -> scho...|LINESTRING (100.5...|
+|272560753|25764|{building -> scho...|LINESTRING (100.5...|
++---------+-----+--------------------+--------------------+
+only showing top 20 rows
+```
+
+Node:
+```
+scala> spark.read.parquet("/home/geo/arrow/nodes/*.parquet").printSchema
+root                                                                            
+|-- id: long (nullable = true)
+|-- h33: short (nullable = true)
+|-- h38: integer (nullable = true)
+|-- latitude: double (nullable = true)
+|-- longitude: double (nullable = true)
+|-- tags: map (nullable = true)
+|    |-- key: string
+|    |-- value: string (valueContainsNull = true)
+```
+Way:
+```
+scala> spark.read.parquet("/home/geo/arrow/ways/*.parquet").printSchema
+root                                                                            
+|-- id: long (nullable = true)
+|-- h33: short (nullable = true)
+|-- h38: integer (nullable = true)
+|-- latitude: double (nullable = true)
+|-- longitude: double (nullable = true)
+|-- tags: map (nullable = true)
+|    |-- key: string
+|    |-- value: string (valueContainsNull = true)
+|-- pointIdxs: array (nullable = true)
+|    |-- element: long (containsNull = true)
+|-- h33Center: short (nullable = true)
+|-- closed: boolean (nullable = true)
+|-- building: boolean (nullable = true)
+|-- highway: boolean (nullable = true)
+|-- scale: float (nullable = true)
+|-- lineStringWkb: binary (nullable = true)
+|-- bboxWkb: binary (nullable = true)
+|-- h38Indexes: array (nullable = true)
+|    |-- element: integer (containsNull = true)
+|-- bboxMinX: double (nullable = true)
+|-- bboxMaxX: double (nullable = true)
+|-- bboxMinY: double (nullable = true)
+|-- bboxMaxY: double (nullable = true)
+```
+Relation:
+```
+scala> spark.read.parquet("/home/geo/arrow/relations/*.parquet").printSchema
+root
+|-- id: long (nullable = true)
+|-- tags: map (nullable = true)
+|    |-- key: string
+|    |-- value: string (valueContainsNull = true)
+|-- memberId: array (nullable = true)
+|    |-- element: long (containsNull = true)
+|-- memberType: array (nullable = true)
+|    |-- element: byte (containsNull = true)
+|-- memberRole: array (nullable = true)
+|    |-- element: string (containsNull = true)
+```
+Multipolygon:
+```
+scala> spark.read.parquet("/home/geo/arrow/multipolygon.parquet").printSchema
+root
+|-- id: long (nullable = true)
+|-- wkb_hex: string (nullable = true)
+|-- tags_json: string (nullable = true)
 ```
