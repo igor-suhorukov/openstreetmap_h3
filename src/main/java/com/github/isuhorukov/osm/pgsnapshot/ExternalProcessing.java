@@ -19,7 +19,7 @@ public class ExternalProcessing {
     public static final String MULTIPOLYGON_SOURCE_TSV = "/multipolygon/source.tsv";
 
     public static MultipolygonTime prepareMultipolygonDataAndScripts(File sourcePbfFile, File resultDirectory,
-                                                                     int scriptCount, long multipolygonCount)
+                                                                     int scriptCount, long multipolygonCount, boolean saveArrow)
             throws IOException, InterruptedException {
 
         MultipolygonTime multipolygonTime = new MultipolygonTime();
@@ -29,7 +29,9 @@ public class ExternalProcessing {
         String indexType = getIndexType(sourcePbfFile);
         long osmiumExportStart = System.currentTimeMillis();
         executeMultipolygonExport(sourcePbfFile, resultDirName, basePath, indexType);
-        transformMultipolygonToParquet(resultDirectory);
+        if(saveArrow) {
+            transformMultipolygonToParquet(resultDirectory);
+        }
 
         multipolygonTime.setMultipolygonExportTime(System.currentTimeMillis()-osmiumExportStart);
 
@@ -51,7 +53,7 @@ public class ExternalProcessing {
     public static void transformMultipolygonToParquet(File resultDirectory) {
         try (Connection connection = DriverManager.getConnection("jdbc:duckdb:");
              Statement statement = connection.createStatement();){
-            statement.executeUpdate("COPY (SELECT  column2 id, column0 wkb_hex," + //todo wait for from_hex from https://github.com/duckdb/duckdb/commits/master/test/sql/function/string/hex.test
+            statement.executeUpdate("COPY (SELECT  column2 id, column0 wkb_hex," + //todo wait for release version with from_hex from https://github.com/duckdb/duckdb/commits/master/test/sql/function/string/hex.test
                     "'{'||replace(column3,'\"=>\"','\":\"')||'}' tags_json FROM read_csv_auto('"
                         + resultDirectory.getAbsolutePath()+MULTIPOLYGON_SOURCE_TSV+
                     "', HEADER=false) where column1='relation') TO '"

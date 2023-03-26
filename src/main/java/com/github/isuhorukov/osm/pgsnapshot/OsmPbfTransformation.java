@@ -310,7 +310,7 @@ public class OsmPbfTransformation {
         MultipolygonTime multipolygonTime = new MultipolygonTime(); //multipolygonCount calculation is only one reason why this generator at the end of process
         if(!parameters.collectOnlyStat && parameters.savePostgresqlTsv) {
             multipolygonTime = ExternalProcessing.prepareMultipolygonDataAndScripts(sourcePbfFile,
-                    resultDirectory, parameters.scriptCount, multipolygonCount);
+                    resultDirectory, parameters.scriptCount, multipolygonCount, parameters.isSaveArrow());
         } else if(parameters.isSaveArrow()){
             String resultDirName = resultDirectory.getName();
             String basePath = resultDirectory.getParent();
