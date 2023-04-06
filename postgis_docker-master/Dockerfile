@@ -14,7 +14,7 @@ ADD docker-entrypoint-initdb.d /docker-entrypoint-initdb.d
 #https://github.com/pgspider/parquet_s3_fdw
 
 RUN apt-get install -y openjdk-11-jdk
-RUN git clone https://github.com/pgspider/jdbc_fdw.git /home/jdbc_fwd --branch v0.3.0
+RUN git clone https://github.com/pgspider/jdbc_fdw.git /home/jdbc_fwd
 RUN cd /home/jdbc_fwd/ && PATH=/usr/lib/postgresql/15/bin/:$PATH make USE_PGXS=1 clean
 RUN mkdir /usr/lib64
 RUN ln -s /usr/lib/jvm/java-11-openjdk-amd64/lib/server/libjvm.so /usr/lib64/libjvm.so
