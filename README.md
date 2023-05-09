@@ -1,7 +1,7 @@
 # openstreetmap_h3
 OSM planet dump high performance data loader. Transform OpenStreetMap World/Region PBF dump into partitioned by [H3 regions](https://h3geo.org) PostGIS pgsnapshot (lossless) OSM schema representation and/or into ArrowIPC/Parquet dumps [with schema](https://github.com/igor-suhorukov/openstreetmap_h3/tree/master/src/main/resources/schema). "columnar_storage" option activate Citus columnar storage in PostgreSQL to speedup aggregation queries.
 
-More details is coming on [PGConf.Russia 2023](https://pgconf.ru/2023) and my blog posts...
+More details is coming on [PGConf.Russia 2023](https://pgconf.ru/en/2023/345870) and my [blog posts](https://habr.com/ru/articles/717408/)...
 
 ![image](https://user-images.githubusercontent.com/10332206/217207435-0ee000c0-d66c-4c99-9fe2-71dfaf5e5396.png)
 
