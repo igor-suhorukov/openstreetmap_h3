@@ -53,7 +53,7 @@ public class ExternalProcessing {
     public static void transformMultipolygonToParquet(File resultDirectory) {
         try (Connection connection = DriverManager.getConnection("jdbc:duckdb:");
              Statement statement = connection.createStatement();){
-            statement.executeUpdate("COPY (SELECT  column2 id, column0 wkb_hex," + //todo wait for release version with from_hex from https://github.com/duckdb/duckdb/commits/master/test/sql/function/string/hex.test
+            statement.executeUpdate("COPY (SELECT  column2 id, from_hex(column0) wkb," +
                     "'{'||replace(replace(column3,'\"=>\"','\":\"'),'\\\\','\\')||'}' tags_json FROM read_csv('"
                         + resultDirectory.getAbsolutePath()+MULTIPOLYGON_SOURCE_TSV+
                     "', HEADER=false, " +
@@ -62,7 +62,7 @@ public class ExternalProcessing {
                     + resultDirectory.getAbsolutePath()+"/arrow/multipolygon.parquet' (FORMAT 'PARQUET', CODEC 'ZSTD')");
         } catch (Exception ex){
             throw new RuntimeException(ex);
-        } //Invalid Input Error: Error in file "/home/iam/dev/map/north-america/north-america-latest_loc_ways/multipolygon/source.tsv": CSV options could not be auto-detected. Consider setting parser options manually.
+        }
     }
 
     public static void executeMultipolygonExport(File sourcePbfFile, String resultDirName, String basePath, String indexType) throws IOException, InterruptedException {
