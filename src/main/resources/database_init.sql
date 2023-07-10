@@ -10,23 +10,6 @@ ALTER SYSTEM SET enable_partitionwise_aggregate = ON;
 ALTER SYSTEM SET parallel_leader_participation = on;
 SELECT pg_reload_conf();
 
---ALTER SYSTEM SET max_connections = '40';
---ALTER SYSTEM SET shared_buffers = '4GB';
---ALTER SYSTEM SET effective_cache_size = '12GB';
---ALTER SYSTEM SET maintenance_work_mem = '2GB';
---ALTER SYSTEM SET checkpoint_completion_target = '0.9';
---ALTER SYSTEM SET wal_buffers = '16MB';
---ALTER SYSTEM SET default_statistics_target = '500';
---ALTER SYSTEM SET random_page_cost = '1.1';
---ALTER SYSTEM SET effective_io_concurrency = '200';
---ALTER SYSTEM SET work_mem = '13107kB';
---ALTER SYSTEM SET min_wal_size = '4GB';
---ALTER SYSTEM SET max_wal_size = '16GB';
---ALTER SYSTEM SET max_worker_processes = '8';
---ALTER SYSTEM SET max_parallel_workers_per_gather = '4';
---ALTER SYSTEM SET max_parallel_workers = '8';
---ALTER SYSTEM SET max_parallel_maintenance_workers = '4';
-
 \timing on
 
 create database osmworld encoding 'UTF-8';
@@ -77,7 +60,6 @@ CREATE TABLE relation_members (
 );
 --todo ${substitute_columnar}
 
---CREATE TABLE way_nodes (way_id bigint NOT NULL, node_id bigint NOT NULL, sequence_id int NOT NULL, node_h3_3 smallint, way_h3_3 smallint);
 CREATE TABLE multipolygon(
     h3_3 smallint NOT NULL,
     h3_8 integer NOT NULL,
@@ -130,6 +112,11 @@ CREATE FUNCTION to_ha_arrays_text(text) RETURNS text
     IMMUTABLE
     RETURNS NULL ON NULL INPUT;
 
+CREATE OR REPLACE VIEW geometry_global_view AS
+  (select id,h3_3,h3_8,'N' as type,geom as centre,geom as geom, tags from nodes)
+ union all
+  (select id,h3_3,h3_8, 'W' as type,centre,linestring as geom,tags from ways)
+ union all
+  (select id,h3_3,h3_8,'M' as type, centre,polygon as geom,tags from multipolygon);
+
 COMMIT;
---create table nodes_to_way_000   as select n.h3_3, node_id, array_agg(w.id order by w.id) as way_id from ways_000   w,unnest(points) node_id inner join nodes_000 n on n.id=node_id group by 1,2 order by 1,2;
---create table nodes_to_way_32767 as select n.h3_3, node_id, array_agg(w.id order by w.id) as way_id from ways_32767 w,unnest(points) node_id inner join nodes     n on n.id=node_id group by 1,2 order by 1,2;
