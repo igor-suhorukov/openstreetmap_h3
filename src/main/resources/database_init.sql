@@ -112,11 +112,13 @@ CREATE FUNCTION to_ha_arrays_text(text) RETURNS text
     IMMUTABLE
     RETURNS NULL ON NULL INPUT;
 
+CREATE TYPE table_reference AS ENUM ('nodes','ways','multipolygon');
+
 CREATE OR REPLACE VIEW geometry_global_view AS
-  (select id,h3_3,h3_8,'N' as type,geom as centre,geom as geom, tags from nodes)
+  (select id,h3_3,h3_8,'nodes'::table_reference as type,geom as centre,geom as geom, tags from nodes)
  union all
-  (select id,h3_3,h3_8, 'W' as type,centre,linestring as geom,tags from ways)
+  (select id,h3_3,h3_8, 'ways'::table_reference as type,centre,linestring as geom,tags from ways)
  union all
-  (select id,h3_3,h3_8,'M' as type, centre,polygon as geom,tags from multipolygon);
+  (select id,h3_3,h3_8,'multipolygon'::table_reference as type, centre,polygon as geom,tags from multipolygon);
 
 COMMIT;
