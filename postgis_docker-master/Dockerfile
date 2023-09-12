@@ -1,5 +1,5 @@
 FROM postgis/postgis:15-3.3
-#citusdata/citus:11.0.3
+#docker build -t postgres15_postgis .
 RUN apt-get update
 RUN apt-get install -y pgxnclient make pip git postgresql-server-dev-all clang-format clang-tidy g++ zstd
 RUN apt-get update && apt-get install -y python3-requests postgresql-plpython3-${PG_MAJOR} apt-utils
@@ -20,7 +20,6 @@ RUN ln -s /usr/lib/jvm/java-11-openjdk-amd64/lib/server/libjvm.so /usr/lib/x86_6
 RUN cd /home/jdbc_fwd/ && PATH=/usr/lib/postgresql/15/bin/:$PATH make USE_PGXS=1 install
 RUN cd / && rm -rf /home/jdbc_fwd/
 
-#docker build -t postgis_java .
 
 RUN apt-get update
 RUN apt-get install -y curl

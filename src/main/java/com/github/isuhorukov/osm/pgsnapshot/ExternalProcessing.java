@@ -52,7 +52,7 @@ public class ExternalProcessing {
 
     public static void transformMultipolygonToParquet(File resultDirectory) {
         try (Connection connection = DriverManager.getConnection("jdbc:duckdb:");
-             Statement statement = connection.createStatement();){
+             Statement statement = connection.createStatement()){
             statement.executeUpdate("COPY (SELECT  column2 id, from_hex(column0) wkb," +
                     "'{'||replace(replace(column3,'\"=>\"','\":\"'),'\\\\','\\')||'}' tags_json FROM read_csv('"
                         + resultDirectory.getAbsolutePath()+MULTIPOLYGON_SOURCE_TSV+
@@ -65,8 +65,13 @@ public class ExternalProcessing {
         }
     }
 
-    public static void executeMultipolygonExport(File sourcePbfFile, String resultDirName, String basePath, String indexType) throws IOException, InterruptedException {
-        String multipolygonCommand = "docker run -w /wkd -v " + basePath + ":/wkd mschilde/osmium-tool osmium export  -e --config=" + resultDirName + "/static/osmium_export.json --fsync -i " + indexType + " --geometry-types polygon  -v -f pg -x tags_type=hstore " + sourcePbfFile.getName() + " -o " + (resultDirName + MULTIPOLYGON_SOURCE_TSV);
+    public static void executeMultipolygonExport(File sourcePbfFile, String resultDirName, String basePath,
+                                                 String indexType) throws IOException, InterruptedException {
+        String multipolygonCommand = "docker run -w "+basePath+" -v " + basePath + ":" + basePath +
+                " mschilde/osmium-tool osmium export  -e --config=" + resultDirName +
+                "/static/osmium_export.json --fsync -i " + indexType +
+                " --geometry-types polygon  -v -f pg -x tags_type=hstore " + sourcePbfFile.getName() +
+                " -o " + (resultDirName + MULTIPOLYGON_SOURCE_TSV);
         runCliCommand(multipolygonCommand, basePath);
     }
 
@@ -77,7 +82,7 @@ public class ExternalProcessing {
         for(String multipolyPart: multipolyParts){
             String copyCommand = "\\timing on\ncopy preimport_multipolygon FROM '/input/multipolygon/" + multipolyPart + "';";
             try (FileOutputStream copyScriptOutput = new FileOutputStream(String.format("%s/sql/y_multipoly_%s.sql",
-                    resultDirFullPath, multipolyPart.replace("multipolygon_", "")));){
+                    resultDirFullPath, multipolyPart.replace("multipolygon_", "")))){
                 IOUtils.write(copyCommand, copyScriptOutput, StandardCharsets.UTF_8);
             }
         }
@@ -98,7 +103,8 @@ public class ExternalProcessing {
 
         long addLocationStart = System.currentTimeMillis();
         if(!resultPbfNameFile.exists()){
-            String enrichCommand="docker run -w /wkd -v "+basePath+":/wkd mschilde/osmium-tool osmium add-locations-to-ways " +
+            String enrichCommand="docker run -w "+basePath+" -v "+basePath+":"+basePath+
+                    " mschilde/osmium-tool osmium add-locations-to-ways " +
                     sourcePbfName + " -v --output-format pbf,pbf_compression=none "+
                     (preserveAllNodes ? "--keep-untagged-nodes" : "--keep-member-nodes")+
                     " -i " + indexType + " -o " + resultPbfName;
