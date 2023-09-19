@@ -60,6 +60,9 @@ ANALYZE relation_members;
 --CREATE INDEX idx_ways_scale ON ways USING btree (scale);
 --CREATE INDEX idx_ways_h3_8 ON ways USING btree (h3_8);
 --CREATE INDEX idx_ways_linestring ON ways USING gist (linestring);
+--create index idx_nodes_tags on nodes using gin(tags);
+--create index idx_ways_tags on ways using gin(tags);
+--create index idx_multipolygon_tags on multipolygon using gin(tags);
 
 --create index idx_nodes_tags on nodes using gin(tags); Time: 4329236,691 ms (01:12:09,237)`
 
