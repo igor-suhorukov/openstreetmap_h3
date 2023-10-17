@@ -82,11 +82,6 @@ public class OsmPbfTransformation {
     public static final String IMPORT_RELATED_METADATA_DIR = "import_related_metadata";
     public static final String STATIC_DIR = "static";
 
-
-    // /home/iam/dev/map/thailand/thailand-latest.osm.pbf
-    // /home/iam/dev/map/maldives/maldives-latest.osm.pbf
-    // /home/iam/dev/map/planet-220704/planet-220704.osm.pbf
-    // /home/iam/dev/map/indonesia/indonesia-latest.osm.pbf
     public static void main(String[] args) throws Exception{
 
         CliParameters parameters = parseCliArguments(args);
@@ -199,12 +194,12 @@ public class OsmPbfTransformation {
                                     long relationId = entity.getId();
                                     if(parameters.savePostgresqlTsv){
                                         StringBuilder relationCsv = csvResultPerH33.computeIfAbsent((short)0, h33Key -> new StringBuilder());
-                                        Serializer.serializeRelation(relationCsv, relationId, entity.getTags());
+                                        Serializer.serializeRelation(relationCsv, relationId, getTags((entity)));
                                     }
 
                                     ArrowRelation arrowRelation = null;
                                     if(parameters.isSaveArrow()){
-                                        arrowRelation = new ArrowRelation(relationId, TagsUtil.tagsToMap(entity.getTags()));
+                                        arrowRelation = new ArrowRelation(relationId, TagsUtil.tagsToMap(getTags(entity)));
                                         arrowRelations.add(arrowRelation);
                                     }
 
@@ -332,6 +327,20 @@ public class OsmPbfTransformation {
 
         saveStatistics(resultDirectory, statistics);
 
+    }
+
+    private static Collection<Tag> getTags(Entity entity) {
+        Collection<Tag> sourceTags = entity.getTags();
+        if(sourceTags!=null && !sourceTags.isEmpty() && Boolean.getBoolean("udt")){
+            Map<String, String> tags = TagsUtil.tagsToMap(sourceTags);
+            Set<String> detected = new HashSet<>();
+            if(!detected.isEmpty()){
+                ArrayList<Tag> tagList = new ArrayList<>(sourceTags);
+                tagList.addAll(detected.stream().map(s -> new Tag(s, null)).collect(Collectors.toList()));
+                return tagList;
+            }
+        }
+        return sourceTags;
     }
 
     private static CliParameters parseCliArguments(String[] args) {
@@ -883,12 +892,12 @@ idMetadata.put("max_values", Long.toString(arrowRelations.stream().mapToLong(Arr
         if(!collectOnlyStat) {
             int h38 = CompactH3.serialize8(h3Core.latLngToCell(latitude, longitude, 8));
             if(saveArrow) {
-                arrowNodeOrWays.add(new ArrowNodeOrWay(id, h33, h38, latitude, longitude, entity.getTags()));
+                arrowNodeOrWays.add(new ArrowNodeOrWay(id, h33, h38, latitude, longitude, getTags(entity)));
             }
             if(savePostgresqlTsv){
                 StringBuilder resultBuilder = csvResultPerH33.computeIfAbsent(h33, key -> new StringBuilder());
                 Serializer.serializeNode(resultBuilder, binaryWriter,
-                        h33, h38, id, latitude, longitude, entity.getTags());
+                        h33, h38, id, latitude, longitude, getTags(entity));
             }
         }
     }
@@ -1072,7 +1081,7 @@ idMetadata.put("max_values", Long.toString(arrowRelations.stream().mapToLong(Arr
             }
         }
         if(saveArrow){
-            ArrowNodeOrWay arrowNodeOrWay = new ArrowNodeOrWay(id, h33, h38, latitude, longitude, entity.getTags());
+            ArrowNodeOrWay arrowNodeOrWay = new ArrowNodeOrWay(id, h33, h38, latitude, longitude, getTags(entity));
             arrowNodeOrWays.add(arrowNodeOrWay);
             arrowNodeOrWay.setBboxMinX(minX);
             arrowNodeOrWay.setBboxMinY(minY);
@@ -1090,12 +1099,12 @@ idMetadata.put("max_values", Long.toString(arrowRelations.stream().mapToLong(Arr
             StringBuilder resultBuilder = csvResultPerH33.computeIfAbsent(h33, h33Key -> new StringBuilder());
             Serializer.serializeWay(resultBuilder, binaryWriter, closed, nonValid,
                     h33, h38, id, pointsIdx, wayIntersectionH38Indexes,  centre,
-                    scaleDim, bboxGeometry, lineString, entity.getTags());
+                    scaleDim, bboxGeometry, lineString, getTags(entity));
         }
     }
 
     private static void updateSizeStatistictsByTags(Entity entity, Stat stat) {
-        for(Tag tag : entity.getTags()){
+        for(Tag tag : getTags(entity)){
             stat.incrementSize(tag.getKey().length());
             stat.incrementSize(1);
             stat.incrementSize(tag.getValue().length());
