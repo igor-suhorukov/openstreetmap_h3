@@ -81,6 +81,7 @@ public class OsmPbfTransformation {
     public static final String ARROW_DIR = "arrow";
     public static final String IMPORT_RELATED_METADATA_DIR = "import_related_metadata";
     public static final String STATIC_DIR = "static";
+    public static final boolean IS_UDT_ENABLED = Boolean.getBoolean("udt");
 
     public static void main(String[] args) throws Exception{
 
@@ -331,7 +332,7 @@ public class OsmPbfTransformation {
 
     private static Collection<Tag> getTags(Entity entity) {
         Collection<Tag> sourceTags = entity.getTags();
-        if(sourceTags!=null && !sourceTags.isEmpty() && Boolean.getBoolean("udt")){
+        if(sourceTags!=null && !sourceTags.isEmpty() && IS_UDT_ENABLED){
             Map<String, String> tags = TagsUtil.tagsToMap(sourceTags);
             Set<String> detected = new HashSet<>();
             if(!detected.isEmpty()){
