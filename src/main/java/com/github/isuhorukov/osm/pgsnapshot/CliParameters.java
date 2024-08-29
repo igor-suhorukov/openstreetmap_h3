@@ -21,6 +21,8 @@ public class CliParameters {
     boolean savePostgresqlTsv = true;
     @Parameter(names = {"-columnar_storage"}, description = "Use columnar storage in PostgreSql tables for nodes/ways/multipolygon")
     boolean columnarStorage = false;
+    @Parameter(names = {"-osmium_docker"}, description = "Run osmium tool from docker image")
+    boolean invokeDockerCommand = false;
     @Parameter(names = {"-worker_threads"}, description = "Worker threads count for data processing")
     int workers=4;
     @Parameter(names = {"-pg_script_count"}, description = "Script count for PostgreSQL parallel COPY")
