@@ -1,6 +1,7 @@
 package com.github.isuhorukov.osm.pgsnapshot;
 
 import org.apache.commons.io.IOUtils;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.BindMode;
@@ -13,6 +14,7 @@ import org.testcontainers.images.builder.ImageFromDockerfile;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.nio.file.Files;
@@ -29,30 +31,33 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class OsmPbfTransformationTest {
+
+    public static final String TEST_DATA_URL = "https://download.geofabrik.de/asia/maldives-240825.osm.pbf";
+
+    @Test
     void dockerSmokeTest() throws Exception {
-        try (GenericContainer dslContainer = new GenericContainer(
+        try (GenericContainer<?> container = new GenericContainer<>(
                 new ImageFromDockerfile("openstreetmap_h3:1.0", false)
                         .withFileFromPath("Dockerfile", Paths.get("Dockerfile"))
                         .withFileFromPath("pom.xml",Paths.get("pom.xml"))
                         .withFileFromPath("src/main",Paths.get("src/main")))){
 
-            File pbfFile = Files.createTempFile("maldives","240825.osm.pbf").toFile();
-            try (InputStream in = URI.create("https://download.geofabrik.de/asia/maldives-240825.osm.pbf").toURL().openStream();
-                 FileOutputStream out = new FileOutputStream(pbfFile)) {
-                IOUtils.copy(in, out);
-            }
+            String prefix = "maldives";
+            File pbfFile = getFileForTest(prefix, TEST_DATA_URL);
 
-            dslContainer.withWorkingDirectory(pbfFile.getParent());
+            container.withWorkingDirectory(pbfFile.getParent());
 
-            dslContainer.addFileSystemBind(pbfFile.getParent(), pbfFile.getParent(), BindMode.READ_WRITE, SelinuxContext.SHARED);
+            String containerPath = "/input";
+            container.addFileSystemBind(pbfFile.getParent(), containerPath, BindMode.READ_WRITE, SelinuxContext.SHARED);
 
-            dslContainer.setCommand("-source_pbf", pbfFile.getAbsolutePath());
-            dslContainer.start();
+            container.setCommand("-source_pbf", containerPath+"/"+pbfFile.getName());
+            container.start();
+            container.execInContainer("chmod", "-R", "777", containerPath+"/"+prefix+"*");
 
             WaitingConsumer waitingConsumer = new WaitingConsumer();
 
             Consumer<OutputFrame> composedConsumer = new Slf4jLogConsumer(LoggerFactory.getLogger(this.getClass())).andThen(waitingConsumer);
-            dslContainer.followOutput(composedConsumer);
+            container.followOutput(composedConsumer);
 
             waitingConsumer.waitUntil(frame ->
                     frame.getUtf8String().contains("grep $'\\trelation\\t'"), 2, TimeUnit.MINUTES);
@@ -135,13 +140,19 @@ public class OsmPbfTransformationTest {
         }
     }
 
-    @Test
-    void localSmokeTest() throws Exception {
-        File pbfFile = Files.createTempFile("maldives","240825.osm.pbf").toFile();
-        try (InputStream in = URI.create("https://download.geofabrik.de/asia/maldives-240825.osm.pbf").toURL().openStream();
+    @NotNull
+    private static File getFileForTest(String prefix, String url) throws IOException {
+        File pbfFile = Files.createTempFile(prefix,"240825.osm.pbf").toFile();
+        try (InputStream in = URI.create(url).toURL().openStream();
              FileOutputStream out = new FileOutputStream(pbfFile)) {
             IOUtils.copy(in, out);
         }
+        return pbfFile;
+    }
+
+    @Test
+    void localSmokeTest() throws Exception {
+        File pbfFile = getFileForTest("maldives", TEST_DATA_URL);
 
         OsmPbfTransformation.main(new String[]{"-source_pbf", pbfFile.getAbsolutePath(), "-osmium_docker"});
 

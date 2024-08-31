@@ -137,7 +137,7 @@ public class ExternalProcessing {
     }
 
     private static void runCliCommand(String command, String basePath) throws IOException, InterruptedException {
-        Process process = Runtime.getRuntime().exec(command, new String[0], new File(basePath).getParentFile());
+        Process process = Runtime.getRuntime().exec(command, new String[0], new File(basePath));
         int exitCode = process.waitFor();
         System.out.println(IOUtils.toString(process.getInputStream(), StandardCharsets.UTF_8));
         System.out.println(IOUtils.toString(process.getErrorStream(), StandardCharsets.UTF_8));
