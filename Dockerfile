@@ -14,10 +14,13 @@ RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add - && \
     apt-get update && apt-get install -y docker-ce-cli
 
 ADD pom.xml /openstreetmap_h3/pom.xml
-ADD src /openstreetmap_h3/src
-RUN cd /openstreetmap_h3 && mvn package
+ADD src/main /openstreetmap_h3/src/main
+RUN cd /openstreetmap_h3 && mvn package -DskipTests
 RUN mv /openstreetmap_h3/target/osm-to-pgsnapshot-schema-ng-1.0-SNAPSHOT.jar /openstreetmap_h3.jar
 RUN rm -rf /root/.m2/repository && rm -rf /openstreetmap_h3
 
-ENTRYPOINT ["java","-jar","/openstreetmap_h3.jar"]
+COPY --from=mschilde/osmium-tool /usr/bin/osmium /usr/bin/osmium
+COPY --from=mschilde/osmium-tool /usr/lib/x86_64-linux-gnu/* /usr/lib/x86_64-linux-gnu/
+
+ENTRYPOINT ["java","-jar","/openstreetmap_h3.jar","-osmium_docker","false"]
 CMD ["--help"]
