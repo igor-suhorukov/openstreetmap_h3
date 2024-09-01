@@ -100,7 +100,9 @@ public class OsmPbfTransformation {
             throw new IllegalArgumentException("Input pbf should exists and should be non empty");
         }
 
-        Splitter.Blocks blocks =ExternalProcessing.enrichSourcePbfAndSplitIt(sourcePbfFile, parameters.preserveAllNodes);
+        System.out.println(parameters);
+        Splitter.Blocks blocks =ExternalProcessing.enrichSourcePbfAndSplitIt(sourcePbfFile,
+                parameters.preserveAllNodes, parameters.invokeDockerCommand);
 
         File inputDirectory = new File(blocks.getDirectory());
         File[] files = inputDirectory.listFiles();
@@ -306,13 +308,15 @@ public class OsmPbfTransformation {
         MultipolygonTime multipolygonTime = new MultipolygonTime(); //multipolygonCount calculation is only one reason why this generator at the end of process
         if(!parameters.collectOnlyStat && parameters.savePostgresqlTsv) {
             multipolygonTime = ExternalProcessing.prepareMultipolygonDataAndScripts(sourcePbfFile,
-                    resultDirectory, parameters.scriptCount, multipolygonCount, parameters.isSaveArrow());
+                    resultDirectory, parameters.scriptCount, multipolygonCount, parameters.isSaveArrow(),
+                    parameters.invokeDockerCommand);
         } else if(parameters.isSaveArrow()){
             String resultDirName = resultDirectory.getName();
             String basePath = resultDirectory.getParent();
             String indexType = ExternalProcessing.getIndexType(sourcePbfFile);
             File multipolygonDirectory = checkAndMakeMultipolygonDirectory(resultDirectory);
-            ExternalProcessing.executeMultipolygonExport(sourcePbfFile, resultDirName, basePath, indexType);
+            ExternalProcessing.executeMultipolygonExport(sourcePbfFile, resultDirName, basePath, indexType,
+                                                            parameters.invokeDockerCommand);
             ExternalProcessing.transformMultipolygonToParquet(resultDirectory);
             multipolygonDirectory.listFiles()[0].delete();
             multipolygonDirectory.delete();

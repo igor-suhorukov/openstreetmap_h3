@@ -1,6 +1,8 @@
 package com.github.isuhorukov.osm.pgsnapshot;
 
 import com.beust.jcommander.Parameter;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
 
 public class CliParameters {
     @Parameter(names = { "-source_pbf" }, required = true,order = 1,description = "Source path for OpenStreetMap data in PBF format")
@@ -21,6 +23,8 @@ public class CliParameters {
     boolean savePostgresqlTsv = true;
     @Parameter(names = {"-columnar_storage"}, description = "Use columnar storage in PostgreSql tables for nodes/ways/multipolygon")
     boolean columnarStorage = false;
+    @Parameter(names = {"-osmium_docker"}, arity = 1, description = "Run osmium tool from docker image")
+    boolean invokeDockerCommand = true;
     @Parameter(names = {"-worker_threads"}, description = "Worker threads count for data processing")
     int workers=4;
     @Parameter(names = {"-pg_script_count"}, description = "Script count for PostgreSQL parallel COPY")
@@ -32,5 +36,24 @@ public class CliParameters {
 
     public boolean isSaveArrow() {
         return arrowFormat != null;
+    }
+
+    @Override
+    public String toString() {
+        return new ToStringBuilder(this, ToStringStyle.JSON_STYLE)
+                .append("sourceFilePath", sourceFilePath)
+                .append("scaleApproximation", scaleApproximation)
+                .append("collectOnlyStat", collectOnlyStat)
+                .append("skipBuildings", skipBuildings)
+                .append("skipHighway", skipHighway)
+                .append("preserveAllNodes", preserveAllNodes)
+                .append("arrowFormat", arrowFormat)
+                .append("savePostgresqlTsv", savePostgresqlTsv)
+                .append("columnarStorage", columnarStorage)
+                .append("invokeDockerCommand", invokeDockerCommand)
+                .append("workers", workers)
+                .append("scriptCount", scriptCount)
+                .append("thresholdPercentFromMaxPartition", thresholdPercentFromMaxPartition)
+                .toString();
     }
 }

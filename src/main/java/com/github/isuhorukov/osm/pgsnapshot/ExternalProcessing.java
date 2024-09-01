@@ -19,7 +19,8 @@ public class ExternalProcessing {
     public static final String MULTIPOLYGON_SOURCE_TSV = "/multipolygon/source.tsv";
 
     public static MultipolygonTime prepareMultipolygonDataAndScripts(File sourcePbfFile, File resultDirectory,
-                                                                     int scriptCount, long multipolygonCount, boolean saveArrow)
+                                                                     int scriptCount, long multipolygonCount,
+                                                                     boolean saveArrow, boolean invokeDockerCommand)
             throws IOException, InterruptedException {
 
         MultipolygonTime multipolygonTime = new MultipolygonTime();
@@ -28,7 +29,7 @@ public class ExternalProcessing {
         String basePath = resultDirectory.getParent();
         String indexType = getIndexType(sourcePbfFile);
         long osmiumExportStart = System.currentTimeMillis();
-        executeMultipolygonExport(sourcePbfFile, resultDirName, basePath, indexType);
+        executeMultipolygonExport(sourcePbfFile, resultDirName, basePath, indexType, invokeDockerCommand);
         if(saveArrow) {
             transformMultipolygonToParquet(resultDirectory);
         }
@@ -66,9 +67,10 @@ public class ExternalProcessing {
     }
 
     public static void executeMultipolygonExport(File sourcePbfFile, String resultDirName, String basePath,
-                                                 String indexType) throws IOException, InterruptedException {
-        String multipolygonCommand = "docker run -w "+basePath+" -v " + basePath + ":" + basePath +
-                " mschilde/osmium-tool osmium export  -e --config=" + resultDirName +
+                                                 String indexType, boolean invokeDockerCommand) throws IOException, InterruptedException {
+        String multipolygonCommand = (invokeDockerCommand ?
+                ("docker run -w "+basePath+" -v " + basePath + ":" + basePath +
+                " mschilde/osmium-tool "):"")+"/usr/bin/osmium export  -e --config=" + resultDirName +
                 "/static/osmium_export.json --fsync -i " + indexType +
                 " --geometry-types polygon  -v -f pg -x tags_type=hstore " + sourcePbfFile.getName() +
                 " -o " + (resultDirName + MULTIPOLYGON_SOURCE_TSV);
@@ -88,7 +90,8 @@ public class ExternalProcessing {
         }
     }
 
-    public static Splitter.Blocks enrichSourcePbfAndSplitIt(File sourcePbfFile, boolean preserveAllNodes)
+    public static Splitter.Blocks enrichSourcePbfAndSplitIt(File sourcePbfFile, boolean preserveAllNodes,
+                                                            boolean invokeDockerCommand)
             throws IOException, InterruptedException {
         String basePath = sourcePbfFile.getParent();
         String sourcePbfName= sourcePbfFile.getName();
@@ -103,8 +106,8 @@ public class ExternalProcessing {
 
         long addLocationStart = System.currentTimeMillis();
         if(!resultPbfNameFile.exists()){
-            String enrichCommand="docker run -w "+basePath+" -v "+basePath+":"+basePath+
-                    " mschilde/osmium-tool osmium add-locations-to-ways " +
+            String enrichCommand= (invokeDockerCommand? ("docker run -w "+basePath+" -v "+basePath+":"+basePath+
+                    " mschilde/osmium-tool ") : "") +"/usr/bin/osmium add-locations-to-ways " +
                     sourcePbfName + " -v --output-format pbf,pbf_compression=none "+
                     (preserveAllNodes ? "--keep-untagged-nodes" : "--keep-member-nodes")+
                     " -i " + indexType + " -o " + resultPbfName;
@@ -134,7 +137,7 @@ public class ExternalProcessing {
     }
 
     private static void runCliCommand(String command, String basePath) throws IOException, InterruptedException {
-        Process process = Runtime.getRuntime().exec(command, new String[0], new File(basePath).getParentFile());
+        Process process = Runtime.getRuntime().exec(command, new String[0], new File(basePath));
         int exitCode = process.waitFor();
         System.out.println(IOUtils.toString(process.getInputStream(), StandardCharsets.UTF_8));
         System.out.println(IOUtils.toString(process.getErrorStream(), StandardCharsets.UTF_8));
