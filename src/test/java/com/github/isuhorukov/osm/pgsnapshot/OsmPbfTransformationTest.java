@@ -154,7 +154,7 @@ public class OsmPbfTransformationTest {
     void localSmokeTest() throws Exception {
         File pbfFile = getFileForTest("maldives", TEST_DATA_URL);
 
-        OsmPbfTransformation.main(new String[]{"-source_pbf", pbfFile.getAbsolutePath(), "-osmium_docker"});
+        OsmPbfTransformation.main(new String[]{"-source_pbf", pbfFile.getAbsolutePath()});
 
         File[] files = new File(pbfFile.getParent(),
                 pbfFile.getName().replace(".osm.pbf", "_loc_ways")).listFiles();

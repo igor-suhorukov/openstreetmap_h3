@@ -22,5 +22,5 @@ RUN rm -rf /root/.m2/repository && rm -rf /openstreetmap_h3
 COPY --from=mschilde/osmium-tool /usr/bin/osmium /usr/bin/osmium
 COPY --from=mschilde/osmium-tool /usr/lib/x86_64-linux-gnu/* /usr/lib/x86_64-linux-gnu/
 
-ENTRYPOINT ["java","-jar","/openstreetmap_h3.jar"]
+ENTRYPOINT ["java","-jar","/openstreetmap_h3.jar","-osmium_docker","false"]
 CMD ["--help"]

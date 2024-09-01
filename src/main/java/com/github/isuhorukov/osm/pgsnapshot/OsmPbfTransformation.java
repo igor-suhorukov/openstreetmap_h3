@@ -100,6 +100,7 @@ public class OsmPbfTransformation {
             throw new IllegalArgumentException("Input pbf should exists and should be non empty");
         }
 
+        System.out.println(parameters);
         Splitter.Blocks blocks =ExternalProcessing.enrichSourcePbfAndSplitIt(sourcePbfFile,
                 parameters.preserveAllNodes, parameters.invokeDockerCommand);
 
