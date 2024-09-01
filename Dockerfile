@@ -1,7 +1,7 @@
 FROM adoptopenjdk/maven-openjdk11
 
 #build with: docker build -t openstreetmap_h3 .
-#and run it with following command: docker run -it --rm -w $(pwd) -v $(pwd):/$(pwd) -v /var/run/docker.sock:/var/run/docker.sock openstreetmap_h3:latest -source_pbf $(pwd)/your.pbf -result_in_tsv true
+#and run it with following command: docker run -it --rm -w $(pwd) -v $(pwd):/$(pwd) openstreetmap_h3:latest -source_pbf $(pwd)/your.pbf -result_in_tsv true
 
 RUN apt-get update && apt-get install -y \
     apt-transport-https \
