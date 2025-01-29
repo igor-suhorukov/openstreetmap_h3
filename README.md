@@ -793,3 +793,7 @@ root
 |-- wkb_hex: string (nullable = true)
 |-- tags_json: string (nullable = true)
 ```
+
+### Project flowchart diagram
+
+![OsmPbfTransformation](http://www.plantuml.com/plantuml/proxy?cache=no&src=https://raw.githubusercontent.com/igor-suhorukov/openstreetmap_h3/master/OsmPbfTransformation.uml)

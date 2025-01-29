@@ -1,0 +1,65 @@
+@startuml
+start
+
+:Parse CLI Arguments;
+if (Success?) then (yes)
+else (no)
+  :Print Usage;
+  stop
+endif
+
+:Check Input PBF;
+if (Exists & Non-Empty?) then (yes)
+else (no)
+  :Throw Exception;
+  stop
+endif
+
+:Enrich & Split PBF;
+:Prepare Result Directories;
+:Copy Osmium Settings;
+:Copy Resources (if needed);
+
+:Initialize H3Core & Executors;
+
+while (Loop through Block Files) is (yes)
+  :Submit Block Processing Task;
+
+  while (Process Entities) is (yes)
+    if (Is Node?) then (yes)
+      :Prepare Node Data;
+    elseif (Is Way?) then (yes)
+      :Prepare Way Data;
+    elseif (Is Relation?) then (yes)
+      :Prepare Relation Data;
+    else (no)
+      :Skip Entity;
+    endif
+  endwhile (no)
+
+  :Calculate Statistics;
+
+  if (Save Arrow Data?) then (yes)
+    :Save Arrow Data;
+  endif
+
+  if (Save TSV Data?) then (yes)
+    :Save TSV Data;
+  endif
+endwhile (no)
+
+:Shutdown Executors;
+:Calculate Overall Statistics;
+
+if (Save Partitioning Scripts?) then (yes)
+  :Save Partitioning Scripts;
+endif
+
+if (Prepare Multipolygon Data & Scripts?) then (yes)
+  :Prepare Multipolygon Data & Scripts;
+endif
+
+:Save Statistics;
+
+stop
+@enduml
