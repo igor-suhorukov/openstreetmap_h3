@@ -794,6 +794,9 @@ root
 |-- tags_json: string (nullable = true)
 ```
 
+### Use case diagram
+![Usecase](http://www.plantuml.com/plantuml/proxy?cache=no&src=https://raw.githubusercontent.com/igor-suhorukov/openstreetmap_h3/master/Usecase.puml)
+
 ### Project flowchart diagram
 
 ![OsmPbfTransformation](http://www.plantuml.com/plantuml/proxy?cache=no&src=https://raw.githubusercontent.com/igor-suhorukov/openstreetmap_h3/master/OsmPbfTransformation.uml)
