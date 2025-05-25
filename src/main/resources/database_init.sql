@@ -169,5 +169,13 @@ COMMENT ON COLUMN geometry_global_view.type IS 'Type of the original table from 
 COMMENT ON COLUMN geometry_global_view.centre IS 'Geographic center of the geometry, represented as a Point';
 COMMENT ON COLUMN geometry_global_view.geom IS 'Geometry column storing the spatial representation (Point, LineString, or MultiPolygon)';
 COMMENT ON COLUMN geometry_global_view.tags IS 'Hstore column storing key-value pairs for attributes associated with the geometry';
+DO $$
+BEGIN
+    EXECUTE format(
+        'COMMENT ON DATABASE %I IS $$PostgreSQL representation of OpenStreetMap data from OSM dump$$',
+        current_database()
+    );
+END;
+$$;
 
 COMMIT;
