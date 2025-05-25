@@ -28,7 +28,7 @@ RUN echo "shared_preload_libraries='citus'" >> /usr/share/postgresql/postgresql.
 RUN echo "shared_preload_libraries='citus'" >> /var/lib/postgresql/data/postgresql.conf
 
 RUN apt-get install -y wget unzip
-RUN cd /home && git clone https://github.com/alitrack/duckdb_fdw
+RUN cd /home && git clone --depth 1 --branch v1.0.0 https://github.com/alitrack/duckdb_fdw
 RUN cd /home/duckdb_fdw && wget -c https://github.com/duckdb/duckdb/releases/download/v1.0.0/libduckdb-linux-amd64.zip && unzip -o -d . libduckdb-linux-amd64.zip && cp libduckdb.so $(/usr/lib/postgresql/16/bin/pg_config --libdir)
 RUN cd /home/duckdb_fdw &&  make PG_CONFIG=/usr/lib/postgresql/16/bin/pg_config USE_PGXS=1 && make PG_CONFIG=/usr/lib/postgresql/16/bin/pg_config install USE_PGXS=1
 RUN apt-get purge -y --auto-remove wget unzip
