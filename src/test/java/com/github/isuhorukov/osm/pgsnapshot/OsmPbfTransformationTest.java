@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class OsmPbfTransformationTest {
 
-    public static final String TEST_DATA_URL = "https://download.geofabrik.de/asia/maldives-240825.osm.pbf";
+    public static final String TEST_DATA_URL = "https://download.geofabrik.de/asia/maldives-250101.osm.pbf";
 
     @Test
     void dockerSmokeTest() throws Exception {
@@ -90,24 +90,24 @@ public class OsmPbfTransformationTest {
 
         Set<String> dir = Set.of("import_related_metadata", "multipolygon", "nodes", "relations", "sql", "static", "ways");
         assertTrue(Arrays.stream(Objects.requireNonNull(files)).allMatch(file -> dir.contains(file.getName())));
-        assertEquals("32767.tsv 339441\n" +
+        assertEquals("32767.tsv 352459\n" +
                         "24942.tsv 330117\n" +
-                        "24940.tsv 1661967\n" +
-                        "24929.tsv 879626\n" +
-                        "24926.tsv 4454768\n" +
-                        "24924.tsv 3980897\n" +
-                        "24922.tsv 60252\n" +
+                        "24940.tsv 1678431\n" +
+                        "24929.tsv 1148459\n" +
+                        "24926.tsv 4588112\n" +
+                        "24924.tsv 4686054\n" +
+                        "24922.tsv 62979\n" +
                         "24920.tsv 3291\n" +
-                        "24913.tsv 1125913\n" +
-                        "24901.tsv 2931113\n" +
+                        "24913.tsv 1144576\n" +
+                        "24901.tsv 2946252\n" +
                         "24900.tsv 577\n" +
-                        "24899.tsv 4871323\n" +
-                        "24898.tsv 11831359\n" +
-                        "24897.tsv 2504406\n" +
-                        "24896.tsv 2275154\n" +
-                        "24621.tsv 2206646\n" +
-                        "-31636.tsv 1847883\n" +
-                        "-31635.tsv 3166183",
+                        "24899.tsv 4903916\n" +
+                        "24898.tsv 12543046\n" +
+                        "24897.tsv 2637343\n" +
+                        "24896.tsv 2286433\n" +
+                        "24621.tsv 2492893\n" +
+                        "-31636.tsv 1851045\n" +
+                        "-31635.tsv 3173062",
                 Arrays.stream(Objects.requireNonNull(
                                 Arrays.stream(files).filter(file -> "ways".contains(file.getName())).
                                         findFirst().orElse(pbfFile).listFiles())).
@@ -117,32 +117,32 @@ public class OsmPbfTransformationTest {
         assertEquals("24942.tsv 38626\n" +
                         "24940.tsv 176971\n" +
                         "24938.tsv 121\n" +
-                        "24929.tsv 117630\n" +
-                        "24926.tsv 528302\n" +
-                        "24924.tsv 206794\n" +
-                        "24922.tsv 12096\n" +
+                        "24929.tsv 94823\n" +
+                        "24926.tsv 540313\n" +
+                        "24924.tsv 214336\n" +
+                        "24922.tsv 12237\n" +
                         "24920.tsv 363\n" +
                         "24918.tsv 456\n" +
                         "24914.tsv 456\n" +
                         "24913.tsv 79952\n" +
-                        "24901.tsv 308874\n" +
-                        "24899.tsv 235225\n" +
-                        "24898.tsv 546327\n" +
-                        "24897.tsv 111589\n" +
-                        "24896.tsv 134003\n" +
+                        "24901.tsv 308873\n" +
+                        "24899.tsv 237831\n" +
+                        "24898.tsv 671932\n" +
+                        "24897.tsv 112577\n" +
+                        "24896.tsv 120888\n" +
                         "24845.tsv 320\n" +
                         "24841.tsv 684\n" +
                         "24692.tsv 229\n" +
                         "24689.tsv 458\n" +
-                        "24621.tsv 157854\n" +
+                        "24621.tsv 157774\n" +
                         "24620.tsv 229\n" +
                         "24617.tsv 458\n" +
                         "24616.tsv 229\n" +
                         "24609.tsv 685\n" +
                         "24602.tsv 100\n" +
                         "-31640.tsv 369\n" +
-                        "-31636.tsv 30044\n" +
-                        "-31635.tsv 49716",
+                        "-31636.tsv 29278\n" +
+                        "-31635.tsv 42839",
                 Arrays.stream(Objects.requireNonNull(
                                 Arrays.stream(files).filter(file -> "nodes".contains(file.getName())).
                                         findFirst().orElse(pbfFile).listFiles())).
@@ -150,8 +150,8 @@ public class OsmPbfTransformationTest {
                         sorted(Comparator.reverseOrder()).
                         collect(Collectors.joining("\n")));
 
-        assertEquals("00001.tsv 230042\n" +
-                        "00000.tsv 110092",
+        assertEquals("00001.tsv 231770\n" +
+                        "00000.tsv 112888",
                 Arrays.stream(Objects.requireNonNull(
                                 Arrays.stream(files).filter(file -> "relations".contains(file.getName())).
                                         findFirst().orElse(pbfFile).listFiles())).
