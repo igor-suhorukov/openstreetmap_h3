@@ -20,6 +20,9 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.Statement;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Objects;
@@ -30,6 +33,8 @@ import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 public class OsmPbfTransformationTest {
 
@@ -37,6 +42,7 @@ public class OsmPbfTransformationTest {
 
     @Test
     void dockerSmokeTest() throws Exception {
+        assumeFalse(isOsmiumAvailable(), "osmium tool available, preferring localSmokeTest");
         try (GenericContainer<?> container = new GenericContainer<>(
                 new ImageFromDockerfile("openstreetmap_h3:1.0", false)
                         .withFileFromPath("Dockerfile", Paths.get("Dockerfile"))
@@ -51,7 +57,7 @@ public class OsmPbfTransformationTest {
             String containerPath = "/input";
             container.addFileSystemBind(pbfFile.getParent(), containerPath, BindMode.READ_WRITE, SelinuxContext.SHARED);
 
-            container.setCommand("-source_pbf", containerPath+"/"+pbfFile.getName());
+            container.setCommand("-source_pbf", containerPath+"/"+pbfFile.getName(), "-arrow_format", "PARQUET");
             container.start();
             container.execInContainer("chmod", "-R", "777", containerPath+"/"+prefix+"*");
 
@@ -77,20 +83,51 @@ public class OsmPbfTransformationTest {
         return pbfFile;
     }
 
+    @Test
     void localSmokeTest() throws Exception {
+        assumeTrue(isOsmiumAvailable(), "osmium tool not found in PATH");
+
         File pbfFile = getFileForTest("maldives", TEST_DATA_URL);
 
-        OsmPbfTransformation.main(new String[]{"-source_pbf", pbfFile.getAbsolutePath()});
+        OsmPbfTransformation.main(new String[]{"-source_pbf", pbfFile.getAbsolutePath(),
+                "-arrow_format", "PARQUET"});
 
         assertOpenstreetmapH3Result(pbfFile);
+    }
+
+    private static boolean isOsmiumAvailable() {
+        try {
+            return new ProcessBuilder("which", "osmium").start().waitFor() == 0;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private static void assertOpenstreetmapH3Result(File pbfFile) {
         File[] files = new File(pbfFile.getParent(),
                 pbfFile.getName().replace(".osm.pbf", "_loc_ways")).listFiles();
 
-        Set<String> dir = Set.of("import_related_metadata", "multipolygon", "nodes", "relations", "sql", "static", "ways");
+        Set<String> dir = Set.of("import_related_metadata", "multipolygon", "nodes", "relations", "sql", "static", "ways", "arrow");
         assertTrue(Arrays.stream(Objects.requireNonNull(files)).allMatch(file -> dir.contains(file.getName())));
+
+        File arrowDir = Arrays.stream(files).filter(f -> "arrow".equals(f.getName())).findFirst().orElseThrow();
+        File[] arrowEntries = Objects.requireNonNull(arrowDir.listFiles());
+        Set<String> arrowEntryNames = Arrays.stream(arrowEntries).map(File::getName).collect(Collectors.toSet());
+        assertTrue(arrowEntryNames.contains("nodes"));
+        assertTrue(arrowEntryNames.contains("ways"));
+        assertTrue(arrowEntryNames.contains("relations"));
+        assertTrue(arrowEntryNames.contains("multipolygon.parquet"));
+        assertTrue(new File(arrowDir, "multipolygon.parquet").length() > 0);
+        assertTrue(Arrays.stream(Objects.requireNonNull(new File(arrowDir, "nodes").listFiles()))
+                .anyMatch(f -> f.getName().endsWith(".parquet")));
+        assertTrue(Arrays.stream(Objects.requireNonNull(new File(arrowDir, "ways").listFiles()))
+                .anyMatch(f -> f.getName().endsWith(".parquet")));
+        assertTrue(Arrays.stream(Objects.requireNonNull(new File(arrowDir, "relations").listFiles()))
+                .anyMatch(f -> f.getName().endsWith(".parquet")));
+        assertParquetCount(23475, arrowDir + "/nodes/*.parquet");
+        assertParquetCount(63017, arrowDir + "/ways/*.parquet");
+        assertParquetCount(1160,  arrowDir + "/relations/*.parquet");
+        assertParquetCount(1125,  arrowDir + "/multipolygon.parquet");
         assertEquals("32767.tsv 352459\n" +
                         "24942.tsv 330117\n" +
                         "24940.tsv 1678431\n" +
@@ -249,8 +286,78 @@ public class OsmPbfTransformationTest {
                         map(file -> file.getName() + " " + fileMd5(file)).
                         sorted(Comparator.reverseOrder()).
                         collect(Collectors.joining("\n")));
+        File metadataDir = Arrays.stream(files).filter(file -> "import_related_metadata".equals(file.getName())).
+                findFirst().orElseThrow();
+        File blockContentFile = new File(metadataDir, "osm_file_block_content.tsv");
+        assertEquals(9983, blockContentFile.length());
+        assertEquals("afb3fb78fc7d814afcdfe525d4e0c259", fileMd5(blockContentFile));
+        assertEquals("y_multipoly_ae.sql 82\n" +
+                        "y_multipoly_ad.sql 82\n" +
+                        "y_multipoly_ac.sql 82\n" +
+                        "y_multipoly_ab.sql 82\n" +
+                        "y_multipoly_aa.sql 82\n" +
+                        "ways_import_001.sql 1754\n" +
+                        "ways_import_000.sql 1936\n" +
+                        "nodes_import_001.sql 1574\n" +
+                        "nodes_import_000.sql 2369",
+                Arrays.stream(Objects.requireNonNull(
+                                Arrays.stream(files).filter(file -> "sql".equals(file.getName())).
+                                        findFirst().orElseThrow().listFiles())).
+                        map(file -> file.getName() + " " + file.length()).
+                        sorted(Comparator.reverseOrder()).
+                        collect(Collectors.joining("\n")));
+        assertEquals("osmium_export.json 134\n" +
+                        "multipolygon_tables.sql 385\n" +
+                        "multipolygon.sql 2468\n" +
+                        "h3_poly.tsv.gz 3315290\n" +
+                        "database_init.sql 10733\n" +
+                        "database_after_init.sql 7070",
+                Arrays.stream(Objects.requireNonNull(
+                                Arrays.stream(files).filter(file -> "static".equals(file.getName())).
+                                        findFirst().orElseThrow().listFiles())).
+                        map(file -> file.getName() + " " + file.length()).
+                        sorted(Comparator.reverseOrder()).
+                        collect(Collectors.joining("\n")));
+        assertEquals("osmium_export.json c130cbc588a91ee414184f966eb77726\n" +
+                        "multipolygon_tables.sql 8dbbadafcf974eb26456198d118ba3c3\n" +
+                        "multipolygon.sql d67fe37e32a5e382d341ee578c3f1565\n" +
+                        "h3_poly.tsv.gz 680d35581dc024ff1006b22067a96c89\n" +
+                        "database_init.sql 8ff61363b3e45127d0806d77b91f998e\n" +
+                        "database_after_init.sql fb616cf0874c700e291a6a69748b831a",
+                Arrays.stream(Objects.requireNonNull(
+                                Arrays.stream(files).filter(file -> "static".equals(file.getName())).
+                                        findFirst().orElseThrow().listFiles())).
+                        map(file -> file.getName() + " " + fileMd5(file)).
+                        sorted(Comparator.reverseOrder()).
+                        collect(Collectors.joining("\n")));
+        assertEquals("y_multipoly_ae.sql 69b19e380ae4fb5eca7c422d8de3066e\n" +
+                        "y_multipoly_ad.sql 7e2e175b59f5aa2f84dc59bd63fbdc7b\n" +
+                        "y_multipoly_ac.sql 1b66980ed4282ca99fb058a9b830bfb5\n" +
+                        "y_multipoly_ab.sql be4e03275a3a8a39b68f90ada6778c87\n" +
+                        "y_multipoly_aa.sql dc6e8a5c07a2914d0690879beb96eb25\n" +
+                        "ways_import_001.sql 2f8ee956ac6c39ccde6e19e4af7b8b9c\n" +
+                        "ways_import_000.sql 498c35a1886eb6271e55330cdef11f28\n" +
+                        "nodes_import_001.sql e3d794ec9695101e9e9634a13d3d25db\n" +
+                        "nodes_import_000.sql 3ead511186dcb12d401c0a65f336d544",
+                Arrays.stream(Objects.requireNonNull(
+                                Arrays.stream(files).filter(file -> "sql".equals(file.getName())).
+                                        findFirst().orElseThrow().listFiles())).
+                        map(file -> file.getName() + " " + fileMd5(file)).
+                        sorted(Comparator.reverseOrder()).
+                        collect(Collectors.joining("\n")));
 
         assertTrue(pbfFile.delete());
+    }
+
+    private static void assertParquetCount(long expected, String globPath) {
+        try (java.sql.Connection conn = DriverManager.getConnection("jdbc:duckdb:");
+             Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT count(*) FROM '" + globPath + "'")) {
+            rs.next();
+            assertEquals(expected, rs.getLong(1), "row count mismatch for " + globPath);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private static String fileMd5(File file) {

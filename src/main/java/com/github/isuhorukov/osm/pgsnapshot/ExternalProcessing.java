@@ -59,7 +59,7 @@ public class ExternalProcessing {
                         + resultDirectory.getAbsolutePath()+MULTIPOLYGON_SOURCE_TSV+
                     "', HEADER=false, " +
                     "columns=STRUCT_PACK(column0 := 'VARCHAR', column1 := 'VARCHAR', column2 := 'BIGINT', column3 := 'VARCHAR')," +
-                    "delim='\\t',escape='\\\\',quote='',AUTO_DETECT='false') where column1='relation') TO '"
+                    "delim=E'\\t',escape=E'\\\\',quote='',AUTO_DETECT='false') where column1='relation') TO '"
                     + resultDirectory.getAbsolutePath()+"/arrow/multipolygon.parquet' (FORMAT 'PARQUET', CODEC 'ZSTD')");
         } catch (Exception ex){
             throw new RuntimeException(ex);
