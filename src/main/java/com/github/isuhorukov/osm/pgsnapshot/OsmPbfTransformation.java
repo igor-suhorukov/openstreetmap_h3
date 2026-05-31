@@ -51,6 +51,7 @@ import org.openstreetmap.osmosis.core.container.v0_6.NodeContainer;
 import org.openstreetmap.osmosis.core.container.v0_6.RelationContainer;
 import org.openstreetmap.osmosis.core.container.v0_6.WayContainer;
 import org.openstreetmap.osmosis.core.domain.v0_6.Entity;
+import org.openstreetmap.osmosis.core.domain.v0_6.Relation;
 import org.openstreetmap.osmosis.core.domain.v0_6.RelationMember;
 import org.openstreetmap.osmosis.core.domain.v0_6.Tag;
 import org.openstreetmap.osmosis.core.domain.v0_6.WayNode;
@@ -58,6 +59,8 @@ import org.openstreetmap.osmosis.pbf2.v0_6.impl.PbfBlobDecoder;
 import org.openstreetmap.osmosis.pbf2.v0_6.impl.PbfBlobDecoderListener;
 import org.openstreetmap.osmosis.pbf2.v0_6.impl.RawBlob;
 import org.openstreetmap.osmosis.pgsnapshot.v0_6.impl.MemberTypeValueMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -72,6 +75,8 @@ import java.util.stream.Collectors;
 import static java.util.stream.Collectors.toList;
 
 public class OsmPbfTransformation {
+
+    private static final Logger log = LoggerFactory.getLogger(OsmPbfTransformation.class);
 
     public static final String NODES_DIR = "nodes";
     public static final String RELATIONS_DIR = "relations";
@@ -94,13 +99,12 @@ public class OsmPbfTransformation {
         }
         long commandStartTime = System.currentTimeMillis();
 
-        String sourceFilePath = parameters.sourceFilePath;
-        File sourcePbfFile = new File(sourceFilePath);
+        File sourcePbfFile = new File(parameters.sourceFilePath);
         if(!sourcePbfFile.exists() || sourcePbfFile.length()==0){
             throw new IllegalArgumentException("Input pbf should exists and should be non empty");
         }
 
-        System.out.println(parameters);
+        log.info("{}", parameters);
         Splitter.Blocks blocks =ExternalProcessing.enrichSourcePbfAndSplitIt(sourcePbfFile,
                 parameters.preserveAllNodes, parameters.invokeDockerCommand);
 
@@ -127,200 +131,27 @@ public class OsmPbfTransformation {
         Map<Long, BlockStat> blockStat= new ConcurrentHashMap<>();
         AtomicInteger currentBlockToSave= new AtomicInteger(0);
         for(File blockFile: files){
-
-            executorService.submit(() -> {
-                long threadStart = System.currentTimeMillis();
-                Long blockNumber = Long.parseLong(blockFile.getName());
-                if(blockNumber%1000==0){
-                    System.out.println(blockNumber);
-                }
-                RawBlob rawBlob;
-                try {
-                    FileInputStream blobInputStream = new FileInputStream(blockFile);
-                    rawBlob = new RawBlob("OSMData", IOUtils.toByteArray(blobInputStream));
-                } catch (IOException e) {
-                    throw new IllegalArgumentException(e);
-                }
-
-                PbfBlobDecoder blobDecoder = new PbfBlobDecoder(rawBlob, new PbfBlobDecoderListener() {
-                    @Override
-                    public void complete(List<EntityContainer> decodedEntities) {
-                        long blockStartTime = System.currentTimeMillis();
-                        GeometryFactory geometryFactory = new GeometryFactory();
-                        MemberTypeValueMapper memberTypeValueMapper = new MemberTypeValueMapper();
-                        Map<Short, StringBuilder> csvResultPerH33 =new HashMap<>();
-                        BinaryWriter binaryWriter = new BinaryWriter();
-                        ArrayList<ArrowNodeOrWay> arrowNodeOrWays = new ArrayList<>();
-                        ArrayList<ArrowRelation> arrowRelations = new ArrayList<>();
-                        WKBWriter wkbWriter = new WKBWriter();
-                        final CoordinateReferenceSystem coordinateReferenceSystem;
-                        try {
-                            coordinateReferenceSystem = CRS.decode("EPSG:" + Serializer.SRID);
-                        } catch (FactoryException e) {
-                            throw new RuntimeException(e);
-                        }
-
-                        Map<Short, Stat> nodeStat =new HashMap<>();
-                        long nodeRecords = decodedEntities.stream().
-                                filter(entityContainer -> entityContainer instanceof NodeContainer).
-                            map(entityContainer -> ((NodeContainer) entityContainer).getEntity()).map(entity -> {
-                                prepareNodeData(csvResultPerH33, binaryWriter, arrowNodeOrWays,
-                                        nodeStat, entity, h3Core, parameters.collectOnlyStat,
-                                        parameters.isSaveArrow(), parameters.savePostgresqlTsv);
-                                return null;
-                            }).filter(Objects::isNull).count();
-
-                        Map<Short, Stat> wayStat =new HashMap<>();
-                        long wayRecords = decodedEntities.stream().
-                                filter(entityContainer -> entityContainer instanceof WayContainer).
-                            map(entityContainer -> ((WayContainer) entityContainer).getEntity()).map(entity -> {
-                            prepareWayData(geometryFactory, csvResultPerH33, binaryWriter,  wkbWriter,
-                                    arrowNodeOrWays, wayStat, entity, h3Core,
-                                    parameters.scaleApproximation, parameters.collectOnlyStat,
-                                    parameters.skipBuildings, parameters.skipHighway,
-                                    coordinateReferenceSystem, parameters.isSaveArrow(), parameters.savePostgresqlTsv);
-                                return null;
-                            }).filter(Objects::isNull).count();
-                        BlockStat blockStatistic = new BlockStat(blockNumber);
-                        blockStatistic.setThreadStart(threadStart);
-                        if(!nodeStat.isEmpty()) {
-                            blockStatistic.setNodeStat(nodeStat);
-                        }
-                        if(!wayStat.isEmpty()) {
-                            blockStatistic.setWayStat(wayStat);
-                        }
-                        long relationCount = decodedEntities.stream().
-                            filter(entityContainer -> entityContainer instanceof RelationContainer).
-                            map(entityContainer -> ((RelationContainer) entityContainer).getEntity()).
-                            map(entity -> {
-                                if(!parameters.collectOnlyStat) {
-                                    long relationId = entity.getId();
-                                    if(parameters.savePostgresqlTsv){
-                                        StringBuilder relationCsv = csvResultPerH33.computeIfAbsent((short)0, h33Key -> new StringBuilder());
-                                        Serializer.serializeRelation(relationCsv, relationId, getTags((entity)));
-                                    }
-
-                                    ArrowRelation arrowRelation = null;
-                                    if(parameters.isSaveArrow()){
-                                        arrowRelation = new ArrowRelation(relationId, TagsUtil.tagsToMap(getTags(entity)));
-                                        arrowRelations.add(arrowRelation);
-                                    }
-
-                                    List<RelationMember> relationMembers = entity.getMembers();
-                                    for(int sequenceId=0; sequenceId<relationMembers.size();sequenceId++){
-                                        RelationMember relationMember = relationMembers.get(sequenceId);
-                                        long memberId = relationMember.getMemberId();
-                                        String memberType = memberTypeValueMapper.getMemberType(relationMember.getMemberType());
-                                        String memberRole = relationMember.getMemberRole();
-                                        if(parameters.isSaveArrow()){
-                                            arrowRelation.getRelationMembers().add(
-                                                    new ArrowRelationMember(memberId, memberType.charAt(0), memberRole));
-                                        }
-                                        if(parameters.savePostgresqlTsv){
-                                            StringBuilder relationMembersCsv = csvResultPerH33.computeIfAbsent((short)1, h33Key -> new StringBuilder());
-                                            Serializer.serializeRelationMembers(relationMembersCsv, relationId,
-                                                    memberId, memberType, memberRole, sequenceId);
-                                        }
-                                    }
-                                }
-                                return null;
-                            }).count();
-                        long multipolygonCount = relationCount==0 ? 0 : decodedEntities.stream().
-                            filter(entityContainer -> entityContainer instanceof RelationContainer).
-                            map(entity -> {
-                                for(Tag tag: entity.getEntity().getTags()){
-                                    if("type".equals(tag.getKey()) && "multipolygon".equals(tag.getValue())){
-                                        return 1;
-                                    }
-                                }
-                                return 0;
-                            }).mapToLong(Integer::longValue).sum();
-                        long relationMemberCount = decodedEntities.stream().
-                                filter(entityContainer -> entityContainer instanceof RelationContainer).
-                                map(entityContainer -> ((RelationContainer) entityContainer).getEntity()).
-                                mapToLong(value -> value.getMembers().size()).sum();
-                        blockStatistic.setNodeCount(nodeRecords);
-                        blockStatistic.setWayCount(wayRecords);
-                        blockStatistic.setRelationCount(relationCount);
-                        blockStatistic.setRelationMembersCount(relationMemberCount);
-                        blockStatistic.setMultipolygonCount(multipolygonCount);
-                        blockStat.put(blockNumber, blockStatistic);
-                        blockStatistic.setProcessingTime(System.currentTimeMillis()-blockStartTime);
-
-                        if(!parameters.collectOnlyStat) {
-                            if(parameters.isSaveArrow()){
-                                long startSaveTime = System.currentTimeMillis();
-                                if(!arrowNodeOrWays.isEmpty()){
-                                    saveArrowNodesOrWays(arrowNodeOrWays, blockNumber,
-                                            new File(resultDirectory,ARROW_DIR), parameters.arrowFormat);
-                                }
-                                if(!arrowRelations.isEmpty()){
-                                    saveArrowRelations(arrowRelations, blockNumber,
-                                            new File(resultDirectory, ARROW_DIR), parameters.arrowFormat);
-                                }
-                                blockStatistic.setSaveTime(System.currentTimeMillis()-startSaveTime);
-                            }
-                            if(parameters.savePostgresqlTsv){
-                                saveDataOnlyInOneThread(csvResultPerH33, nodeRecords, wayRecords,
-                                    blockStatistic, relationCount,
-                                    currentBlockToSave, blockNumber, resultDirectory, saveExecutorService);
-                            }
-                        }
-                    }
-
-                    @Override
-                    public void error() {
-                        System.out.println("ERROR in block "+blockNumber);
-                    }
-                });
-                blobDecoder.run();
-                long threadTime = System.currentTimeMillis() - threadStart;
-                blockStat.get(blockNumber).setThreadTime(threadTime);
-            });
+            executorService.submit(() -> processBlockFile(blockFile, parameters, h3Core, resultDirectory,
+                    blockStat, currentBlockToSave, saveExecutorService));
         }
         executorService.shutdown();
         executorService.awaitTermination(2,TimeUnit.DAYS);
         saveExecutorService.shutdown();//stop executor only when all tasks in processing executor is finished
 
-        List<BlockStat> blockStatistics = new ArrayList<BlockStat>(blockStat.values());
+        List<BlockStat> blockStatistics = new ArrayList<>(blockStat.values());
         long multipolygonCount = blockStatistics.stream().map(BlockStat::getMultipolygonCount).mapToLong(Long::longValue).sum();
         long dataProcessingTime = System.currentTimeMillis() - processingStartTime;
-        System.out.println(files.length+" "+" time "+dataProcessingTime);
-        System.out.println("diff between total and processing " + blockStatistics.stream().map(blockStat1 -> blockStat1.getThreadTime()-blockStat1.getProcessingTime()).mapToLong(Long::longValue).sum());
-        System.out.println("total thread time "+ blockStatistics.stream().map(BlockStat::getThreadTime).mapToLong(Long::longValue).sum());
-        System.out.println("total processing time "+ blockStatistics.stream().map(BlockStat::getProcessingTime).mapToLong(Long::longValue).sum());
-        System.out.println("total save time "+ blockStatistics.stream().map(BlockStat::getSaveTime).mapToLong(Long::longValue).sum());
-        System.out.println("total waiting for save time "+ blockStatistics.stream().map(BlockStat::getWaitingForSaveTime).mapToLong(Long::longValue).sum());
-        System.out.println("thread max time "+ blockStatistics.stream().map(BlockStat::getThreadTime).mapToLong(Long::longValue).max().orElse(0));
-        System.out.println("processing max time "+ blockStatistics.stream().map(BlockStat::getProcessingTime).mapToLong(Long::longValue).max().orElse(0));
-        System.out.println("nodes "+ blockStatistics.stream().map(BlockStat::getNodeCount).mapToLong(Long::longValue).sum());
-        System.out.println("ways "+ blockStatistics.stream().map(BlockStat::getWayCount).mapToLong(Long::longValue).sum());
-        System.out.println("relations "+ blockStatistics.stream().map(BlockStat::getRelationCount).mapToLong(Long::longValue).sum());
-        System.out.println("relation members "+ blockStatistics.stream().map(BlockStat::getRelationMembersCount).mapToLong(Long::longValue).sum());
-        System.out.println("multipolygon count "+ multipolygonCount);
-
+        printProcessingStatistics(blockStatistics, files.length, dataProcessingTime, multipolygonCount);
 
         if(!parameters.collectOnlyStat && parameters.savePostgresqlTsv) {
             savePartitioningScripts(resultDirectory, parameters.scriptCount,
                     parameters.thresholdPercentFromMaxPartition, blockStatistics, parameters.columnarStorage);
         }
 
-        MultipolygonTime multipolygonTime = new MultipolygonTime(); //multipolygonCount calculation is only one reason why this generator at the end of process
-        if(!parameters.collectOnlyStat && parameters.savePostgresqlTsv) {
-            multipolygonTime = ExternalProcessing.prepareMultipolygonDataAndScripts(sourcePbfFile,
-                    resultDirectory, parameters.scriptCount, multipolygonCount, parameters.isSaveArrow(),
-                    parameters.invokeDockerCommand);
-        } else if(parameters.isSaveArrow()){
-            String resultDirName = resultDirectory.getName();
-            String basePath = resultDirectory.getParent();
-            String indexType = ExternalProcessing.getIndexType(sourcePbfFile);
-            File multipolygonDirectory = checkAndMakeMultipolygonDirectory(resultDirectory);
-            ExternalProcessing.executeMultipolygonExport(sourcePbfFile, resultDirName, basePath, indexType,
-                                                            parameters.invokeDockerCommand);
-            ExternalProcessing.transformMultipolygonToParquet(resultDirectory);
-            multipolygonDirectory.listFiles()[0].delete();
-            multipolygonDirectory.delete();
-        }
+        //multipolygonCount calculation is the only reason this generator runs at the end of the process
+        MultipolygonTime multipolygonTime = runMultipolygonPostProcessing(parameters, sourcePbfFile,
+                resultDirectory, multipolygonCount);
+
         PbfStatistics statistics = new PbfStatistics(blockStatistics);
         statistics.setMultipolygonCount(multipolygonCount);
         statistics.setDataProcessingTime(dataProcessingTime);
@@ -332,6 +163,260 @@ public class OsmPbfTransformation {
 
         saveStatistics(resultDirectory, statistics);
 
+    }
+
+    private static void processBlockFile(File blockFile, CliParameters parameters, H3Core h3Core,
+                                         File resultDirectory, Map<Long, BlockStat> blockStat,
+                                         AtomicInteger currentBlockToSave, ExecutorService saveExecutorService) {
+        long threadStart = System.currentTimeMillis();
+        Long blockNumber = Long.parseLong(blockFile.getName());
+        if(blockNumber%1000==0){
+            log.info("{}", blockNumber);
+        }
+        RawBlob rawBlob;
+        try (FileInputStream blobInputStream = new FileInputStream(blockFile)) {
+            rawBlob = new RawBlob("OSMData", IOUtils.toByteArray(blobInputStream));
+        } catch (IOException e) {
+            throw new IllegalArgumentException(e);
+        }
+
+        PbfBlobDecoder blobDecoder = new PbfBlobDecoder(rawBlob, new PbfBlobDecoderListener() {
+            @Override
+            public void complete(List<EntityContainer> decodedEntities) {
+                processDecodedBlock(decodedEntities, blockNumber, threadStart, parameters, h3Core,
+                        resultDirectory, blockStat, currentBlockToSave, saveExecutorService);
+            }
+
+            @Override
+            public void error() {
+                log.error("ERROR in block {}", blockNumber);
+            }
+        });
+        blobDecoder.run();
+        blockStat.get(blockNumber).setThreadTime(System.currentTimeMillis() - threadStart);
+    }
+
+    private static void processDecodedBlock(List<EntityContainer> decodedEntities, Long blockNumber,
+                                            long threadStart, CliParameters parameters, H3Core h3Core,
+                                            File resultDirectory, Map<Long, BlockStat> blockStat,
+                                            AtomicInteger currentBlockToSave, ExecutorService saveExecutorService) {
+        long blockStartTime = System.currentTimeMillis();
+        GeometryFactory geometryFactory = new GeometryFactory();
+        MemberTypeValueMapper memberTypeValueMapper = new MemberTypeValueMapper();
+        Map<Short, StringBuilder> csvResultPerH33 = new HashMap<>();
+        BinaryWriter binaryWriter = new BinaryWriter();
+        ArrayList<ArrowNodeOrWay> arrowNodeOrWays = new ArrayList<>();
+        ArrayList<ArrowRelation> arrowRelations = new ArrayList<>();
+        WKBWriter wkbWriter = new WKBWriter();
+        final CoordinateReferenceSystem coordinateReferenceSystem;
+        try {
+            coordinateReferenceSystem = CRS.decode("EPSG:" + Serializer.SRID);
+        } catch (FactoryException e) {
+            throw new IllegalStateException(e);
+        }
+
+        Map<Short, Stat> nodeStat = new HashMap<>();
+        long nodeRecords = processNodes(decodedEntities, csvResultPerH33, binaryWriter, arrowNodeOrWays,
+                nodeStat, h3Core, parameters);
+
+        Map<Short, Stat> wayStat = new HashMap<>();
+        long wayRecords = processWays(decodedEntities, geometryFactory, csvResultPerH33, binaryWriter,
+                wkbWriter, arrowNodeOrWays, wayStat, h3Core, coordinateReferenceSystem, parameters);
+
+        BlockStat blockStatistic = new BlockStat(blockNumber);
+        blockStatistic.setThreadStart(threadStart);
+        if(!nodeStat.isEmpty()) {
+            blockStatistic.setNodeStat(nodeStat);
+        }
+        if(!wayStat.isEmpty()) {
+            blockStatistic.setWayStat(wayStat);
+        }
+
+        long relationCount = processRelations(decodedEntities, csvResultPerH33, arrowRelations,
+                memberTypeValueMapper, parameters);
+        long multipolygonCount = countMultipolygons(decodedEntities, relationCount);
+        long relationMemberCount = countRelationMembers(decodedEntities);
+
+        blockStatistic.setNodeCount(nodeRecords);
+        blockStatistic.setWayCount(wayRecords);
+        blockStatistic.setRelationCount(relationCount);
+        blockStatistic.setRelationMembersCount(relationMemberCount);
+        blockStatistic.setMultipolygonCount(multipolygonCount);
+        blockStat.put(blockNumber, blockStatistic);
+        blockStatistic.setProcessingTime(System.currentTimeMillis()-blockStartTime);
+
+        if(!parameters.collectOnlyStat) {
+            persistBlock(parameters, resultDirectory, blockNumber, csvResultPerH33, arrowNodeOrWays,
+                    arrowRelations, nodeRecords, wayRecords, relationCount, blockStatistic,
+                    currentBlockToSave, saveExecutorService);
+        }
+    }
+
+    private static long processNodes(List<EntityContainer> decodedEntities,
+                                     Map<Short, StringBuilder> csvResultPerH33, BinaryWriter binaryWriter,
+                                     ArrayList<ArrowNodeOrWay> arrowNodeOrWays, Map<Short, Stat> nodeStat,
+                                     H3Core h3Core, CliParameters parameters) {
+        return decodedEntities.stream().
+                filter(NodeContainer.class::isInstance).
+                map(entityContainer -> ((NodeContainer) entityContainer).getEntity()).map(entity -> {
+                    prepareNodeData(csvResultPerH33, binaryWriter, arrowNodeOrWays,
+                            nodeStat, entity, h3Core, parameters.collectOnlyStat,
+                            parameters.isSaveArrow(), parameters.savePostgresqlTsv);
+                    return null;
+                }).filter(Objects::isNull).count();
+    }
+
+    private static long processWays(List<EntityContainer> decodedEntities, GeometryFactory geometryFactory,
+                                    Map<Short, StringBuilder> csvResultPerH33, BinaryWriter binaryWriter,
+                                    WKBWriter wkbWriter, ArrayList<ArrowNodeOrWay> arrowNodeOrWays,
+                                    Map<Short, Stat> wayStat, H3Core h3Core,
+                                    CoordinateReferenceSystem coordinateReferenceSystem, CliParameters parameters) {
+        return decodedEntities.stream().
+                filter(WayContainer.class::isInstance).
+                map(entityContainer -> ((WayContainer) entityContainer).getEntity()).map(entity -> {
+                    prepareWayData(geometryFactory, csvResultPerH33, binaryWriter, wkbWriter,
+                            arrowNodeOrWays, wayStat, entity, h3Core,
+                            parameters.scaleApproximation, parameters.collectOnlyStat,
+                            parameters.skipBuildings, parameters.skipHighway,
+                            coordinateReferenceSystem, parameters.isSaveArrow(), parameters.savePostgresqlTsv);
+                    return null;
+                }).filter(Objects::isNull).count();
+    }
+
+    private static long processRelations(List<EntityContainer> decodedEntities,
+                                         Map<Short, StringBuilder> csvResultPerH33,
+                                         ArrayList<ArrowRelation> arrowRelations,
+                                         MemberTypeValueMapper memberTypeValueMapper, CliParameters parameters) {
+        return decodedEntities.stream().
+                filter(RelationContainer.class::isInstance).
+                map(entityContainer -> ((RelationContainer) entityContainer).getEntity()).
+                map(entity -> {
+                    if(!parameters.collectOnlyStat) {
+                        serializeRelation(entity, csvResultPerH33, arrowRelations, memberTypeValueMapper, parameters);
+                    }
+                    return null;
+                }).count();
+    }
+
+    private static void serializeRelation(Relation entity, Map<Short, StringBuilder> csvResultPerH33,
+                                          ArrayList<ArrowRelation> arrowRelations,
+                                          MemberTypeValueMapper memberTypeValueMapper, CliParameters parameters) {
+        long relationId = entity.getId();
+        if(parameters.savePostgresqlTsv){
+            StringBuilder relationCsv = csvResultPerH33.computeIfAbsent((short)0, h33Key -> new StringBuilder());
+            Serializer.serializeRelation(relationCsv, relationId, getTags(entity));
+        }
+
+        ArrowRelation arrowRelation = null;
+        if(parameters.isSaveArrow()){
+            arrowRelation = new ArrowRelation(relationId, TagsUtil.tagsToMap(getTags(entity)));
+            arrowRelations.add(arrowRelation);
+        }
+
+        List<RelationMember> relationMembers = entity.getMembers();
+        for(int sequenceId=0; sequenceId<relationMembers.size();sequenceId++){
+            RelationMember relationMember = relationMembers.get(sequenceId);
+            long memberId = relationMember.getMemberId();
+            String memberType = memberTypeValueMapper.getMemberType(relationMember.getMemberType());
+            String memberRole = relationMember.getMemberRole();
+            if(parameters.isSaveArrow()){
+                arrowRelation.getRelationMembers().add(
+                        new ArrowRelationMember(memberId, memberType.charAt(0), memberRole));
+            }
+            if(parameters.savePostgresqlTsv){
+                StringBuilder relationMembersCsv = csvResultPerH33.computeIfAbsent((short)1, h33Key -> new StringBuilder());
+                Serializer.serializeRelationMembers(relationMembersCsv, relationId,
+                        memberId, memberType, memberRole, sequenceId);
+            }
+        }
+    }
+
+    private static long countMultipolygons(List<EntityContainer> decodedEntities, long relationCount) {
+        if(relationCount==0){
+            return 0;
+        }
+        return decodedEntities.stream().
+                filter(RelationContainer.class::isInstance).
+                map(entity -> {
+                    for(Tag tag: entity.getEntity().getTags()){
+                        if("type".equals(tag.getKey()) && "multipolygon".equals(tag.getValue())){
+                            return 1;
+                        }
+                    }
+                    return 0;
+                }).mapToLong(Integer::longValue).sum();
+    }
+
+    private static long countRelationMembers(List<EntityContainer> decodedEntities) {
+        return decodedEntities.stream().
+                filter(RelationContainer.class::isInstance).
+                map(entityContainer -> ((RelationContainer) entityContainer).getEntity()).
+                mapToLong(value -> value.getMembers().size()).sum();
+    }
+
+    private static void persistBlock(CliParameters parameters, File resultDirectory, Long blockNumber,
+                                     Map<Short, StringBuilder> csvResultPerH33,
+                                     ArrayList<ArrowNodeOrWay> arrowNodeOrWays,
+                                     ArrayList<ArrowRelation> arrowRelations,
+                                     long nodeRecords, long wayRecords, long relationCount,
+                                     BlockStat blockStatistic, AtomicInteger currentBlockToSave,
+                                     ExecutorService saveExecutorService) {
+        if(parameters.isSaveArrow()){
+            long startSaveTime = System.currentTimeMillis();
+            if(!arrowNodeOrWays.isEmpty()){
+                saveArrowNodesOrWays(arrowNodeOrWays, blockNumber,
+                        new File(resultDirectory,ARROW_DIR), parameters.arrowFormat);
+            }
+            if(!arrowRelations.isEmpty()){
+                saveArrowRelations(arrowRelations, blockNumber,
+                        new File(resultDirectory, ARROW_DIR), parameters.arrowFormat);
+            }
+            blockStatistic.setSaveTime(System.currentTimeMillis()-startSaveTime);
+        }
+        if(parameters.savePostgresqlTsv){
+            saveDataOnlyInOneThread(csvResultPerH33, nodeRecords, wayRecords,
+                blockStatistic, relationCount,
+                currentBlockToSave, blockNumber, resultDirectory, saveExecutorService);
+        }
+    }
+
+    private static void printProcessingStatistics(List<BlockStat> blockStatistics, int fileCount,
+                                                  long dataProcessingTime, long multipolygonCount) {
+        log.info("{}  time {}", fileCount, dataProcessingTime);
+        log.info("diff between total and processing {}", blockStatistics.stream().map(blockStat1 -> blockStat1.getThreadTime()-blockStat1.getProcessingTime()).mapToLong(Long::longValue).sum());
+        log.info("total thread time {}", blockStatistics.stream().map(BlockStat::getThreadTime).mapToLong(Long::longValue).sum());
+        log.info("total processing time {}", blockStatistics.stream().map(BlockStat::getProcessingTime).mapToLong(Long::longValue).sum());
+        log.info("total save time {}", blockStatistics.stream().map(BlockStat::getSaveTime).mapToLong(Long::longValue).sum());
+        log.info("total waiting for save time {}", blockStatistics.stream().map(BlockStat::getWaitingForSaveTime).mapToLong(Long::longValue).sum());
+        log.info("thread max time {}", blockStatistics.stream().map(BlockStat::getThreadTime).mapToLong(Long::longValue).max().orElse(0));
+        log.info("processing max time {}", blockStatistics.stream().map(BlockStat::getProcessingTime).mapToLong(Long::longValue).max().orElse(0));
+        log.info("nodes {}", blockStatistics.stream().map(BlockStat::getNodeCount).mapToLong(Long::longValue).sum());
+        log.info("ways {}", blockStatistics.stream().map(BlockStat::getWayCount).mapToLong(Long::longValue).sum());
+        log.info("relations {}", blockStatistics.stream().map(BlockStat::getRelationCount).mapToLong(Long::longValue).sum());
+        log.info("relation members {}", blockStatistics.stream().map(BlockStat::getRelationMembersCount).mapToLong(Long::longValue).sum());
+        log.info("multipolygon count {}", multipolygonCount);
+    }
+
+    private static MultipolygonTime runMultipolygonPostProcessing(CliParameters parameters, File sourcePbfFile,
+                                                                  File resultDirectory, long multipolygonCount)
+            throws IOException, InterruptedException {
+        if(!parameters.collectOnlyStat && parameters.savePostgresqlTsv) {
+            return ExternalProcessing.prepareMultipolygonDataAndScripts(sourcePbfFile,
+                    resultDirectory, parameters.scriptCount, multipolygonCount, parameters.isSaveArrow(),
+                    parameters.invokeDockerCommand);
+        }
+        if(parameters.isSaveArrow()){
+            String resultDirName = resultDirectory.getName();
+            String basePath = resultDirectory.getParent();
+            String indexType = ExternalProcessing.getIndexType(sourcePbfFile);
+            File multipolygonDirectory = checkAndMakeMultipolygonDirectory(resultDirectory);
+            ExternalProcessing.executeMultipolygonExport(sourcePbfFile, resultDirName, basePath, indexType,
+                                                            parameters.invokeDockerCommand);
+            ExternalProcessing.transformMultipolygonToParquet(resultDirectory);
+            multipolygonDirectory.listFiles()[0].delete();
+            multipolygonDirectory.delete();
+        }
+        return new MultipolygonTime();
     }
 
     private static Collection<Tag> getTags(Entity entity) {
@@ -354,7 +439,7 @@ public class OsmPbfTransformation {
         try {
             jc.parse(args);
         } catch (Exception e) {
-            System.out.println(e.getMessage());
+            log.warn(e.getMessage());
             jc.usage();
             return null;
         }
@@ -447,8 +532,7 @@ public class OsmPbfTransformation {
                 }
             }
         } catch (Throwable e){
-            System.out.println("block "+blockNumber+" "+e.getMessage());
-            e.printStackTrace();
+            log.error("block {}", blockNumber, e);
             System.exit(-1);
         }
     }
@@ -518,8 +602,8 @@ public class OsmPbfTransformation {
                     building.allocateNew(arrowNodeOrWays.size());
                     highway.allocateNew(arrowNodeOrWays.size());
                     scale.allocateNew(arrowNodeOrWays.size());
-                    lineStringWkb.allocateNew(1024*1024*10, arrowNodeOrWays.size());
-                    bboxWkb.allocateNew(8000 * 94, arrowNodeOrWays.size());
+                    lineStringWkb.allocateNew(1024L*1024*10, arrowNodeOrWays.size());
+                    bboxWkb.allocateNew(8000L * 94, arrowNodeOrWays.size());
                     bboxMinX.allocateNew(arrowNodeOrWays.size());
                     bboxMaxX.allocateNew(arrowNodeOrWays.size());
                     bboxMinY.allocateNew(arrowNodeOrWays.size());
@@ -592,8 +676,7 @@ public class OsmPbfTransformation {
                 }
             }
         } catch (Throwable e){
-            System.out.println("block "+blockNumber+" "+e.getMessage());
-            e.printStackTrace();
+            log.error("block {}", blockNumber, e);
             System.exit(-1);
         }
     }
@@ -603,7 +686,6 @@ public class OsmPbfTransformation {
              var arrowArrayStream = ArrowArrayStream.allocateNew(allocator)) {
             Data.exportArrayStream(allocator, reader, arrowArrayStream);
             String filePath = resultDirectory.getAbsolutePath()+"/"+ fileName;
-            //JniWrapper.get().writeFromScannerToFile(arrowArrayStream.memoryAddress(),FileFormat.PARQUET.id(), "file://"+filePath, new String[0], 1024, "{i}");
             try (DuckDBConnection connection = (DuckDBConnection) DriverManager.getConnection("jdbc:duckdb:")){
                 connection.registerArrowStream("arrow_stream", arrowArrayStream);
                 try (Statement preparedStatement = connection.createStatement()){
@@ -627,15 +709,9 @@ public class OsmPbfTransformation {
     static Schema getNodesOrWaysSchema(boolean isWays) {
         FieldType mapType = new FieldType(false, ArrowType.Struct.INSTANCE, null, null);
         FieldType keyType1 = new FieldType(false, new ArrowType.Utf8(), null, null);
-        Map<String, String> idMetadata = null;/*new HashMap<>();
-        idMetadata.put("min_values", Long.toString(arrowNodeOrWays.stream().mapToLong(ArrowRow::getId).min().orElse(Long.MIN_VALUE)));
-        idMetadata.put("max_values", Long.toString(arrowNodeOrWays.stream().mapToLong(ArrowRow::getId).max().orElse(Long.MAX_VALUE)));*/
-        Map<String, String> h33Metadata = null;/*new HashMap<>();
-        h33Metadata.put("min_values", Integer.toString(arrowNodeOrWays.stream().mapToInt(ArrowRow::getH33).min().orElse(Short.MIN_VALUE)));
-        h33Metadata.put("max_values", Integer.toString(arrowNodeOrWays.stream().mapToInt(ArrowRow::getH33).max().orElse(Short.MAX_VALUE)));*/
-        Map<String, String> h38Metadata = null;/*new HashMap<>();
-        h38Metadata.put("min_values", Integer.toString(arrowNodeOrWays.stream().mapToInt(ArrowRow::getH38).min().orElse(Integer.MIN_VALUE)));
-        h38Metadata.put("max_values", Integer.toString(arrowNodeOrWays.stream().mapToInt(ArrowRow::getH38).max().orElse(Integer.MAX_VALUE)));*/
+        Map<String, String> idMetadata = null;
+        Map<String, String> h33Metadata = null;
+        Map<String, String> h38Metadata = null;
         FieldType idFieldType = new FieldType(false, new ArrowType.Int(64, true), null, idMetadata);
         FieldType h33FieldType = new FieldType(false, new ArrowType.Int(16, true),null, h33Metadata);
         FieldType h38FieldType = new FieldType(false, new ArrowType.Int(32, true),null, h38Metadata);
@@ -651,9 +727,7 @@ public class OsmPbfTransformation {
                                         new Field(MapVector.VALUE_NAME, keyType1, null)))))
         ));
         if(isWays){
-            Map<String, String> h33CenterMetadata = null;/*new HashMap<>();
-            h33CenterMetadata.put("min_values", Integer.toString(arrowNodeOrWays.stream().mapToInt(ArrowRow::getH33Center).min().orElse(Short.MIN_VALUE)));
-            h33CenterMetadata.put("max_values", Integer.toString(arrowNodeOrWays.stream().mapToInt(ArrowRow::getH33Center).max().orElse(Short.MAX_VALUE)));*/
+            Map<String, String> h33CenterMetadata = null;
             FieldType h33CenterFieldType = new FieldType(false, new ArrowType.Int(16, true),null, h33CenterMetadata);
             schemaFields.addAll(Arrays.asList(
                     new Field("pointIdxs", FieldType.notNullable(new ArrowType.List()), Collections.singletonList(new Field("point", FieldType.notNullable(new ArrowType.Int(64, true)), null)))
@@ -677,9 +751,7 @@ public class OsmPbfTransformation {
     public static Schema getRelationSchema() {
         FieldType mapType = new FieldType(false, ArrowType.Struct.INSTANCE, null, null);
         FieldType keyType1 = new FieldType(false, new ArrowType.Utf8(), null, null);
-        Map<String, String> idMetadata = null;/*new HashMap<>();
-idMetadata.put("min_values", Long.toString(arrowRelations.stream().mapToLong(ArrowRow::getId).min().orElse(Long.MIN_VALUE)));
-idMetadata.put("max_values", Long.toString(arrowRelations.stream().mapToLong(ArrowRow::getId).max().orElse(Long.MAX_VALUE)));*/
+        Map<String, String> idMetadata = null;
         FieldType idFieldType = new FieldType(false, new ArrowType.Int(64, true), null, idMetadata);
         List<Field> schemaFields = new ArrayList<>(Arrays.asList(
                 new Field("id", idFieldType, null),
@@ -697,8 +769,7 @@ idMetadata.put("max_values", Long.toString(arrowRelations.stream().mapToLong(Arr
                         new Field("memberRole", FieldType.notNullable(new ArrowType.Utf8()), null)
                 ))
         ));
-        Schema schema = new Schema(schemaFields);
-        return schema;
+        return new Schema(schemaFields);
     }
 
     private static void writeTagsToArrow(BufferAllocator allocator, UnionMapWriter mapWriter, int idx, Map<String, String> tags) {
@@ -765,7 +836,11 @@ idMetadata.put("max_values", Long.toString(arrowRelations.stream().mapToLong(Arr
         List<Partition> partitionsWay = PartitionSplitter.distributeH33ByPartitionsForWays(waysSizeStat.entrySet().stream().filter(entry -> !entry.getKey().equals(Short.MAX_VALUE)).collect(Collectors.toMap(Map.Entry::getKey,Map.Entry::getValue)), thresholdPercentFromMaxPartition);
         List<Partition> partitionsNode=
                 PartitionSplitter.distributeH33ByPartitionsForNodes(partitionsWay, nodesSizeStat.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey,Map.Entry::getValue)));
-        System.out.println(partitionsWay.size()+" "+(partitionsWay.stream().map(Partition::getSerializedSize).min(Comparator.comparingLong(Long::longValue)).get()/1000000)+" "+(partitionsWay.stream().map(Partition::getSerializedSize).collect(Collectors.averagingLong(Long::longValue))/1000000));
+        long minWayPartitionSizeMb = partitionsWay.stream().map(Partition::getSerializedSize)
+                .min(Comparator.comparingLong(Long::longValue)).orElseThrow() / 1000000;
+        double avgWayPartitionSizeMb = partitionsWay.stream().map(Partition::getSerializedSize)
+                .collect(Collectors.averagingLong(Long::longValue)) / 1000000;
+        log.info("{} {} {}", partitionsWay.size(), minWayPartitionSizeMb, avgWayPartitionSizeMb);
         PartitionSplitter.createNodesScript(resultDirectory, scriptCount, partitionsNode, storeColumnar);
         PartitionSplitter.createWaysScript(resultDirectory, scriptCount, partitionsWay, storeColumnar);
         PartitionSplitter.createMultipolygonScript(resultDirectory, partitionsWay, storeColumnar);
@@ -776,10 +851,6 @@ idMetadata.put("max_values", Long.toString(arrowRelations.stream().mapToLong(Arr
         savePbfStatistics(statistics, currentBlockTypeDir);
         savePbfBlockStatistic(statistics, currentBlockTypeDir);
         savePbfBlockDataByHashStatistics(statistics, currentBlockTypeDir);
-        /*
-        try (ObjectOutputStream objectOutputStream = new ObjectOutputStream(new FileOutputStream(new File(resultDirectory, "statistics.obj")))){
-            objectOutputStream.writeObject(statistics);
-        }*/
     }
 
     private static String resultDirectoryNameFromSource(File inputDirectory) {
@@ -1163,14 +1234,16 @@ idMetadata.put("max_values", Long.toString(arrowRelations.stream().mapToLong(Arr
                 }
             }));
         }
-        long savedCount = saveFutures.stream().map(future -> {
+        for (Future<?> future : saveFutures) {
             try {
-                return future.get();
-            } catch (Exception e) {
-                e.printStackTrace();
+                future.get();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.error("interrupted while saving block data", e);
+            } catch (ExecutionException e) {
+                log.error("failed to save block data", e);
             }
-            return null;
-        }).filter(Objects::nonNull).count();
+        }
     }
 
     private static void savePbfBlockDataByHashStatistics(PbfStatistics pbfStatistics, File currentBlockTypeDir) {

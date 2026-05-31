@@ -3,6 +3,8 @@ package com.github.isuhorukov.osm.pgsnapshot;
 import org.apache.commons.io.FileUtils;
 import org.openstreetmap.osmosis.pbf2.v0_6.impl.RawBlob;
 import org.openstreetmap.osmosis.pbf2.v0_6.impl.StreamSplitter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.DataInputStream;
 import java.io.File;
@@ -10,6 +12,8 @@ import java.io.FileInputStream;
 import java.io.IOException;
 
 public class Splitter {
+    private static final Logger log = LoggerFactory.getLogger(Splitter.class);
+
     public static class Blocks{
         String directory;
         int blobCount;
@@ -42,7 +46,7 @@ public class Splitter {
     public static void main(String[] args) throws Exception{
         File sourceFile = new File("/home/iam/dev/map/maldives/maldives-latest.osm.pbf");
         Blocks blocks = splitPbfByBlocks(sourceFile,0);
-        System.out.println("Blobs: "+blocks.getBlobCount());
+        log.info("Blobs: {}", blocks.getBlobCount());
     }
 
     public static Blocks splitPbfByBlocks(File sourceFile, long addLocationsTime) throws IOException {
@@ -51,8 +55,7 @@ public class Splitter {
         final long pbfSplitStart = System.currentTimeMillis();
         int blobCount=0;
         try (FileInputStream inputStream = new FileInputStream(sourceFile);
-             StreamSplitter streamSplitter = new StreamSplitter(new DataInputStream(inputStream));){
-            //Osmformat.HeaderBlock header = new HeaderSeeker().apply(streamSplitter);
+             StreamSplitter streamSplitter = new StreamSplitter(new DataInputStream(inputStream))){
             while (streamSplitter.hasNext()) {
                 RawBlob rawBlob = streamSplitter.next();
                 if("OSMData".equals(rawBlob.getType())){

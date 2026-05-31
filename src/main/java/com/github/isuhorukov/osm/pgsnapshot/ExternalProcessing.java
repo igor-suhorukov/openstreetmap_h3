@@ -2,6 +2,8 @@ package com.github.isuhorukov.osm.pgsnapshot;
 
 import com.github.isuhorukov.osm.pgsnapshot.model.statistics.MultipolygonTime;
 import org.apache.commons.io.IOUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -16,7 +18,11 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class ExternalProcessing {
+    private static final Logger log = LoggerFactory.getLogger(ExternalProcessing.class);
     public static final String MULTIPOLYGON_SOURCE_TSV = "/multipolygon/source.tsv";
+
+    private ExternalProcessing() {
+    }
 
     public static MultipolygonTime prepareMultipolygonDataAndScripts(File sourcePbfFile, File resultDirectory,
                                                                      int scriptCount, long multipolygonCount,
@@ -40,7 +46,7 @@ public class ExternalProcessing {
         String resultDirFullPath = basePath + "/" + resultDirName;
         String multipolygonSourceTsv = resultDirFullPath + MULTIPOLYGON_SOURCE_TSV;
         String splitCommand = "cat "+multipolygonSourceTsv+" | grep $'\\trelation\\t' | split -l " + partSize + " - " + resultDirFullPath + "/multipolygon/multipolygon_";
-        System.out.println(splitCommand);
+        log.info(splitCommand);
         long multipolygonSplitStart = System.currentTimeMillis();
         runCliCommand(new String[]{"/bin/bash", "-c", splitCommand});
         multipolygonTime.setSplitMultipolygonByPartsTime(System.currentTimeMillis()-multipolygonSplitStart);
@@ -62,7 +68,7 @@ public class ExternalProcessing {
                     "delim=E'\\t',escape=E'\\\\',quote='',AUTO_DETECT='false') where column1='relation') TO '"
                     + resultDirectory.getAbsolutePath()+"/arrow/multipolygon.parquet' (FORMAT 'PARQUET', CODEC 'ZSTD')");
         } catch (Exception ex){
-            throw new RuntimeException(ex);
+            throw new IllegalStateException(ex);
         }
     }
 
@@ -120,13 +126,7 @@ public class ExternalProcessing {
 
 
     private static void runCliCommand(String[] cmdarray) throws IOException, InterruptedException {
-        Process process = Runtime.getRuntime().exec(cmdarray);
-        int exitCode = process.waitFor();
-        System.out.println(IOUtils.toString(process.getInputStream(), StandardCharsets.UTF_8));
-        System.out.println(IOUtils.toString(process.getErrorStream(), StandardCharsets.UTF_8));
-        if(exitCode !=0){
-            throw new RuntimeException("exit code "+exitCode+" command: "+ Arrays.toString(cmdarray));
-        }
+        runProcess(Runtime.getRuntime().exec(cmdarray), Arrays.toString(cmdarray));
     }
 
     public static String getIndexType(File sourcePbfFile) {
@@ -137,12 +137,15 @@ public class ExternalProcessing {
     }
 
     private static void runCliCommand(String command, String basePath) throws IOException, InterruptedException {
-        Process process = Runtime.getRuntime().exec(command, new String[0], new File(basePath));
+        runProcess(Runtime.getRuntime().exec(command, new String[0], new File(basePath)), command);
+    }
+
+    private static void runProcess(Process process, String commandDescription) throws IOException, InterruptedException {
         int exitCode = process.waitFor();
-        System.out.println(IOUtils.toString(process.getInputStream(), StandardCharsets.UTF_8));
-        System.out.println(IOUtils.toString(process.getErrorStream(), StandardCharsets.UTF_8));
-        if(exitCode !=0){
-            throw new RuntimeException("exit code "+exitCode+" command: "+ command);
+        log.info(IOUtils.toString(process.getInputStream(), StandardCharsets.UTF_8));
+        log.info(IOUtils.toString(process.getErrorStream(), StandardCharsets.UTF_8));
+        if (exitCode != 0) {
+            throw new IllegalStateException("exit code " + exitCode + " command: " + commandDescription);
         }
     }
 }
