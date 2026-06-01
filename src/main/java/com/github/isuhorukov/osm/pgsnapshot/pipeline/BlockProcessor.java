@@ -84,13 +84,14 @@ public class BlockProcessor {
     }
 
     private long processNodes(List<EntityContainer> decodedEntities, BlockResult result, Map<Short, Stat> nodeStat) {
-        return decodedEntities.stream()
-                .filter(NodeContainer.class::isInstance)
-                .map(ec -> ((NodeContainer) ec).getEntity())
-                .map(entity -> {
-                    processNode(entity, result, nodeStat);
-                    return null;
-                }).filter(Objects::isNull).count();
+        long nodeCount = 0;
+        for (EntityContainer entityContainer : decodedEntities) {
+            if (entityContainer instanceof NodeContainer) {
+                processNode(((NodeContainer) entityContainer).getEntity(), result, nodeStat);
+                nodeCount++;
+            }
+        }
+        return nodeCount;
     }
 
     private void processNode(Node entity, BlockResult result, Map<Short, Stat> nodeStat) {
@@ -118,13 +119,14 @@ public class BlockProcessor {
     }
 
     private long processWays(List<EntityContainer> decodedEntities, BlockResult result, Map<Short, Stat> wayStat) {
-        return decodedEntities.stream()
-                .filter(WayContainer.class::isInstance)
-                .map(ec -> ((WayContainer) ec).getEntity())
-                .map(entity -> {
-                    processWay(entity, result, wayStat);
-                    return null;
-                }).filter(Objects::isNull).count();
+        long wayCount = 0;
+        for (EntityContainer entityContainer : decodedEntities) {
+            if (entityContainer instanceof WayContainer) {
+                processWay(((WayContainer) entityContainer).getEntity(), result, wayStat);
+                wayCount++;
+            }
+        }
+        return wayCount;
     }
 
     private void processWay(Way entity, BlockResult result, Map<Short, Stat> wayStat) {
@@ -192,15 +194,16 @@ public class BlockProcessor {
     }
 
     private long processRelations(List<EntityContainer> decodedEntities, BlockResult result) {
-        return decodedEntities.stream()
-                .filter(RelationContainer.class::isInstance)
-                .map(ec -> ((RelationContainer) ec).getEntity())
-                .map(entity -> {
-                    if (!parameters.isCollectOnlyStat()) {
-                        serializeRelation(entity, result);
-                    }
-                    return null;
-                }).count();
+        long relationCount = 0;
+        for (EntityContainer entityContainer : decodedEntities) {
+            if (entityContainer instanceof RelationContainer) {
+                if (!parameters.isCollectOnlyStat()) {
+                    serializeRelation(((RelationContainer) entityContainer).getEntity(), result);
+                }
+                relationCount++;
+            }
+        }
+        return relationCount;
     }
 
     private void serializeRelation(Relation entity, BlockResult result) {

@@ -7,7 +7,6 @@ import com.github.isuhorukov.osm.pgsnapshot.util.HStoreFormatSerializer;
 import net.postgis.jdbc.geometry.Point;
 import net.postgis.jdbc.geometry.binary.BinaryWriter;
 import org.openstreetmap.osmosis.core.domain.v0_6.Tag;
-import org.openstreetmap.osmosis.core.util.CollectionWrapper;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -29,9 +28,9 @@ public class Serializer {
     public void serializeWay(StringBuilder csvString, WaySerializeData w) {
         Collection<Tag> tags = w.getTags();
         if (w.isNonValid()) {
-            Tag nonValidLine = new Tag("is.line_non_valid", "true");
-            CollectionWrapper<Tag> wrapper = (CollectionWrapper<Tag>) tags;
-            wrapper.add(nonValidLine);
+            List<Tag> tagsWithMarker = new ArrayList<>(tags);
+            tagsWithMarker.add(new Tag("is.line_non_valid", "true"));
+            tags = tagsWithMarker;
         }
         boolean building = false;
         boolean highway = false;

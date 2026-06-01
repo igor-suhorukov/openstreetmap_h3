@@ -6,71 +6,50 @@ import java.util.Collection;
 import java.util.Map;
 
 public class ArrowNodeOrWay {
-    long id;
-    short h33;
-    int h38;
-    double latitude;
-    double longitude;
-    Map<String, String> tags;
-    long[] pointIdxs;
-    short h33Center;
-    boolean closed;
-    float scaleDim;
-    double bboxMinX;
-    double bboxMaxX;
-    double bboxMinY;
-    double bboxMaxY;
-    byte[] lineStringWkb;
-    int[] h38Indexes;
-    byte[] bboxWkb;
+    private final long id;
+    private final short h33;
+    private final int h38;
+    private final double latitude;
+    private final double longitude;
+    private final Map<String, String> tags;
+    private final long[] pointIdxs;
+    private final short h33Center;
+    private final boolean closed;
+    private final float scaleDim;
+    private final double bboxMinX;
+    private final double bboxMaxX;
+    private final double bboxMinY;
+    private final double bboxMaxY;
+    private final byte[] lineStringWkb;
+    private final int[] h38Indexes;
+    private final byte[] bboxWkb;
 
     public ArrowNodeOrWay(long id, short h33, int h38, double latitude, double longitude, Collection<Tag> entityTags) {
+        this(id, h33, h38, latitude, longitude, TagsUtil.tagsToMap(entityTags),
+                null, (short) 0, false, 0f, 0, 0, 0, 0, null, null, null);
+    }
+
+    private ArrowNodeOrWay(long id, short h33, int h38, double latitude, double longitude,
+                           Map<String, String> tags, long[] pointIdxs, short h33Center, boolean closed,
+                           float scaleDim, double bboxMinX, double bboxMaxX, double bboxMinY, double bboxMaxY,
+                           byte[] lineStringWkb, int[] h38Indexes, byte[] bboxWkb) {
         this.id = id;
         this.h33 = h33;
         this.h38 = h38;
         this.latitude = latitude;
         this.longitude = longitude;
-        this.tags = TagsUtil.tagsToMap(entityTags);
-    }
-
-    public void setPointIdxs(long[] pointIdxs) {
+        this.tags = tags;
         this.pointIdxs = pointIdxs;
-    }
-
-    public void setH33Center(short h33Center) {
         this.h33Center = h33Center;
-    }
-
-    public void setClosed(boolean closed) {
         this.closed = closed;
-    }
-
-    public void setScaleDim(float scaleDim) {
         this.scaleDim = scaleDim;
-    }
-
-    public void setBboxMinX(double bboxMinX) {
         this.bboxMinX = bboxMinX;
-    }
-
-    public void setBboxMaxX(double bboxMaxX) {
         this.bboxMaxX = bboxMaxX;
-    }
-
-    public void setBboxMinY(double bboxMinY) {
         this.bboxMinY = bboxMinY;
-    }
-
-    public void setBboxMaxY(double bboxMaxY) {
         this.bboxMaxY = bboxMaxY;
-    }
-
-    public void setLineStringWkb(byte[] lineStringWkb) {
         this.lineStringWkb = lineStringWkb;
-    }
-
-    public void setH38Indexes(int[] h38Indexes) {
         this.h38Indexes = h38Indexes;
+        this.bboxWkb = bboxWkb;
     }
 
     public long getId() {
@@ -149,10 +128,6 @@ public class ArrowNodeOrWay {
         return bboxWkb;
     }
 
-    public void setBboxWkb(byte[] bboxWkb) {
-        this.bboxWkb = bboxWkb;
-    }
-
     public static class Builder {
         private final long id;
         private final short h33;
@@ -195,19 +170,9 @@ public class ArrowNodeOrWay {
         public Builder bboxWkb(byte[] v)      { this.bboxWkb = v;        return this; }
 
         public ArrowNodeOrWay build() {
-            ArrowNodeOrWay obj = new ArrowNodeOrWay(id, h33, h38, latitude, longitude, entityTags);
-            obj.pointIdxs = pointIdxs;
-            obj.h33Center = h33Center;
-            obj.closed = closed;
-            obj.scaleDim = scaleDim;
-            obj.bboxMinX = bboxMinX;
-            obj.bboxMaxX = bboxMaxX;
-            obj.bboxMinY = bboxMinY;
-            obj.bboxMaxY = bboxMaxY;
-            obj.lineStringWkb = lineStringWkb;
-            obj.h38Indexes = h38Indexes;
-            obj.bboxWkb = bboxWkb;
-            return obj;
+            return new ArrowNodeOrWay(id, h33, h38, latitude, longitude, TagsUtil.tagsToMap(entityTags),
+                    pointIdxs, h33Center, closed, scaleDim, bboxMinX, bboxMaxX, bboxMinY, bboxMaxY,
+                    lineStringWkb, h38Indexes, bboxWkb);
         }
     }
 }

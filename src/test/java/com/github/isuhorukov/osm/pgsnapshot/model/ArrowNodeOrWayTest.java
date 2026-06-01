@@ -86,23 +86,4 @@ class ArrowNodeOrWayTest {
         assertTrue(obj.isBuilding() == false);
         assertTrue(obj.getTags().containsKey("amenity"));
     }
-
-    @Test
-    void setters_updateFields() {
-        ArrowNodeOrWay n = node(List.of(new Tag("k", "v")));
-        n.setPointIdxs(new long[]{1L});
-        n.setH33Center((short) 9);
-        n.setClosed(true);
-        n.setScaleDim(2.0f);
-        n.setBboxMinX(0.0);
-        n.setBboxMaxX(1.0);
-        n.setBboxMinY(0.0);
-        n.setBboxMaxY(1.0);
-        n.setLineStringWkb(new byte[]{0x00});
-        n.setH38Indexes(new int[]{1});
-        n.setBboxWkb(new byte[]{0x03});
-
-        assertTrue(n.isClosed());
-        assertArrayEquals(new long[]{1L}, n.getPointIdxs());
-    }
 }

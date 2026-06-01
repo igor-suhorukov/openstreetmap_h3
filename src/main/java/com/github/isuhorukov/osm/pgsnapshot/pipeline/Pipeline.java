@@ -90,9 +90,23 @@ public class Pipeline {
                     parameters.getThresholdPercentFromMaxPartition(), blockStatistics, parameters.isColumnarStorage());
         }
 
-        MultipolygonTime multipolygonTime = runMultipolygonPostProcessing(externalProcessing, sourcePbfFile,
-                resultDirectory, multipolygonCount);
+        MultipolygonTime multipolygonTime = new MultipolygonTime();
+        if (!parameters.isCollectOnlyStat() && parameters.isSavePostgresqlTsv()) {
+            multipolygonTime = externalProcessing.prepareMultipolygonDataAndScripts(sourcePbfFile,
+                    resultDirectory, parameters.getScriptCount(), multipolygonCount, parameters.isSaveArrow());
+        } else if (parameters.isSaveArrow()) {
+            cleanupArrowMultipolygons(externalProcessing, sourcePbfFile, resultDirectory);
+        }
 
+        PbfStatistics statistics = buildStatistics(blockStatistics, multipolygonCount, dataProcessingTime,
+                blocks, multipolygonTime, System.currentTimeMillis() - commandStartTime);
+
+        StatisticsWriter.saveStatistics(resultDirectory, statistics);
+    }
+
+    private static PbfStatistics buildStatistics(List<BlockStat> blockStatistics, long multipolygonCount,
+                                                 long dataProcessingTime, Splitter.Blocks blocks,
+                                                 MultipolygonTime multipolygonTime, long totalTime) {
         PbfStatistics statistics = new PbfStatistics(blockStatistics);
         statistics.setMultipolygonCount(multipolygonCount);
         statistics.setDataProcessingTime(dataProcessingTime);
@@ -100,9 +114,8 @@ public class Pipeline {
         statistics.setPbfSplitTime(blocks.getPbfSplitTime());
         statistics.setMultipolygonExportTime(multipolygonTime.getMultipolygonExportTime());
         statistics.setSplitMultipolygonByPartsTime(multipolygonTime.getSplitMultipolygonByPartsTime());
-        statistics.setTotalTime(System.currentTimeMillis() - commandStartTime);
-
-        StatisticsWriter.saveStatistics(resultDirectory, statistics);
+        statistics.setTotalTime(totalTime);
+        return statistics;
     }
 
     private void processBlockFile(File blockFile, H3Core h3Core, File resultDirectory,
@@ -165,38 +178,30 @@ public class Pipeline {
         }
     }
 
-    private MultipolygonTime runMultipolygonPostProcessing(ExternalProcessing externalProcessing,
-                                                            File sourcePbfFile, File resultDirectory,
-                                                            long multipolygonCount)
+    private void cleanupArrowMultipolygons(ExternalProcessing externalProcessing,
+                                           File sourcePbfFile, File resultDirectory)
             throws IOException, InterruptedException {
-        if (!parameters.isCollectOnlyStat() && parameters.isSavePostgresqlTsv()) {
-            return externalProcessing.prepareMultipolygonDataAndScripts(sourcePbfFile,
-                    resultDirectory, parameters.getScriptCount(), multipolygonCount, parameters.isSaveArrow());
-        }
-        if (parameters.isSaveArrow()) {
-            String resultDirName = resultDirectory.getName();
-            String basePath = resultDirectory.getParent();
-            String indexType = ExternalProcessing.getIndexType(sourcePbfFile);
-            File multipolygonDirectory = ResultLayout.checkAndMakeMultipolygonDirectory(resultDirectory);
-            externalProcessing.executeMultipolygonExport(sourcePbfFile, resultDirName, basePath, indexType);
-            ExternalProcessing.transformMultipolygonToParquet(resultDirectory);
-            File[] multipolygonFiles = multipolygonDirectory.listFiles();
-            if (multipolygonFiles != null) {
-                for (File f : multipolygonFiles) {
-                    try {
-                        Files.delete(f.toPath());
-                    } catch (IOException e) {
-                        log.warn("Failed to delete: {}", f, e);
-                    }
+        String resultDirName = resultDirectory.getName();
+        String basePath = resultDirectory.getParent();
+        String indexType = ExternalProcessing.getIndexType(sourcePbfFile);
+        File multipolygonDirectory = ResultLayout.checkAndMakeMultipolygonDirectory(resultDirectory);
+        externalProcessing.executeMultipolygonExport(sourcePbfFile, resultDirName, basePath, indexType);
+        ExternalProcessing.transformMultipolygonToParquet(resultDirectory);
+        File[] multipolygonFiles = multipolygonDirectory.listFiles();
+        if (multipolygonFiles != null) {
+            for (File f : multipolygonFiles) {
+                try {
+                    Files.delete(f.toPath());
+                } catch (IOException e) {
+                    log.warn("Failed to delete: {}", f, e);
                 }
             }
-            try {
-                Files.delete(multipolygonDirectory.toPath());
-            } catch (IOException e) {
-                log.warn("Failed to delete directory: {}", multipolygonDirectory, e);
-            }
         }
-        return new MultipolygonTime();
+        try {
+            Files.delete(multipolygonDirectory.toPath());
+        } catch (IOException e) {
+            log.warn("Failed to delete directory: {}", multipolygonDirectory, e);
+        }
     }
 
     private static ExecutorService getExecutorService(int workers) {

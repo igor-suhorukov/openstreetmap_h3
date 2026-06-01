@@ -28,7 +28,7 @@ import static java.util.stream.Collectors.toList;
 public class WayGeometry {
 
     private final net.postgis.jdbc.geometry.LineString lineString;
-    private final Polygon bboxGeometry;
+    private final BoundingBox boundingBox;
     private final Point centre;
     private final double latitude;
     private final double longitude;
@@ -39,16 +39,11 @@ public class WayGeometry {
     private final boolean nonValid;
     private final long[] pointIdxs;
     private final Set<Integer> wayIntersectionH38Indexes;
-    private final double minX;
-    private final double maxX;
-    private final double minY;
-    private final double maxY;
     private final byte[] lineStringWkb;
-    private final byte[] bboxWkb;
 
     private WayGeometry(Builder builder) {
         this.lineString = builder.lineString;
-        this.bboxGeometry = builder.bboxGeometry;
+        this.boundingBox = builder.boundingBox;
         this.centre = builder.centre;
         this.latitude = builder.latitude;
         this.longitude = builder.longitude;
@@ -59,17 +54,12 @@ public class WayGeometry {
         this.nonValid = builder.nonValid;
         this.pointIdxs = builder.pointIdxs;
         this.wayIntersectionH38Indexes = builder.wayIntersectionH38Indexes;
-        this.minX = builder.minX;
-        this.maxX = builder.maxX;
-        this.minY = builder.minY;
-        this.maxY = builder.maxY;
         this.lineStringWkb = builder.lineStringWkb;
-        this.bboxWkb = builder.bboxWkb;
     }
 
     static final class Builder {
         net.postgis.jdbc.geometry.LineString lineString;
-        Polygon bboxGeometry;
+        BoundingBox boundingBox;
         Point centre;
         double latitude;
         double longitude;
@@ -80,15 +70,10 @@ public class WayGeometry {
         boolean nonValid;
         long[] pointIdxs;
         Set<Integer> wayIntersectionH38Indexes;
-        double minX;
-        double maxX;
-        double minY;
-        double maxY;
         byte[] lineStringWkb;
-        byte[] bboxWkb;
 
         Builder lineString(net.postgis.jdbc.geometry.LineString v) { lineString = v; return this; }
-        Builder bboxGeometry(Polygon v)                            { bboxGeometry = v; return this; }
+        Builder boundingBox(BoundingBox v)                         { boundingBox = v; return this; }
         Builder centre(Point v)                                    { centre = v; return this; }
         Builder latitude(double v)                                 { latitude = v; return this; }
         Builder longitude(double v)                                { longitude = v; return this; }
@@ -99,14 +84,38 @@ public class WayGeometry {
         Builder nonValid(boolean v)                                { nonValid = v; return this; }
         Builder pointIdxs(long[] v)                                { pointIdxs = v; return this; }
         Builder wayIntersectionH38Indexes(Set<Integer> v)          { wayIntersectionH38Indexes = v; return this; }
-        Builder minX(double v)                                     { minX = v; return this; }
-        Builder maxX(double v)                                     { maxX = v; return this; }
-        Builder minY(double v)                                     { minY = v; return this; }
-        Builder maxY(double v)                                     { maxY = v; return this; }
         Builder lineStringWkb(byte[] v)                            { lineStringWkb = v; return this; }
-        Builder bboxWkb(byte[] v)                                  { bboxWkb = v; return this; }
 
         WayGeometry build() { return new WayGeometry(this); }
+    }
+
+    static final class BoundingBox {
+        final double minX;
+        final double maxX;
+        final double minY;
+        final double maxY;
+        final Polygon postgisGeometry;
+        final byte[] wkb;
+
+        private BoundingBox(double minX, double maxX, double minY, double maxY,
+                            Polygon postgisGeometry, byte[] wkb) {
+            this.minX = minX;
+            this.maxX = maxX;
+            this.minY = minY;
+            this.maxY = maxY;
+            this.postgisGeometry = postgisGeometry;
+            this.wkb = wkb;
+        }
+
+        static BoundingBox from(Envelope envelope, GeometryFactory geometryFactory, WKBWriter wkbWriter) {
+            double minX = envelope.getMinX();
+            double minY = envelope.getMinY();
+            double maxX = envelope.getMaxX() + Double.MIN_VALUE;
+            double maxY = envelope.getMaxY() + Double.MIN_VALUE;
+            Geometry jtsEnvelope = buildJtsEnvelope(geometryFactory, minX, minY, maxX, maxY);
+            Polygon postgisGeometry = buildPostgisBbox(minX, minY, maxX, maxY);
+            return new BoundingBox(minX, maxX, minY, maxY, postgisGeometry, wkbWriter.write(jtsEnvelope));
+        }
     }
 
     private static final class WayPoints {
@@ -170,13 +179,7 @@ public class WayGeometry {
         boolean nonValid = !(currentWayGeometry.isValid() && wayPoints.coordinates.length > 1);
 
         Envelope envelopeInternal = currentWayGeometry.getEnvelopeInternal();
-        double minX = envelopeInternal.getMinX();
-        double minY = envelopeInternal.getMinY();
-        double maxX = envelopeInternal.getMaxX() + Double.MIN_VALUE;
-        double maxY = envelopeInternal.getMaxY() + Double.MIN_VALUE;
-
-        Geometry jtsEnvelope = buildJtsEnvelope(geometryFactory, minX, minY, maxX, maxY);
-        Polygon bboxGeometry = buildPostgisBbox(minX, minY, maxX, maxY);
+        BoundingBox boundingBox = BoundingBox.from(envelopeInternal, geometryFactory, wkbWriter);
 
         CentreData centreData = computeCentreAndScale(
                 currentWayGeometry, envelopeInternal, scaleApproximation, coordinateReferenceSystem);
@@ -192,7 +195,7 @@ public class WayGeometry {
 
         return new Builder()
                 .lineString(wayPoints.lineString)
-                .bboxGeometry(bboxGeometry)
+                .boundingBox(boundingBox)
                 .centre(centreData.centre)
                 .latitude(centreData.latitude).longitude(centreData.longitude)
                 .scaleDim(centreData.scaleDim)
@@ -200,9 +203,7 @@ public class WayGeometry {
                 .closed(closed).nonValid(nonValid)
                 .pointIdxs(wayPoints.pointIdxs)
                 .wayIntersectionH38Indexes(wayIntersectionH38Indexes)
-                .minX(minX).maxX(maxX).minY(minY).maxY(maxY)
                 .lineStringWkb(wkbWriter.write(currentWayGeometry))
-                .bboxWkb(wkbWriter.write(jtsEnvelope))
                 .build();
     }
 
@@ -313,7 +314,7 @@ public class WayGeometry {
     }
 
     public net.postgis.jdbc.geometry.LineString getLineString() { return lineString; }
-    public Polygon getBboxGeometry()                    { return bboxGeometry; }
+    public Polygon getBboxGeometry()                    { return boundingBox.postgisGeometry; }
     public Point getCentre()                            { return centre; }
     public double getLatitude()                         { return latitude; }
     public double getLongitude()                        { return longitude; }
@@ -324,10 +325,10 @@ public class WayGeometry {
     public boolean isNonValid()                         { return nonValid; }
     public long[] getPointIdxs()                        { return pointIdxs; }
     public Set<Integer> getWayIntersectionH38Indexes()  { return wayIntersectionH38Indexes; }
-    public double getMinX()                             { return minX; }
-    public double getMaxX()                             { return maxX; }
-    public double getMinY()                             { return minY; }
-    public double getMaxY()                             { return maxY; }
+    public double getMinX()                             { return boundingBox.minX; }
+    public double getMaxX()                             { return boundingBox.maxX; }
+    public double getMinY()                             { return boundingBox.minY; }
+    public double getMaxY()                             { return boundingBox.maxY; }
     public byte[] getLineStringWkb()                    { return lineStringWkb; }
-    public byte[] getBboxWkb()                          { return bboxWkb; }
+    public byte[] getBboxWkb()                          { return boundingBox.wkb; }
 }
