@@ -16,17 +16,15 @@
  */
 package org.apache.arrow.vector;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.util.AutoCloseables;
-import org.apache.arrow.vector.VectorLoader;
-import org.apache.arrow.vector.VectorSchemaRoot;
-import org.apache.arrow.vector.VectorUnloader;
 import org.apache.arrow.vector.ipc.ArrowReader;
 import org.apache.arrow.vector.ipc.message.ArrowRecordBatch;
 import org.apache.arrow.vector.types.pojo.Schema;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 
 //TODO Temporary workaround for https://github.com/apache/arrow/issues/34699 Remove this class after Apache Arrow refactoring #34699
 /** An ArrowReader that wraps a list of ArrowRecordBatches. */

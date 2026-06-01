@@ -53,4 +53,7 @@ public class Partition {
         this.h33RegionsInside = h33RegionsInside;
     }
 
+    public boolean contains(short h33) {
+        return h33 >= minRange && h33 < maxRange;
+    }
 }

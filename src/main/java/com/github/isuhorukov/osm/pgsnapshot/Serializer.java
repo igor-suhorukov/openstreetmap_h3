@@ -17,15 +17,15 @@ import java.util.stream.Collectors;
 public class Serializer {
     public static final int SRID = 4326;
 
-    public static void serializeNode(StringBuilder csvString, BinaryWriter binaryWriter, short h33, int h38,
-                                     long id, double latitude, double longitude, Collection<Tag> tags){
+    public void serializeNode(StringBuilder csvString, BinaryWriter binaryWriter, short h33, int h38,
+                              long id, double latitude, double longitude, Collection<Tag> tags){
         csvString.append(h33).append("\t").append(h38).append('\t').append(id).append("\t")
                 .append(binaryWriter.writeHexed(getPoint(latitude, longitude)));
         csvString.append("\t");
         HStoreFormatSerializer.renderTags(tags, csvString);
         csvString.append("\n");
     }
-    public static void  serializeWay(StringBuilder csvString, BinaryWriter binaryWriter,
+    public void serializeWay(StringBuilder csvString, BinaryWriter binaryWriter,
                                      boolean closed, boolean nonValid,
                                      short h33, int h38, long id,
                                      long[] pointsIdx, Set<Integer> wayIntersectionH38Indexes,
@@ -75,13 +75,13 @@ public class Serializer {
         csvString.append("\n");
     }
 
-    public static void serializeRelation(StringBuilder csvString, long id, Collection<Tag> tags){
+    public void serializeRelation(StringBuilder csvString, long id, Collection<Tag> tags){
         csvString.append(id).append("\t");
         HStoreFormatSerializer.renderTags(tags, csvString);
         csvString.append("\n");
     }
 
-    public static void serializeRelationMembers(StringBuilder csvString,
+    public void serializeRelationMembers(StringBuilder csvString,
                                     long relationId, long memberId,String memberType,String memberRole, int sequenceId){
         csvString.append(relationId).append("\t").append(memberId).append("\t").append(memberType).append("\t");
         HStoreFormatSerializer.escapeString(csvString, memberRole);
@@ -95,7 +95,7 @@ public class Serializer {
         return point;
     }
 
-    public static void serializePbfStat(StringBuilder csvString, PbfStatistics pbfStatistics){
+    public void serializePbfStat(StringBuilder csvString, PbfStatistics pbfStatistics){
         csvString.append(pbfStatistics.getMultipolygonCount()).append('\t');
         csvString.append(pbfStatistics.getDataProcessingTime()).append('\t');
         csvString.append(pbfStatistics.getPbfSplitTime()).append('\t');
@@ -105,7 +105,7 @@ public class Serializer {
         csvString.append(pbfStatistics.getTotalTime()).append('\n');
     }
 
-    public static void serializeBlockStat(StringBuilder csvString, List<BlockStat> blockStats){
+    public void serializeBlockStat(StringBuilder csvString, List<BlockStat> blockStats){
         for(BlockStat blockStat: blockStats){
             csvString.append(blockStat.getId()).append('\t');
             csvString.append(blockStat.getNodeCount()).append('\t');
@@ -121,7 +121,7 @@ public class Serializer {
         }
     }
 
-    public static void serializeBlockContent(StringBuilder csvString, BlockStat blockStat){
+    public void serializeBlockContent(StringBuilder csvString, BlockStat blockStat){
         if (blockStat.getRelationCount() > 0) {
             return;
         }

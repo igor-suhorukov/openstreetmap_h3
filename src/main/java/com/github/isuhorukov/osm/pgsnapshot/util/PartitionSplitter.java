@@ -2,17 +2,18 @@ package com.github.isuhorukov.osm.pgsnapshot.util;
 
 import com.github.isuhorukov.osm.pgsnapshot.model.Partition;
 import com.google.common.collect.Lists;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.*;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class PartitionSplitter {
+
+    private static final Logger log = LoggerFactory.getLogger(PartitionSplitter.class);
 
     public static final int LOWER_H3_3_BOUND = -32768;
     public static final int HIGH_H3_3_BOUND = 32695;
@@ -113,7 +114,7 @@ public class PartitionSplitter {
         Map<Short, Short> finalH33to = h33to2;
         Map<Short, Long> sumByH2 = new TreeMap<>(waysSizeStat.entrySet().stream().map(entry -> new AbstractMap.SimpleImmutableEntry<>(finalH33to.get(entry.getKey()), entry.getValue())).collect(Collectors.groupingBy(Map.Entry::getKey,
                 Collectors.summingLong(Map.Entry::getValue))));
-        long maxPartitionSize = (long) (sumByH2.values().stream().max(Comparator.comparingLong(Long::longValue)).get()* thresholdPercentFromMaxPartition);
+        long maxPartitionSize = (long) (sumByH2.values().stream().max(Comparator.comparingLong(Long::longValue)).orElse(0L) * thresholdPercentFromMaxPartition);
         long currentSum=0;
         short lowerBound=LOWER_H3_3_BOUND;
         int partitionNumber=0;
@@ -125,7 +126,7 @@ public class PartitionSplitter {
             if(currentSum>0 && currentSum+entry.getValue()>=maxPartitionSize){
                 short maxRangeOfInterval = nextRange.getMinRange();
                 partitions.add(createPartition(waysSizeStat, currentSum, lowerBound, partitionNumber, maxRangeOfInterval));
-                System.out.println(partitionNumber++ +"\t["+lowerBound+","+ maxRangeOfInterval +")\t"+currentSum+"\t"+(maxRangeOfInterval-lowerBound));
+                log.info("{}\t[{},{})\t{}\t{}", partitionNumber++, lowerBound, maxRangeOfInterval, currentSum, (maxRangeOfInterval - lowerBound));
                 lowerBound=nextRange.getMinRange();
                 currentSum=entry.getValue();
                 continue;
@@ -135,7 +136,7 @@ public class PartitionSplitter {
         if(currentSum!=0){
             short maxRangeOfInterval = HIGH_H3_3_BOUND;
             partitions.add(createPartition(waysSizeStat, currentSum, lowerBound, partitionNumber, maxRangeOfInterval));
-            System.out.println(partitionNumber+"\t["+lowerBound+","+maxRangeOfInterval+")\t"+currentSum+"\t"+(maxRangeOfInterval-lowerBound));
+            log.info("{}\t[{},{})\t{}\t{}", partitionNumber, lowerBound, maxRangeOfInterval, currentSum, (maxRangeOfInterval - lowerBound));
         }
         return partitions;
     }

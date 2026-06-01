@@ -52,7 +52,7 @@ public class PbfBlobOffsets {
     }
 
     public static RawBlob getBlob(InputStream blobInputStream, long offset, int blobSize) throws IOException {
-        blobInputStream.skip(offset);
+        IOUtils.skipFully(blobInputStream, offset);
         return new RawBlob("OSMData", IOUtils.toByteArray(blobInputStream,  blobSize));
     }
 
@@ -73,7 +73,7 @@ public class PbfBlobOffsets {
                 if ("OSMData".equals(blobHeader.getType())) {
                     offsets.put(countingInputStream.getByteCount(), blobHeader.getDatasize());
                 }
-                dis.skip(blobHeader.getDatasize());
+                IOUtils.skipFully(dis, blobHeader.getDatasize());
             }
         }
         return offsets;

@@ -6,33 +6,48 @@ import org.apache.commons.lang3.builder.ToStringStyle;
 
 public class CliParameters {
     @Parameter(names = { "-source_pbf" }, required = true,order = 1,description = "Source path for OpenStreetMap data in PBF format")
-    String sourceFilePath;
+    private String sourceFilePath;
     @Parameter(names = {"-scale_approx_calc"}, description = "Approximate scale calculation. Value 'false' - distance in meter")
-    boolean scaleApproximation = false;
+    private boolean scaleApproximation = false;
     @Parameter(names = {"-collect_only_statistics"}, description = "Collect only statistics from data - partition distribution")
-    boolean collectOnlyStat = false;
+    private boolean collectOnlyStat = false;
     @Parameter(names = {"-skip_buildings"}, description = "Skip any ways with 'building' tag")
-    boolean skipBuildings = false;
+    private boolean skipBuildings = false;
     @Parameter(names = {"-skip_highway"}, description = "Skip any ways with 'highway' tag")
-    boolean skipHighway = false;
+    private boolean skipHighway = false;
     @Parameter(names = {"-preserve_all_nodes"}, description = "Preserve all nodes information in case of 'true' or only nodes with tags or referenced from relations in other case")
-    boolean preserveAllNodes = false;
+    private boolean preserveAllNodes = false;
     @Parameter(names = {"-arrow_format"}, description = "In case of not null parameter save data in Arrow serialization: ARROW_IPC or PARQUET")
-    ArrowFormat arrowFormat;
+    private ArrowFormat arrowFormat;
     @Parameter(names = {"-result_in_tsv"}, arity = 1, description = "Save result data in TabSeparatedValue format for PostgreSQL COPY")
-    boolean savePostgresqlTsv = true;
+    private boolean savePostgresqlTsv = true;
     @Parameter(names = {"-columnar_storage"}, description = "Use columnar storage in PostgreSql tables for nodes/ways/multipolygon")
-    boolean columnarStorage = false;
+    private boolean columnarStorage = false;
     @Parameter(names = {"-osmium_docker"}, arity = 1, description = "Run osmium tool from docker image")
-    boolean invokeDockerCommand = true;
+    private boolean invokeDockerCommand = true;
     @Parameter(names = {"-worker_threads"}, description = "Worker threads count for data processing")
-    int workers=4;
+    private int workers=4;
     @Parameter(names = {"-pg_script_count"}, description = "Script count for PostgreSQL parallel COPY")
-    int scriptCount  = 4;
+    private int scriptCount  = 4;
     @Parameter(names = {"-data_partition_ratio"}, description = "Filling ratio from maximum size of partition. This parameter change PostgreSQL partitions count")
-    double thresholdPercentFromMaxPartition = 0.48;
+    private double thresholdPercentFromMaxPartition = 0.48;
     @Parameter(names = "-help", help = true, description = "Information about command line parameters")
-    boolean help;
+    private boolean help;
+
+    public String getSourceFilePath() { return sourceFilePath; }
+    public boolean isScaleApproximation() { return scaleApproximation; }
+    public boolean isCollectOnlyStat() { return collectOnlyStat; }
+    public boolean isSkipBuildings() { return skipBuildings; }
+    public boolean isSkipHighway() { return skipHighway; }
+    public boolean isPreserveAllNodes() { return preserveAllNodes; }
+    public ArrowFormat getArrowFormat() { return arrowFormat; }
+    public boolean isSavePostgresqlTsv() { return savePostgresqlTsv; }
+    public boolean isColumnarStorage() { return columnarStorage; }
+    public boolean isInvokeDockerCommand() { return invokeDockerCommand; }
+    public int getWorkers() { return workers; }
+    public int getScriptCount() { return scriptCount; }
+    public double getThresholdPercentFromMaxPartition() { return thresholdPercentFromMaxPartition; }
+    public boolean isHelp() { return help; }
 
     public boolean isSaveArrow() {
         return arrowFormat != null;
