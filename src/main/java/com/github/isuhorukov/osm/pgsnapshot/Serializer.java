@@ -122,7 +122,7 @@ public class Serializer {
             return;
         }
         if (blockStat.getNodeCount() > 0 && blockStat.getWayCount() > 0) {
-            throw new RuntimeException("Mixed content in block is not supported");
+            throw new IllegalStateException("Mixed content in block is not supported");
         }
         Map<Short, Stat> statistics = null;
         String objectType = null;

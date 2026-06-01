@@ -4,7 +4,7 @@ import java.io.Serializable;
 import java.util.List;
 
 public class PbfStatistics implements Serializable {
-    List<BlockStat> blockStatistics;
+    transient List<BlockStat> blockStatistics;
     long multipolygonCount;
     long dataProcessingTime;
     long pbfSplitTime;

@@ -105,7 +105,7 @@ public abstract class ArrowBatchWriter {
                 default:
                     throw new IllegalArgumentException(arrowFormat.name());
             }
-        } catch (Throwable e) {
+        } catch (Exception e) {
             log.error("block {}", blockNumber, e);
             System.exit(-1);
         }

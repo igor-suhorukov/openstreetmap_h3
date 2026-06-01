@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -43,7 +44,7 @@ public class PartitionSplitter {
                 }
                 waysScriptOs.write("COMMIT;".getBytes(StandardCharsets.UTF_8));
             } catch (IOException e) {
-                throw new RuntimeException(e);
+                throw new UncheckedIOException(e);
             }
         }
         return partition.size();
@@ -80,7 +81,7 @@ public class PartitionSplitter {
                 }
                 waysScriptOs.write("COMMIT;".getBytes(StandardCharsets.UTF_8));
             } catch (IOException e) {
-                throw new RuntimeException(e);
+                throw new UncheckedIOException(e);
             }
         }
         return partition.size();
@@ -94,8 +95,8 @@ public class PartitionSplitter {
                         getColumnarString(storeColumnar)).getBytes(StandardCharsets.UTF_8)
                 );
             }
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 

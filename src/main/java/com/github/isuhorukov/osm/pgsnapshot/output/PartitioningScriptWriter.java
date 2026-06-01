@@ -29,7 +29,7 @@ public class PartitioningScriptWriter {
                 return null;
             }
             if (statItem.getNodeCount() > 0 && statItem.getWayCount() > 0) {
-                throw new RuntimeException("Invalid block - mixed content nodes and ways");
+                throw new IllegalStateException("Invalid block - mixed content nodes and ways");
             }
             if (statItem.getNodeCount() > 0) {
                 if (statItem.getNodeStat() == null) {
@@ -43,7 +43,7 @@ public class PartitioningScriptWriter {
                 }
                 return statItem.getWayStat().values().stream().map(stat -> new TableStat(StatType.W, statItem.getId(), stat)).collect(toList());
             }
-            throw new RuntimeException();
+            throw new IllegalStateException("Block has no nodes, ways, or relations");
         }).filter(Objects::nonNull).flatMap(Collection::stream).collect(toList());
 
         Map<Short, Long> waysSizeStat = tableStat.stream().filter(ts -> ts.getType() == StatType.W)

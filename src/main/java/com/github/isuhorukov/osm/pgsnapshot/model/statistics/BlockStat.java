@@ -10,8 +10,8 @@ public class BlockStat implements Serializable {
     long relationCount;
     long relationMembersCount;
     long multipolygonCount;
-    Map<Short, Stat> nodeStat;
-    Map<Short, Stat> wayStat;
+    transient Map<Short, Stat> nodeStat;
+    transient Map<Short, Stat> wayStat;
     long processingTime;
     long waitingForSaveTime;
     long saveTime;

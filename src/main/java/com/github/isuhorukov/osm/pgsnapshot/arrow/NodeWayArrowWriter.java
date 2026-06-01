@@ -145,7 +145,7 @@ public class NodeWayArrowWriter extends ArrowBatchWriter {
                 String fileName = String.format("%s/%08d", isWays ? ResultLayout.WAYS_DIR : ResultLayout.NODES_DIR, blockNumber);
                 dispatch(allocator, vectorSchemaRoot, fileName, blockNumber);
             }
-        } catch (Throwable e) {
+        } catch (Exception e) {
             log.error("block {}", blockNumber, e);
             System.exit(-1);
         }
