@@ -37,21 +37,28 @@ public class TsvBlockWriter {
                                         long wayRecords, BlockStat blockStatistic, long relationCount,
                                         Long blockNumber) {
         long waitSaveTime = System.currentTimeMillis();
-        while (true) {
-            if (currentBlockToSave.get() == blockNumber) {
-                blockStatistic.setWaitingForSaveTime(System.currentTimeMillis() - waitSaveTime);
-                long startSaveTime = System.currentTimeMillis();
+        synchronized (currentBlockToSave) {
+            while (currentBlockToSave.get() != blockNumber) {
                 try {
-                    File currentBlockTypeDir =
-                            ResultLayout.blockResultDirectory(nodeRecords, wayRecords, relationCount, resultDir);
-                    saveBlockData(csvResultPerH33, currentBlockTypeDir);
-                } finally {
-                    blockStatistic.setSaveTime(blockStatistic.getSaveTime() + (System.currentTimeMillis() - startSaveTime));
-                    currentBlockToSave.incrementAndGet();
+                    currentBlockToSave.wait();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("interrupted while waiting to save block " + blockNumber, e);
                 }
-                return;
             }
-            Thread.yield();
+        }
+        blockStatistic.setWaitingForSaveTime(System.currentTimeMillis() - waitSaveTime);
+        long startSaveTime = System.currentTimeMillis();
+        try {
+            File currentBlockTypeDir =
+                    ResultLayout.blockResultDirectory(nodeRecords, wayRecords, relationCount, resultDir);
+            saveBlockData(csvResultPerH33, currentBlockTypeDir);
+        } finally {
+            blockStatistic.setSaveTime(blockStatistic.getSaveTime() + (System.currentTimeMillis() - startSaveTime));
+            synchronized (currentBlockToSave) {
+                currentBlockToSave.incrementAndGet();
+                currentBlockToSave.notifyAll();
+            }
         }
     }
 
