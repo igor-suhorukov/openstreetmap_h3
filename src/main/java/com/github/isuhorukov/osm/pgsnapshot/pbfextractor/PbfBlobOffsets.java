@@ -81,9 +81,6 @@ public class PbfBlobOffsets {
     private static Fileformat.BlobHeader readHeader(DataInputStream dis, int headerLength) throws IOException {
         byte[] headerBuffer = new byte[headerLength];
         dis.readFully(headerBuffer);
-
-        Fileformat.BlobHeader blobHeader = Fileformat.BlobHeader.parseFrom(headerBuffer);
-
-        return blobHeader;
+        return Fileformat.BlobHeader.parseFrom(headerBuffer);
     }
 }

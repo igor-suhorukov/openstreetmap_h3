@@ -279,7 +279,6 @@ public class BlockProcessor {
     private static Collection<Tag> getTags(Entity entity) {
         Collection<Tag> sourceTags = entity.getTags();
         if (sourceTags != null && !sourceTags.isEmpty() && OsmPbfTransformation.IS_UDT_ENABLED) {
-            Map<String, String> tags = TagsUtil.tagsToMap(sourceTags);
             Set<String> detected = new HashSet<>();
             if (!detected.isEmpty()) {
                 ArrayList<Tag> tagList = new ArrayList<>(sourceTags);

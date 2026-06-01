@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -54,8 +55,10 @@ public class ExternalProcessing {
         runCliCommand(new String[]{"/bin/bash", "-c", splitCommand});
         multipolygonTime.setSplitMultipolygonByPartsTime(System.currentTimeMillis() - multipolygonSplitStart);
 
-        if (!new File(multipolygonSourceTsv).delete()) {
-            log.warn("Failed to delete temporary file: {}", multipolygonSourceTsv);
+        try {
+            Files.delete(new File(multipolygonSourceTsv).toPath());
+        } catch (IOException e) {
+            log.warn("Failed to delete temporary file: {}", multipolygonSourceTsv, e);
         }
 
         generateMultipolygonCopyScripts(resultDirFullPath);
@@ -146,8 +149,12 @@ public class ExternalProcessing {
 
     private static void runProcess(Process process, String commandDescription) throws IOException, InterruptedException {
         int exitCode = process.waitFor();
-        log.info(IOUtils.toString(process.getInputStream(), StandardCharsets.UTF_8));
-        log.info(IOUtils.toString(process.getErrorStream(), StandardCharsets.UTF_8));
+        if (log.isInfoEnabled()) {
+            log.info(IOUtils.toString(process.getInputStream(), StandardCharsets.UTF_8));
+        }
+        if(log.isErrorEnabled()) {
+            log.error(IOUtils.toString(process.getErrorStream(), StandardCharsets.UTF_8));
+        }
         if (exitCode != 0) {
             throw new IllegalStateException("exit code " + exitCode + " command: " + commandDescription);
         }

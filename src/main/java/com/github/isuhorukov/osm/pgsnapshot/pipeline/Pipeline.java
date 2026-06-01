@@ -22,6 +22,7 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -182,13 +183,17 @@ public class Pipeline {
             File[] multipolygonFiles = multipolygonDirectory.listFiles();
             if (multipolygonFiles != null) {
                 for (File f : multipolygonFiles) {
-                    if (!f.delete()) {
-                        log.warn("Failed to delete: {}", f);
+                    try {
+                        Files.delete(f.toPath());
+                    } catch (IOException e) {
+                        log.warn("Failed to delete: {}", f, e);
                     }
                 }
             }
-            if (!multipolygonDirectory.delete()) {
-                log.warn("Failed to delete directory: {}", multipolygonDirectory);
+            try {
+                Files.delete(multipolygonDirectory.toPath());
+            } catch (IOException e) {
+                log.warn("Failed to delete directory: {}", multipolygonDirectory, e);
             }
         }
         return new MultipolygonTime();

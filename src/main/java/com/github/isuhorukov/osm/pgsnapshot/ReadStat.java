@@ -4,7 +4,6 @@ import com.github.isuhorukov.osm.pgsnapshot.model.statistics.BlockStat;
 import com.github.isuhorukov.osm.pgsnapshot.model.statistics.PbfStatistics;
 import com.github.isuhorukov.osm.pgsnapshot.model.table.StatType;
 import com.github.isuhorukov.osm.pgsnapshot.model.table.TableStat;
-import com.github.isuhorukov.osm.pgsnapshot.util.CompactH3;
 import com.uber.h3core.H3Core;
 import com.uber.h3core.util.LatLng;
 import org.slf4j.Logger;
@@ -22,14 +21,9 @@ public class ReadStat {
 
     public static void main(String[] args) throws Exception{
         H3Core h3Core = H3Core.newInstance();
-        long h3 = CompactH3.toFull3(870);//
-        //h3Core.cellToLatLng(h3);
-        LatLng base = h3Core.cellToLatLng(h3);
-        //latitude 0 90
         for (double latitude=0; latitude<90; latitude+=1){
-            /*for(int id=0;id<16;id++)*/{ int id=8;
+            { int id=8;
                 long measure = h3Core.latLngToCell(latitude, 0, id);
-                //long measure = h3Core.latLngToCell(base.lat, base.lng, id);
                 LatLng latLng = h3Core.cellToLatLng(measure);
                 List<LatLng> latLngs = h3Core.cellToBoundary(measure);
                 double rad = 0;

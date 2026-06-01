@@ -2,6 +2,8 @@ package com.github.isuhorukov.osm.pgsnapshot.util;
 
 public class CompactH3 {
 
+    private CompactH3() {}
+
     public static long toFull3(long highSh) {
         highSh &=0x000000000000ffff;
         highSh <<=36;
@@ -18,18 +20,10 @@ public class CompactH3 {
     public static long toShort8(long highSh) {
         highSh &= 0x00ffffffff00000L;
         highSh >>>=20;
-        /*
-            8800000001fffff
-         */
         return highSh;
     }
-    /*
-
-select (590282369378811903 & 'x000ffffffff00000'::bit(64)::bigint>>20)::integer
-     */
 
     public static long toFull8(long highSh) {
-        //highSh &=0x00000000ffffffff;
         highSh <<=20;
         highSh |= 0x8800000000fffffL;
         return highSh;

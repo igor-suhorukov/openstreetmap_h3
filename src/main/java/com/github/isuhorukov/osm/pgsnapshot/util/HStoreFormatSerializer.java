@@ -6,6 +6,8 @@ import java.util.Collection;
 import java.util.Iterator;
 
 public class HStoreFormatSerializer {
+    private HStoreFormatSerializer() {}
+
     public static final String NULL_STRING = "\\N";
 
     public static void renderTags(Collection<Tag> entityTags, StringBuilder builder)
@@ -20,7 +22,6 @@ public class HStoreFormatSerializer {
         while (iterator.hasNext()) {
             Tag tag = iterator.next();
             String key= tag.getKey();
-            //if ("created_by".equals(key)) continue; //filter "created_by"=>"JOSM" deprecated data
             String value = tag.getValue();
             if (first) {
                 first = false;

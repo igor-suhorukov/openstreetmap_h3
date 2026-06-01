@@ -19,9 +19,9 @@ public class PartitionSplitter {
     public static final int HIGH_H3_3_BOUND = 32695;
     public static final String USING_COLUMNAR = "USING COLUMNAR";
 
+    private PartitionSplitter() {}
+
     public static int createNodesScript(File resultDirectory, int scriptCount, List<Partition> partitions, boolean storeColumnar) {
-/*        final ArrayList<Short> waysPart = new ArrayList<>(partition_keys);
-        waysPart.sort(Short::compareTo);*/
         final List<List<Partition>> partition = Lists.partition(partitions, partitions.size()/ scriptCount +1);
         for (int waysPartIdx = 0; waysPartIdx < partition.size(); waysPartIdx++) {
             List<Partition> part = partition.get(waysPartIdx);
@@ -30,16 +30,16 @@ public class PartitionSplitter {
                 appendScriptHead(scriptName, waysScriptOs);
                 waysScriptOs.write("BEGIN;\n".getBytes(StandardCharsets.UTF_8));
                 for (Partition currentPart : part) {
-                    waysScriptOs.write(String.format("CREATE TABLE \"nodes_%03d\" (like nodes) %s;\n", currentPart.getId(),
+                    waysScriptOs.write(String.format("CREATE TABLE \"nodes_%03d\" (like nodes) %s;%n", currentPart.getId(),
                             getColumnarString(storeColumnar)).getBytes(StandardCharsets.UTF_8));
                     List<Short> h33RegionsInside = currentPart.getH33RegionsInside();
                     Collections.sort(h33RegionsInside);
                     for(Short h33Region: h33RegionsInside){
-                        waysScriptOs.write(String.format("COPY \"nodes_%03d\"(h3_3,h3_8,id,geom,tags) FROM '/input/nodes/%05d.tsv' DELIMITER E'\\t' ESCAPE '\\' NULL '\\N' CSV;\n",currentPart.getId(), h33Region).getBytes(StandardCharsets.UTF_8));
+                        waysScriptOs.write(String.format("COPY \"nodes_%03d\"(h3_3,h3_8,id,geom,tags) FROM '/input/nodes/%05d.tsv' DELIMITER E'\\t' ESCAPE '\\' NULL '\\N' CSV;%n",currentPart.getId(), h33Region).getBytes(StandardCharsets.UTF_8));
                     }
                 }
                 for (Partition currentPart : part) {
-                    waysScriptOs.write(String.format("ALTER TABLE  nodes ATTACH PARTITION  \"nodes_%03d\" FOR VALUES FROM (%s) TO (%s);\n", currentPart.getId(),currentPart.getMinRange(),currentPart.getMaxRange()).getBytes(StandardCharsets.UTF_8));
+                    waysScriptOs.write(String.format("ALTER TABLE  nodes ATTACH PARTITION  \"nodes_%03d\" FOR VALUES FROM (%s) TO (%s);%n", currentPart.getId(),currentPart.getMinRange(),currentPart.getMaxRange()).getBytes(StandardCharsets.UTF_8));
                 }
                 waysScriptOs.write("COMMIT;".getBytes(StandardCharsets.UTF_8));
             } catch (IOException e) {
@@ -67,16 +67,16 @@ public class PartitionSplitter {
                 appendScriptHead(scriptName, waysScriptOs);
                 waysScriptOs.write("BEGIN;\n".getBytes(StandardCharsets.UTF_8));
                 for (Partition currentPart : part) {
-                    waysScriptOs.write(String.format("CREATE TABLE \"ways_%03d\" (like ways) %s;\n", currentPart.getId(),
+                    waysScriptOs.write(String.format("CREATE TABLE \"ways_%03d\" (like ways) %s;%n", currentPart.getId(),
                             getColumnarString(storeColumnar)).getBytes(StandardCharsets.UTF_8));
                     List<Short> h33RegionsInside = currentPart.getH33RegionsInside();
                     Collections.sort(h33RegionsInside);
                     for(Short h33Region: h33RegionsInside){
-                        waysScriptOs.write(String.format("COPY \"ways_%03d\"(h3_3,h3_8,id,closed,building,highway,scale,centre,bbox,linestring,points,h3_8_regions,tags) FROM '/input/ways/%05d.tsv' DELIMITER E'\\t' ESCAPE '\\' NULL '\\N' CSV;\n",currentPart.getId(), h33Region).getBytes(StandardCharsets.UTF_8));
+                        waysScriptOs.write(String.format("COPY \"ways_%03d\"(h3_3,h3_8,id,closed,building,highway,scale,centre,bbox,linestring,points,h3_8_regions,tags) FROM '/input/ways/%05d.tsv' DELIMITER E'\\t' ESCAPE '\\' NULL '\\N' CSV;%n",currentPart.getId(), h33Region).getBytes(StandardCharsets.UTF_8));
                     }
                 }
                 for (Partition currentPart : part) {
-                    waysScriptOs.write(String.format("ALTER TABLE  ways ATTACH PARTITION  \"ways_%03d\" FOR VALUES FROM (%s) TO (%s);\n", currentPart.getId(),currentPart.getMinRange(),currentPart.getMaxRange()).getBytes(StandardCharsets.UTF_8));
+                    waysScriptOs.write(String.format("ALTER TABLE  ways ATTACH PARTITION  \"ways_%03d\" FOR VALUES FROM (%s) TO (%s);%n", currentPart.getId(),currentPart.getMinRange(),currentPart.getMaxRange()).getBytes(StandardCharsets.UTF_8));
                 }
                 waysScriptOs.write("COMMIT;".getBytes(StandardCharsets.UTF_8));
             } catch (IOException e) {
@@ -89,7 +89,7 @@ public class PartitionSplitter {
     public static void createMultipolygonScript(File resultDirectory, List<Partition> partitions, boolean storeColumnar) {
         try (FileOutputStream waysScriptOs = new FileOutputStream(new File(resultDirectory, "static/multipolygon_tables.sql"))) {
             for (Partition currentPart : partitions) {
-                waysScriptOs.write(String.format("CREATE TABLE  \"multipolygon_%03d\" PARTITION OF multipolygon FOR VALUES FROM (%s) TO (%s) %s;\n",
+                waysScriptOs.write(String.format("CREATE TABLE  \"multipolygon_%03d\" PARTITION OF multipolygon FOR VALUES FROM (%s) TO (%s) %s;%n",
                         currentPart.getId(),currentPart.getMinRange(),currentPart.getMaxRange(),
                         getColumnarString(storeColumnar)).getBytes(StandardCharsets.UTF_8)
                 );
@@ -150,25 +150,20 @@ public class PartitionSplitter {
     private static Map<Short, Partition> getH3RangeInH2() throws IOException {
         try (InputStreamReader inputStreamReader = new InputStreamReader(
                 Objects.requireNonNull(PartitionSplitter.class.getResourceAsStream("/h3_2_ranges.tsv")))){
-            Stream<String> stream = new BufferedReader(inputStreamReader).lines();
-            Map<Short, Partition> h3RangeInH2 = stream.map(line -> {
+            return new BufferedReader(inputStreamReader).lines().map(line -> {
                 String[] parts = line.split("\t");
                 return new AbstractMap.SimpleImmutableEntry<>(Short.parseShort(parts[0]), new Partition(Short.parseShort(parts[1]), Short.parseShort(parts[2])));
             }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-            return h3RangeInH2;
         }
-
     }
 
     private static Map<Short, Short> parseH33to2() throws IOException {
         try (InputStreamReader inputStreamReader = new InputStreamReader(
                 Objects.requireNonNull(PartitionSplitter.class.getResourceAsStream("/h3_3_to_2.tsv")))) {
-            Stream<String> stream = new BufferedReader(inputStreamReader).lines();
-            Map<Short, Short> h33to2 = new TreeMap<>(stream.map(line -> {
+            return new TreeMap<>(new BufferedReader(inputStreamReader).lines().map(line -> {
                 String[] parts = line.split("\t");
                 return new AbstractMap.SimpleImmutableEntry<>(Short.parseShort(parts[0]), Short.parseShort(parts[1]));
             }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
-            return h33to2;
         }
     }
 

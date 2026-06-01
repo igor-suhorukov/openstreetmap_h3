@@ -40,10 +40,10 @@ public abstract class ArrowBatchWriter {
         if (tags != null && !tags.isEmpty()) {
             mapWriter.startMap();
             tags.forEach((key, value) -> {
-                if (value.length() == 0) {
+                if (value.isEmpty()) {
                     value = "-";
                 }
-                if (key.length() == 0) {
+                if (key.isEmpty()) {
                     key = "-";
                 }
                 byte[] keyBytes = key.getBytes(StandardCharsets.UTF_8);

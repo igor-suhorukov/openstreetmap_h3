@@ -50,10 +50,6 @@ public class Serializer {
             }
         }
         String pointIdxs = Arrays.stream(pointsIdx).mapToObj(Long::toString).collect(Collectors.joining(","));
-/*
-        byte[] linestingBinary = binaryWriter.writeBinary(lineString);
-        https://postgis.net/docs/ST_GeomFromEWKB.html
-*/
         csvString.append(h33).append("\t").append(h38).append("\t")
         .append(id).append("\t")
         .append(closed?'t':'f').append("\t")
