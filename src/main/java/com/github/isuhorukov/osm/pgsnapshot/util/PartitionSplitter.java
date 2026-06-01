@@ -22,26 +22,41 @@ public class PartitionSplitter {
     private PartitionSplitter() {}
 
     public static int createNodesScript(File resultDirectory, int scriptCount, List<Partition> partitions, boolean storeColumnar) {
-        final List<List<Partition>> partition = Lists.partition(partitions, partitions.size()/ scriptCount +1);
-        for (int waysPartIdx = 0; waysPartIdx < partition.size(); waysPartIdx++) {
-            List<Partition> part = partition.get(waysPartIdx);
-            String scriptName = String.format("sql/nodes_import_%03d.sql", waysPartIdx);
-            try (FileOutputStream waysScriptOs = new FileOutputStream(new File(resultDirectory, scriptName))){
-                appendScriptHead(scriptName, waysScriptOs);
-                waysScriptOs.write("BEGIN;\n".getBytes(StandardCharsets.UTF_8));
+        return createImportScript(resultDirectory, scriptCount, partitions, storeColumnar,
+                "nodes", "h3_3,h3_8,id,geom,tags");
+    }
+
+    public static int createWaysScript(File resultDirectory, int scriptCount, List<Partition> partitions, boolean storeColumnar) {
+        return createImportScript(resultDirectory, scriptCount, partitions, storeColumnar,
+                "ways", "h3_3,h3_8,id,closed,building,highway,scale,centre,bbox,linestring,points,h3_8_regions,tags");
+    }
+
+    private static int createImportScript(File resultDirectory, int scriptCount, List<Partition> partitions,
+                                          boolean storeColumnar, String entityName, String copyColumns) {
+        final List<List<Partition>> partition = Lists.partition(partitions, partitions.size() / scriptCount + 1);
+        for (int partIdx = 0; partIdx < partition.size(); partIdx++) {
+            List<Partition> part = partition.get(partIdx);
+            String scriptName = String.format("sql/%s_import_%03d.sql", entityName, partIdx);
+            try (FileOutputStream scriptOs = new FileOutputStream(new File(resultDirectory, scriptName))) {
+                appendScriptHead(scriptName, scriptOs);
+                scriptOs.write("BEGIN;\n".getBytes(StandardCharsets.UTF_8));
                 for (Partition currentPart : part) {
-                    waysScriptOs.write(String.format("CREATE TABLE \"nodes_%03d\" (like nodes) %s;%n", currentPart.getId(),
+                    scriptOs.write(String.format("CREATE TABLE \"%s_%03d\" (like %s) %s;%n",
+                            entityName, currentPart.getId(), entityName,
                             getColumnarString(storeColumnar)).getBytes(StandardCharsets.UTF_8));
                     List<Short> h33RegionsInside = currentPart.getH33RegionsInside();
                     Collections.sort(h33RegionsInside);
-                    for(Short h33Region: h33RegionsInside){
-                        waysScriptOs.write(String.format("COPY \"nodes_%03d\"(h3_3,h3_8,id,geom,tags) FROM '/input/nodes/%05d.tsv' DELIMITER E'\\t' ESCAPE '\\' NULL '\\N' CSV;%n",currentPart.getId(), h33Region).getBytes(StandardCharsets.UTF_8));
+                    for (Short h33Region : h33RegionsInside) {
+                        scriptOs.write(String.format("COPY \"%s_%03d\"(%s) FROM '/input/%s/%05d.tsv' DELIMITER E'\\t' ESCAPE '\\' NULL '\\N' CSV;%n",
+                                entityName, currentPart.getId(), copyColumns, entityName, h33Region).getBytes(StandardCharsets.UTF_8));
                     }
                 }
                 for (Partition currentPart : part) {
-                    waysScriptOs.write(String.format("ALTER TABLE  nodes ATTACH PARTITION  \"nodes_%03d\" FOR VALUES FROM (%s) TO (%s);%n", currentPart.getId(),currentPart.getMinRange(),currentPart.getMaxRange()).getBytes(StandardCharsets.UTF_8));
+                    scriptOs.write(String.format("ALTER TABLE  %s ATTACH PARTITION  \"%s_%03d\" FOR VALUES FROM (%s) TO (%s);%n",
+                            entityName, entityName, currentPart.getId(),
+                            currentPart.getMinRange(), currentPart.getMaxRange()).getBytes(StandardCharsets.UTF_8));
                 }
-                waysScriptOs.write("COMMIT;".getBytes(StandardCharsets.UTF_8));
+                scriptOs.write("COMMIT;".getBytes(StandardCharsets.UTF_8));
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -56,34 +71,6 @@ public class PartitionSplitter {
     public static void appendScriptHead(String scriptName, FileOutputStream waysScriptOs) throws IOException {
         waysScriptOs.write(("SET application_name = 'psql "+ scriptName +"';\n").getBytes(StandardCharsets.UTF_8));
         waysScriptOs.write("\\timing on\n".getBytes(StandardCharsets.UTF_8));
-    }
-
-    public static int createWaysScript(File resultDirectory, int scriptCount, List<Partition> partitions, boolean storeColumnar) {
-        final List<List<Partition>> partition = Lists.partition(partitions, partitions.size()/ scriptCount +1);
-        for (int waysPartIdx = 0; waysPartIdx < partition.size(); waysPartIdx++) {
-            List<Partition> part = partition.get(waysPartIdx);
-            String scriptName = String.format("sql/ways_import_%03d.sql", waysPartIdx);
-            try (FileOutputStream waysScriptOs = new FileOutputStream(new File(resultDirectory, scriptName))){
-                appendScriptHead(scriptName, waysScriptOs);
-                waysScriptOs.write("BEGIN;\n".getBytes(StandardCharsets.UTF_8));
-                for (Partition currentPart : part) {
-                    waysScriptOs.write(String.format("CREATE TABLE \"ways_%03d\" (like ways) %s;%n", currentPart.getId(),
-                            getColumnarString(storeColumnar)).getBytes(StandardCharsets.UTF_8));
-                    List<Short> h33RegionsInside = currentPart.getH33RegionsInside();
-                    Collections.sort(h33RegionsInside);
-                    for(Short h33Region: h33RegionsInside){
-                        waysScriptOs.write(String.format("COPY \"ways_%03d\"(h3_3,h3_8,id,closed,building,highway,scale,centre,bbox,linestring,points,h3_8_regions,tags) FROM '/input/ways/%05d.tsv' DELIMITER E'\\t' ESCAPE '\\' NULL '\\N' CSV;%n",currentPart.getId(), h33Region).getBytes(StandardCharsets.UTF_8));
-                    }
-                }
-                for (Partition currentPart : part) {
-                    waysScriptOs.write(String.format("ALTER TABLE  ways ATTACH PARTITION  \"ways_%03d\" FOR VALUES FROM (%s) TO (%s);%n", currentPart.getId(),currentPart.getMinRange(),currentPart.getMaxRange()).getBytes(StandardCharsets.UTF_8));
-                }
-                waysScriptOs.write("COMMIT;".getBytes(StandardCharsets.UTF_8));
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        }
-        return partition.size();
     }
 
     public static void createMultipolygonScript(File resultDirectory, List<Partition> partitions, boolean storeColumnar) {

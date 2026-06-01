@@ -5,11 +5,13 @@ import org.apache.arrow.c.ArrowArrayStream;
 import org.apache.arrow.c.Data;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.RootArrowReader;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.complex.impl.UnionMapWriter;
 import org.apache.arrow.vector.ipc.ArrowFileWriter;
 import org.apache.arrow.vector.ipc.ArrowReader;
+import org.apache.arrow.vector.types.pojo.Schema;
 import org.duckdb.DuckDBConnection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -90,6 +92,22 @@ public abstract class ArrowBatchWriter {
             writer.start();
             writer.writeBatch();
             writer.end();
+        }
+    }
+
+    @FunctionalInterface
+    protected interface BlockWriter {
+        void write(BufferAllocator allocator, VectorSchemaRoot root) throws Exception;
+    }
+
+    protected void writeBlock(Long blockNumber, Schema schema, String fileName, BlockWriter writer) {
+        try (BufferAllocator allocator = new RootAllocator();
+             VectorSchemaRoot root = VectorSchemaRoot.create(schema, allocator)) {
+            writer.write(allocator, root);
+            dispatch(allocator, root, fileName, blockNumber);
+        } catch (Exception e) {
+            log.error("block {}", blockNumber, e);
+            System.exit(-1);
         }
     }
 

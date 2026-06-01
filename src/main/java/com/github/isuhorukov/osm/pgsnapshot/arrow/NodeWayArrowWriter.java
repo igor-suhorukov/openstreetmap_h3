@@ -4,7 +4,6 @@ import com.github.isuhorukov.osm.pgsnapshot.ArrowFormat;
 import com.github.isuhorukov.osm.pgsnapshot.model.ArrowNodeOrWay;
 import com.github.isuhorukov.osm.pgsnapshot.output.ResultLayout;
 import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.*;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.MapVector;
@@ -27,50 +26,43 @@ public class NodeWayArrowWriter extends ArrowBatchWriter {
         }
         boolean isWays = arrowNodeOrWays.stream().anyMatch(item -> item.getPointIdxs() != null);
         Schema schema = ArrowSchemas.getNodesOrWaysSchema(isWays);
+        String fileName = String.format("%s/%08d",
+                isWays ? ResultLayout.WAYS_DIR : ResultLayout.NODES_DIR, blockNumber);
+        writeBlock(blockNumber, schema, fileName, (allocator, root) -> {
+            BigIntVector idVector = (BigIntVector) root.getVector("id");
+            SmallIntVector h33Vector = (SmallIntVector) root.getVector("h33");
+            IntVector h38Vector = (IntVector) root.getVector("h38");
+            Float8Vector latitudeVector = (Float8Vector) root.getVector("latitude");
+            Float8Vector longitudeVector = (Float8Vector) root.getVector("longitude");
+            MapVector mapVector = (MapVector) root.getVector("tags");
+            int size = arrowNodeOrWays.size();
+            idVector.allocateNew(size);
+            h33Vector.allocateNew(size);
+            h38Vector.allocateNew(size);
+            latitudeVector.allocateNew(size);
+            longitudeVector.allocateNew(size);
+            mapVector.allocateNew();
+            UnionMapWriter mapWriter = mapVector.getWriter();
+            WayColumnVectors wayVectors = isWays ? new WayColumnVectors(root, size) : null;
 
-        try (BufferAllocator allocator = new RootAllocator()) {
-            try (VectorSchemaRoot root = VectorSchemaRoot.create(schema, allocator)) {
-                BigIntVector idVector = (BigIntVector) root.getVector("id");
-                SmallIntVector h33Vector = (SmallIntVector) root.getVector("h33");
-                IntVector h38Vector = (IntVector) root.getVector("h38");
-                Float8Vector latitudeVector = (Float8Vector) root.getVector("latitude");
-                Float8Vector longitudeVector = (Float8Vector) root.getVector("longitude");
-                MapVector mapVector = (MapVector) root.getVector("tags");
-                int size = arrowNodeOrWays.size();
-                idVector.allocateNew(size);
-                h33Vector.allocateNew(size);
-                h38Vector.allocateNew(size);
-                latitudeVector.allocateNew(size);
-                longitudeVector.allocateNew(size);
-                mapVector.allocateNew();
-                UnionMapWriter mapWriter = mapVector.getWriter();
-                WayColumnVectors wayVectors = isWays ? new WayColumnVectors(root, size) : null;
-
-                for (int idx = 0; idx < size; idx++) {
-                    ArrowNodeOrWay item = arrowNodeOrWays.get(idx);
-                    idVector.set(idx, item.getId());
-                    h33Vector.set(idx, item.getH33());
-                    h38Vector.set(idx, item.getH38());
-                    latitudeVector.set(idx, item.getLatitude());
-                    longitudeVector.set(idx, item.getLongitude());
-                    writeTagsToArrow(allocator, mapWriter, idx, item.getTags());
-                    if (wayVectors != null) {
-                        wayVectors.writeElement(idx, item);
-                    }
-                }
-                mapWriter.setValueCount(size);
+            for (int idx = 0; idx < size; idx++) {
+                ArrowNodeOrWay item = arrowNodeOrWays.get(idx);
+                idVector.set(idx, item.getId());
+                h33Vector.set(idx, item.getH33());
+                h38Vector.set(idx, item.getH38());
+                latitudeVector.set(idx, item.getLatitude());
+                longitudeVector.set(idx, item.getLongitude());
+                writeTagsToArrow(allocator, mapWriter, idx, item.getTags());
                 if (wayVectors != null) {
-                    wayVectors.finalizeValueCounts(size);
+                    wayVectors.writeElement(idx, item);
                 }
-                root.setRowCount(size);
-                String fileName = String.format("%s/%08d",
-                        isWays ? ResultLayout.WAYS_DIR : ResultLayout.NODES_DIR, blockNumber);
-                dispatch(allocator, root, fileName, blockNumber);
             }
-        } catch (Exception e) {
-            log.error("block {}", blockNumber, e);
-            System.exit(-1);
-        }
+            mapWriter.setValueCount(size);
+            if (wayVectors != null) {
+                wayVectors.finalizeValueCounts(size);
+            }
+            root.setRowCount(size);
+        });
     }
 
     private static final class WayColumnVectors {

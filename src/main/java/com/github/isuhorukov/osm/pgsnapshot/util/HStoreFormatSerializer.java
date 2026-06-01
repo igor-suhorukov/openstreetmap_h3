@@ -41,36 +41,8 @@ public class HStoreFormatSerializer {
             return;
         }
         result.append("\\\"");
-        for (int i=0; i<s.length(); i++) {
-            char currentChar = s.charAt(i);
-            switch (currentChar) {
-                case '\\': // Slash
-                    result.append("\\\\\\\\");
-                    break;
-                case 8: // Backspace
-                    result.append("\\b");
-                    break;
-                case 12: // Form feed
-                    result.append("\\f");
-                    break;
-                case 10: // Newline
-                    result.append("\\n");
-                    break;
-                case 13: // Carriage return
-                    result.append("\\r");
-                    break;
-                case 9: // Tab
-                    result.append("\\t");
-                    break;
-                case 11: // Vertical tab
-                    result.append("\\v");
-                    break;
-                case '"': // Quote
-                    result.append("\\\\\\\"");
-                    break;
-                default:
-                    result.append(currentChar);
-            }
+        for (int i = 0; i < s.length(); i++) {
+            appendEscapedChar(result, s.charAt(i), true);
         }
         result.append("\\\"");
     }
@@ -80,38 +52,41 @@ public class HStoreFormatSerializer {
             result.append(HStoreFormatSerializer.NULL_STRING);
             return;
         }
-        char[] dataArray = data.toCharArray();
         result.append("\"");
-        for (char currentChar : dataArray) {
-            switch (currentChar) {
-                case '\\': // Slash
-                    result.append("\\\\");
-                    break;
-                case 8: // Backspace
-                    result.append("\\b");
-                    break;
-                case 12: // Form feed
-                    result.append("\\f");
-                    break;
-                case 10: // Newline
-                    result.append("\\n");
-                    break;
-                case 13: // Carriage return
-                    result.append("\\r");
-                    break;
-                case 9: // Tab
-                    result.append("\\t");
-                    break;
-                case 11: // Vertical tab
-                    result.append("\\v");
-                    break;
-                case '\"': // Quote
-                    result.append("\\\"");
-                    break;
-                default:
-                    result.append(currentChar);
-            }
+        for (char currentChar : data.toCharArray()) {
+            appendEscapedChar(result, currentChar, false);
         }
         result.append("\"");
+    }
+
+    private static void appendEscapedChar(StringBuilder result, char c, boolean deep) {
+        switch (c) {
+            case '\\':
+                result.append(deep ? "\\\\\\\\" : "\\\\");
+                break;
+            case 8:
+                result.append("\\b");
+                break;
+            case 12:
+                result.append("\\f");
+                break;
+            case 10:
+                result.append("\\n");
+                break;
+            case 13:
+                result.append("\\r");
+                break;
+            case 9:
+                result.append("\\t");
+                break;
+            case 11:
+                result.append("\\v");
+                break;
+            case '"':
+                result.append(deep ? "\\\\\\\"" : "\\\"");
+                break;
+            default:
+                result.append(c);
+        }
     }
 }
