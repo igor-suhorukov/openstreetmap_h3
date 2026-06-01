@@ -1,7 +1,6 @@
 package com.github.isuhorukov.osm.pgsnapshot.output;
 
 import java.io.File;
-import java.io.IOException;
 
 public class ResultLayout {
 
@@ -21,7 +20,7 @@ public class ResultLayout {
         return inputDirectory.getName().replace("_blocks", "");
     }
 
-    public static File prepareResultDirectories(File resultDir, boolean savePostgresqlTsv, boolean saveArrow) throws IOException {
+    public static File prepareResultDirectories(File resultDir, boolean savePostgresqlTsv, boolean saveArrow) {
         resultDir.mkdir();
         if (savePostgresqlTsv) {
             File nodesDir = new File(resultDir, NODES_DIR);

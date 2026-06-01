@@ -44,6 +44,7 @@ public class PbfBlobOffsets {
 
                 @Override
                 public void error() {
+                    // blob decoding errors are propagated via PbfBlobDecoder; nothing to do here
                 }
             });
             blobDecoder.run();

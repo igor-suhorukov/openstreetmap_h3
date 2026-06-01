@@ -4,9 +4,6 @@ public class MultipolygonTime {
     long multipolygonExportTime;
     long splitMultipolygonByPartsTime;
 
-    public MultipolygonTime() {
-    }
-
     public long getMultipolygonExportTime() {
         return multipolygonExportTime;
     }

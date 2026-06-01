@@ -17,7 +17,6 @@ import org.apache.arrow.vector.types.pojo.Schema;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.List;
 
 public class RelationArrowWriter extends ArrowBatchWriter {
@@ -26,7 +25,7 @@ public class RelationArrowWriter extends ArrowBatchWriter {
         super(resultDir, arrowFormat);
     }
 
-    public void write(ArrayList<ArrowRelation> arrowRelations, Long blockNumber) {
+    public void write(List<ArrowRelation> arrowRelations, Long blockNumber) {
         if (arrowRelations == null || arrowRelations.isEmpty()) {
             return;
         }

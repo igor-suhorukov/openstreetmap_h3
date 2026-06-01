@@ -4,9 +4,7 @@ import com.github.isuhorukov.osm.pgsnapshot.model.statistics.BlockStat;
 import com.github.isuhorukov.osm.pgsnapshot.model.statistics.PbfStatistics;
 import com.github.isuhorukov.osm.pgsnapshot.model.statistics.Stat;
 import com.github.isuhorukov.osm.pgsnapshot.util.HStoreFormatSerializer;
-import net.postgis.jdbc.geometry.LineString;
 import net.postgis.jdbc.geometry.Point;
-import net.postgis.jdbc.geometry.Polygon;
 import net.postgis.jdbc.geometry.binary.BinaryWriter;
 import org.openstreetmap.osmosis.core.domain.v0_6.Tag;
 import org.openstreetmap.osmosis.core.util.CollectionWrapper;
@@ -17,22 +15,20 @@ import java.util.stream.Collectors;
 public class Serializer {
     public static final int SRID = 4326;
 
-    public void serializeNode(StringBuilder csvString, BinaryWriter binaryWriter, short h33, int h38,
-                              long id, double latitude, double longitude, Collection<Tag> tags){
+    private final BinaryWriter binaryWriter = new BinaryWriter();
+
+    public void serializeNode(StringBuilder csvString, short h33, int h38,
+                              long id, double latitude, double longitude, Collection<Tag> tags) {
         csvString.append(h33).append("\t").append(h38).append('\t').append(id).append("\t")
                 .append(binaryWriter.writeHexed(getPoint(latitude, longitude)));
         csvString.append("\t");
         HStoreFormatSerializer.renderTags(tags, csvString);
         csvString.append("\n");
     }
-    public void serializeWay(StringBuilder csvString, BinaryWriter binaryWriter,
-                                     boolean closed, boolean nonValid,
-                                     short h33, int h38, long id,
-                                     long[] pointsIdx, Set<Integer> wayIntersectionH38Indexes,
-                                     Point centre, float scaleDim,
-                                     Polygon bboxGeometry, LineString lineString, Collection<Tag> tags){
 
-        if(nonValid){
+    public void serializeWay(StringBuilder csvString, WaySerializeData w) {
+        Collection<Tag> tags = w.getTags();
+        if (w.isNonValid()) {
             Tag nonValidLine = new Tag("is.line_non_valid", "true");
             CollectionWrapper<Tag> wrapper = (CollectionWrapper<Tag>) tags;
             wrapper.add(nonValidLine);
@@ -49,20 +45,20 @@ public class Serializer {
                 break;
             }
         }
-        String pointIdxs = Arrays.stream(pointsIdx).mapToObj(Long::toString).collect(Collectors.joining(","));
-        csvString.append(h33).append("\t").append(h38).append("\t")
-        .append(id).append("\t")
-        .append(closed?'t':'f').append("\t")
-        .append(building?'t':'f').append("\t")
-        .append(highway?'t':'f').append("\t")
-        .append(scaleDim).append("\t")
-        .append(binaryWriter.writeHexed(centre)).append("\t")
-        .append(binaryWriter.writeHexed(bboxGeometry)).append("\t")
-        .append(binaryWriter.writeHexed(lineString)).append("\t")
+        String pointIdxs = Arrays.stream(w.getPointsIdx()).mapToObj(Long::toString).collect(Collectors.joining(","));
+        csvString.append(w.getH33()).append("\t").append(w.getH38()).append("\t")
+        .append(w.getId()).append("\t")
+        .append(w.isClosed() ? 't' : 'f').append("\t")
+        .append(building ? 't' : 'f').append("\t")
+        .append(highway ? 't' : 'f').append("\t")
+        .append(w.getScaleDim()).append("\t")
+        .append(binaryWriter.writeHexed(w.getCentre())).append("\t")
+        .append(binaryWriter.writeHexed(w.getBboxGeometry())).append("\t")
+        .append(binaryWriter.writeHexed(w.getLineString())).append("\t")
         .append('{').append(pointIdxs).append('}').append("\t");
-        if(wayIntersectionH38Indexes!=null && !wayIntersectionH38Indexes.isEmpty()){
-            String h38Indexes = wayIntersectionH38Indexes.stream().
-                                                    map(Object::toString).collect(Collectors.joining(","));
+        if (w.getWayIntersectionH38Indexes() != null && !w.getWayIntersectionH38Indexes().isEmpty()) {
+            String h38Indexes = w.getWayIntersectionH38Indexes().stream()
+                    .map(Object::toString).collect(Collectors.joining(","));
             csvString.append('{').append(h38Indexes).append('}').append("\t");
         } else {
             csvString.append(HStoreFormatSerializer.NULL_STRING).append('\t');
@@ -71,14 +67,14 @@ public class Serializer {
         csvString.append("\n");
     }
 
-    public void serializeRelation(StringBuilder csvString, long id, Collection<Tag> tags){
+    public void serializeRelation(StringBuilder csvString, long id, Collection<Tag> tags) {
         csvString.append(id).append("\t");
         HStoreFormatSerializer.renderTags(tags, csvString);
         csvString.append("\n");
     }
 
     public void serializeRelationMembers(StringBuilder csvString,
-                                    long relationId, long memberId,String memberType,String memberRole, int sequenceId){
+                                    long relationId, long memberId, String memberType, String memberRole, int sequenceId) {
         csvString.append(relationId).append("\t").append(memberId).append("\t").append(memberType).append("\t");
         HStoreFormatSerializer.escapeString(csvString, memberRole);
         csvString.append("\t").append(sequenceId);
@@ -91,7 +87,7 @@ public class Serializer {
         return point;
     }
 
-    public void serializePbfStat(StringBuilder csvString, PbfStatistics pbfStatistics){
+    public void serializePbfStat(StringBuilder csvString, PbfStatistics pbfStatistics) {
         csvString.append(pbfStatistics.getMultipolygonCount()).append('\t');
         csvString.append(pbfStatistics.getDataProcessingTime()).append('\t');
         csvString.append(pbfStatistics.getPbfSplitTime()).append('\t');
@@ -101,8 +97,8 @@ public class Serializer {
         csvString.append(pbfStatistics.getTotalTime()).append('\n');
     }
 
-    public void serializeBlockStat(StringBuilder csvString, List<BlockStat> blockStats){
-        for(BlockStat blockStat: blockStats){
+    public void serializeBlockStat(StringBuilder csvString, List<BlockStat> blockStats) {
+        for (BlockStat blockStat : blockStats) {
             csvString.append(blockStat.getId()).append('\t');
             csvString.append(blockStat.getNodeCount()).append('\t');
             csvString.append(blockStat.getWayCount()).append('\t');
@@ -117,7 +113,7 @@ public class Serializer {
         }
     }
 
-    public void serializeBlockContent(StringBuilder csvString, BlockStat blockStat){
+    public void serializeBlockContent(StringBuilder csvString, BlockStat blockStat) {
         if (blockStat.getRelationCount() > 0) {
             return;
         }
@@ -126,15 +122,15 @@ public class Serializer {
         }
         Map<Short, Stat> statistics = null;
         String objectType = null;
-        if (blockStat.getNodeCount() > 0 && blockStat.getNodeStat()!=null) {
+        if (blockStat.getNodeCount() > 0 && blockStat.getNodeStat() != null) {
             statistics = new TreeMap<>(blockStat.getNodeStat());
             objectType = "N";
         }
-        if (blockStat.getWayCount() > 0 && blockStat.getWayStat()!=null) {
+        if (blockStat.getWayCount() > 0 && blockStat.getWayStat() != null) {
             statistics = new TreeMap<>(blockStat.getWayStat());
             objectType = "W";
         }
-        for(Map.Entry<Short, Stat> statisticBlock : Objects.requireNonNull(statistics).entrySet()){
+        for (Map.Entry<Short, Stat> statisticBlock : Objects.requireNonNull(statistics).entrySet()) {
             Short blockId = statisticBlock.getKey();
             Stat blockValue = statisticBlock.getValue();
             csvString.append(objectType).append('\t');

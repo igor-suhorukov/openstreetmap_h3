@@ -3,6 +3,7 @@ package com.github.isuhorukov.osm.pgsnapshot.pipeline;
 import com.github.isuhorukov.osm.pgsnapshot.CliParameters;
 import com.github.isuhorukov.osm.pgsnapshot.OsmPbfTransformation;
 import com.github.isuhorukov.osm.pgsnapshot.Serializer;
+import com.github.isuhorukov.osm.pgsnapshot.WaySerializeData;
 import com.github.isuhorukov.osm.pgsnapshot.model.ArrowNodeOrWay;
 import com.github.isuhorukov.osm.pgsnapshot.model.ArrowRelation;
 import com.github.isuhorukov.osm.pgsnapshot.model.ArrowRelationMember;
@@ -10,7 +11,6 @@ import com.github.isuhorukov.osm.pgsnapshot.model.TagsUtil;
 import com.github.isuhorukov.osm.pgsnapshot.model.statistics.Stat;
 import com.github.isuhorukov.osm.pgsnapshot.util.CompactH3;
 import com.uber.h3core.H3Core;
-import net.postgis.jdbc.geometry.binary.BinaryWriter;
 import org.geotools.referencing.CRS;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.io.WKBWriter;
@@ -32,7 +32,6 @@ public class BlockProcessor {
     private final H3Core h3Core;
     private final GeometryFactory geometryFactory;
     private final MemberTypeValueMapper memberTypeValueMapper;
-    private final BinaryWriter binaryWriter;
     private final WKBWriter wkbWriter;
     private final CoordinateReferenceSystem coordinateReferenceSystem;
     private final Serializer serializer;
@@ -42,7 +41,6 @@ public class BlockProcessor {
         this.h3Core = h3Core;
         this.geometryFactory = new GeometryFactory();
         this.memberTypeValueMapper = new MemberTypeValueMapper();
-        this.binaryWriter = new BinaryWriter();
         this.wkbWriter = new WKBWriter();
         this.serializer = new Serializer();
         try {
@@ -114,7 +112,7 @@ public class BlockProcessor {
             }
             if (parameters.isSavePostgresqlTsv()) {
                 StringBuilder resultBuilder = result.getCsvResultPerH33().computeIfAbsent(h33, key -> new StringBuilder());
-                serializer.serializeNode(resultBuilder, binaryWriter, h33, h38, id, latitude, longitude, getTags(entity));
+                serializer.serializeNode(resultBuilder, h33, h38, id, latitude, longitude, getTags(entity));
             }
         }
     }
@@ -130,15 +128,11 @@ public class BlockProcessor {
     }
 
     private void processWay(Way entity, BlockResult result, Map<Short, Stat> wayStat) {
-        if (parameters.isSkipBuildings()) {
-            if (entity.getTags().stream().anyMatch(tag -> "building".equals(tag.getKey()))) {
-                return;
-            }
+        if (parameters.isSkipBuildings() && entity.getTags().stream().anyMatch(tag -> "building".equals(tag.getKey()))) {
+            return;
         }
-        if (parameters.isSkipHighway()) {
-            if (entity.getTags().stream().anyMatch(tag -> "highway".equals(tag.getKey()))) {
-                return;
-            }
+        if (parameters.isSkipHighway() && entity.getTags().stream().anyMatch(tag -> "highway".equals(tag.getKey()))) {
+            return;
         }
         long id = entity.getId();
         List<WayNode> wayNodes = entity.getWayNodes();
@@ -164,7 +158,7 @@ public class BlockProcessor {
                     coordinateReferenceSystem, parameters.isScaleApproximation(), wkbWriter);
 
             if (parameters.isSaveArrow()) {
-                int[] h38Idxs = geom.getWayIntersectionH38Indexes() != null && !geom.getWayIntersectionH38Indexes().isEmpty()
+                int[] h38Idxs = !geom.getWayIntersectionH38Indexes().isEmpty()
                         ? geom.getWayIntersectionH38Indexes().stream().mapToInt(Integer::intValue).toArray()
                         : null;
                 ArrowNodeOrWay arrowNodeOrWay = new ArrowNodeOrWay.Builder(
@@ -183,12 +177,16 @@ public class BlockProcessor {
             }
             if (parameters.isSavePostgresqlTsv()) {
                 StringBuilder resultBuilder = result.getCsvResultPerH33().computeIfAbsent(h33, k -> new StringBuilder());
-                serializer.serializeWay(resultBuilder, binaryWriter,
-                        geom.isClosed(), geom.isNonValid(),
-                        h33, geom.getH38(), id,
-                        geom.getPointIdxs(), geom.getWayIntersectionH38Indexes(),
-                        geom.getCentre(), geom.getScaleDim(),
-                        geom.getBboxGeometry(), geom.getLineString(), getTags(entity));
+                WaySerializeData wayData = new WaySerializeData.Builder()
+                        .h33(h33).id(id)
+                        .closed(geom.isClosed()).nonValid(geom.isNonValid()).h38(geom.getH38())
+                        .pointsIdx(geom.getPointIdxs())
+                        .wayIntersectionH38Indexes(geom.getWayIntersectionH38Indexes())
+                        .centre(geom.getCentre()).scaleDim(geom.getScaleDim())
+                        .bboxGeometry(geom.getBboxGeometry()).lineString(geom.getLineString())
+                        .tags(getTags(entity))
+                        .build();
+                serializer.serializeWay(resultBuilder, wayData);
             }
         }
     }

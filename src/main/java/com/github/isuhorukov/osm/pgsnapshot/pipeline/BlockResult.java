@@ -6,6 +6,7 @@ import com.github.isuhorukov.osm.pgsnapshot.model.statistics.BlockStat;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class BlockResult {
@@ -23,8 +24,8 @@ public class BlockResult {
     }
 
     public Map<Short, StringBuilder> getCsvResultPerH33() { return csvResultPerH33; }
-    public ArrayList<ArrowNodeOrWay> getArrowNodeOrWays() { return arrowNodeOrWays; }
-    public ArrayList<ArrowRelation> getArrowRelations()   { return arrowRelations; }
+    public List<ArrowNodeOrWay> getArrowNodeOrWays() { return arrowNodeOrWays; }
+    public List<ArrowRelation> getArrowRelations()   { return arrowRelations; }
     public BlockStat getBlockStat()                       { return blockStat; }
     public long getNodeCount()                            { return nodeCount; }
     public long getWayCount()                             { return wayCount; }

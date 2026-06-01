@@ -40,7 +40,7 @@ public class Pipeline {
         this.parameters = parameters;
     }
 
-    public void run() throws Exception {
+    public void run() throws IOException, InterruptedException {
         long commandStartTime = System.currentTimeMillis();
 
         File sourcePbfFile = new File(parameters.getSourceFilePath());

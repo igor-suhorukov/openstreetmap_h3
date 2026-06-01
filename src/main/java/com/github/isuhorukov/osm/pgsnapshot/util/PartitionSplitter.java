@@ -10,7 +10,6 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class PartitionSplitter {
 
@@ -110,7 +109,7 @@ public class PartitionSplitter {
             h3RangeInH2 = getH3RangeInH2();
             h33to2 = parseH33to2();
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new UncheckedIOException(e);
         }
         Map<Short, Short> finalH33to = h33to2;
         Map<Short, Long> sumByH2 = new TreeMap<>(waysSizeStat.entrySet().stream().map(entry -> new AbstractMap.SimpleImmutableEntry<>(finalH33to.get(entry.getKey()), entry.getValue())).collect(Collectors.groupingBy(Map.Entry::getKey,
