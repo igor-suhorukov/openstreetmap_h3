@@ -19,6 +19,8 @@ docker run --name postgis16-cyprus --memory=12g --memory-swap=12g --memory-swapp
 ```
 
 ## Build and run in JVM:
+Maven modules: `extension-api` (extension points), `loader` (the loader jar
+`loader/target/osm-to-pgsnapshot-schema-ng-1.0-SNAPSHOT.jar`) and `poi-organicmaps` (an extension jar, see [Extensions](#extensions)).
 ``` bash
 ~/dev/projects/oss_contrib/openstreetmap_h3$ mvn install
 [INFO] Scanning for projects...
@@ -67,7 +69,7 @@ docker run --name postgis16-cyprus --memory=12g --memory-swap=12g --memory-swapp
 
 ## Usage details:
 ```
-~/dev/projects/oss_contrib/openstreetmap_h3$ java -jar target/osm-to-pgsnapshot-schema-ng-1.0-SNAPSHOT.jar
+~/dev/projects/oss_contrib/openstreetmap_h3$ java -jar loader/target/osm-to-pgsnapshot-schema-ng-1.0-SNAPSHOT.jar
 The following option is required: [-source_pbf]
 Usage: <main class> [options]
   Options:
@@ -83,7 +85,7 @@ Usage: <main class> [options]
       Filling ratio from maximum size of partition. This parameter change 
       PostgreSQL partitions count
       Default: 0.48
-    -help
+    -help, --help
       Information about command line parameters
     -pg_script_count
       Script count for PostgreSQL parallel COPY
@@ -113,11 +115,45 @@ Usage: <main class> [options]
       Default: 4
 ```
 
+### Extensions
+
+Extensions add tags to nodes, ways and relations. An extension implements
+`com.github.isuhorukov.osm.pgsnapshot.extension.TagExtension` from the `extension-api` module and is registered in
+`META-INF/services/com.github.isuhorukov.osm.pgsnapshot.extension.TagExtension` of its jar. The loader finds extension jars
+on `loader.path`, an extension also adds its own command line options. Without extension jars the loader works as before.
+``` bash
+java -Dloader.path=poi-organicmaps/target/osm-to-pgsnapshot-poi-organicmaps-1.0-SNAPSHOT.jar \
+     -jar loader/target/osm-to-pgsnapshot-schema-ng-1.0-SNAPSHOT.jar -source_pbf thailand-latest.osm.pbf \
+     -poi_mapping_dir ~/dev/projects/organicmaps/data
+```
+`loader.path` also accepts a directory with jars, the Docker image has extensions in `/plugins` (`LOADER_PATH=/plugins`).
+Options of an extension are unknown without its jar: the loader prints a hint about `loader.path` and exits with code 2,
+as for any invalid command line.
+
+### POI types by Organic Maps rules (poi-organicmaps extension)
+
+With `-poi_mapping_dir /path/to/organicmaps/data` (a checkout of [Organic Maps](https://github.com/organicmaps/organicmaps))
+nodes, ways and relations that Organic Maps treats as POI get two additional tags with PostgreSQL array values:
+`is.poi` with Organic Maps types and `is.poi_category` with categories displayed in its search.
+Multipolygons take these tags from their relations.
+```
+"amenity"=>"cafe", "shop"=>"bakery", "is.poi"=>"{amenity-cafe,shop-bakery}", "is.poi_category"=>"{category_eat,category_food}"
+```
+Types are matched as in the Organic Maps generator (`replaced_tags.txt`, `mapcss-mapping.csv`, the longest types),
+a type is a POI when it belongs to the POI classes of `IsPoiChecker` and has an entry in `categories.txt`.
+Project adjustments, like street furniture exclusions, are in
+`poi-organicmaps/src/main/resources/com/github/isuhorukov/osm/pgsnapshot/poi/organicmaps_poi_rules.txt`.
+The catalog of POI types with English, Russian and Thai names is loaded into the `om_poi_type` table.
+```sql
+select id, (tags->'is.poi')::text[] om_types, (tags->'is.poi_category')::text[] om_categories
+from nodes where tags ? 'is.poi' and 'category_transport' = any ((tags->'is.poi_category')::text[]);
+```
+
 
 ## Run:
 ```
 
-~/dev/projects/oss_contrib/openstreetmap_h3$ java -jar target/osm-to-pgsnapshot-schema-ng-1.0-SNAPSHOT.jar -source_pbf /home/acc/dev/map/thailand/thailand-latest.osm.pbf
+~/dev/projects/oss_contrib/openstreetmap_h3$ java -jar loader/target/osm-to-pgsnapshot-schema-ng-1.0-SNAPSHOT.jar -source_pbf /home/acc/dev/map/thailand/thailand-latest.osm.pbf
 
 [ 0:00] Started osmium add-locations-to-ways
 [ 0:00]   osmium version 1.14.0

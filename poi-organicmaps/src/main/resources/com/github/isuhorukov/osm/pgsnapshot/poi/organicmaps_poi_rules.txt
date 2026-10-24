@@ -1,0 +1,37 @@
+# Adjustments of Organic Maps POI types for the is.poi tag.
+# By default a type is a POI when it belongs to the POI classes of Organic Maps IsPoiChecker
+# (libs/indexer/ftypes_matcher.cpp) and data/categories.txt has an entry for it.
+# A rule applies to the type and its subtypes: amenity-parking also matches amenity-parking-fee.
+#   +<type> [category ...]   POI, optionally with additional displayed categories
+#   -<type>                  not a POI
+
+# The entrance is the walking destination of a metro station, categories.txt has no entry for it.
++railway-subway_entrance category_transport
+
+# Street furniture
+-amenity-bench
+-amenity-waste_basket
+-amenity-waste_disposal
+-amenity-recycling
+-amenity-parking
+-amenity-parking_entrance
+-amenity-bicycle_parking
+-amenity-motorcycle_parking
+-amenity-vending_machine
+-amenity-post_box
+-amenity-telephone
+-amenity-drinking_water
+-amenity-shelter
+-amenity-toilets
+-amenity-atm
+-amenity-hunting_stand
+-amenity-water_point
+-emergency-fire_hydrant
+-emergency-phone
+-emergency-defibrillator
+-emergency-assembly_point
+-man_made-water_tap
+-highway-speed_camera
+-highway-ford
+-highway-raceway
+-highway-elevator

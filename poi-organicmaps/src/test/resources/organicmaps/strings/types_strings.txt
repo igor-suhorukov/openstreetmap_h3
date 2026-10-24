@@ -1,0 +1,34 @@
+# Excerpt of Organic Maps data/strings/types_strings.txt (commit 408e794), Apache License 2.0
+[[Types]]
+
+[type.highway.bus_stop]
+en = Bus Stop
+af = Bushalte
+ru = Остановка
+th = ป้ายรถเมล์
+
+[type.amenity.cafe]
+comment = Place of food
+en = Cafe
+ru = Кафе
+th = คาเฟ่
+
+[type.railway.subway_entrance]
+en = Subway Entrance
+ru = Вход в метро
+th = ทางเข้ารถไฟใต้ดิน
+
+[type.shop.bakery]
+en = Bakery
+ru = Булочная
+th = เบเกอรี่
+
+[type.amenity.school]
+en = School
+ru = Школа
+th = โรงเรียน
+
+[type.railway.station]
+en = Train Station
+ru = Ж/д станция
+th = สถานีรถไฟ

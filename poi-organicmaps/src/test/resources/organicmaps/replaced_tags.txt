@@ -1,0 +1,5 @@
+# Excerpt of Organic Maps data/replaced_tags.txt (commit 408e794), Apache License 2.0
+atm=yes : amenity=atm
+shop=ice_cream : amenity=ice_cream
+vending=parcel_pickup;parcel_mail_in : amenity=parcel_locker | u
+vending=parcel_pickup : amenity=parcel_locker | u

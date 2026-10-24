@@ -1,0 +1,74 @@
+# Excerpt of Organic Maps data/categories.txt (commit 408e794), Apache License 2.0
+# Only en, ru and th translations are kept.
+
+@category_eat
+en:Where to eat|eat|Food
+ru:Где поесть|Поесть|Еда|кушать|покушать|перекус
+th:กินร้านไหนดี|อาหาร
+
+@category_transport
+en:5Transport
+ru:5Транспорт
+th:การขนส่ง
+
+amenity-cafe|@category_eat
+en:3Cafe|3restaurant|coffee|cafeteria|U+2615
+ru:3Кафе|3ресторан|кофейня|кофе
+th:3 คาเฟ่|ร้านอาหาร่|คาเฟ่
+
+shop-bakery|shop-pastry|@category_eat|@category_food|@shop
+en:3Bakery|3pastry|cake|3cakes|bread|U+1F35E
+ru:3Булочная|3пекарня|торт|3торты|пирожные|хлеб|выпечка
+th:3เบเกอรี่|ขนมอบ
+
+shop-supermarket|@category_food|@shop
+en:3Supermarket
+ru:3Супермаркет|3универсам|3гипермаркет|4гастроном
+th:3ซูเปอร์มาร์เก็ต
+
+highway-bus_stop|@category_transport
+en:2Bus Stop|bus|stop|U+1F68C|U+1F68F|U+1F68E|U+1F690
+ru:4Остановка|5автобус|4троллейбус
+th:ป้ายรถเมล์|รถเมล์|ขนส่ง
+
+railway-station|railway-halt|building-train_station|@category_transport
+en:3Train Station|trainstation|4railway|railroad|4station|rail halt|station building
+ru:3Ж/д станция|ж/д вокзал|3поезд|3станция
+th:3สถานีรถไฟ|รถไฟ|สถานี|ขนส่ง|อาคารสถานี
+
+railway-station-subway|@category_transport
+en:3Subway Station|3tube|3metro|3underground|U+1F687
+ru:3Метро
+th:สถานีรถไฟใต้ดิน|3รถไฟ|เมโทร|ใต้ดิน
+
+amenity-school
+en:3School|U+1F392|U+1F3EB
+ru:3Школа
+th:2โรงเรียน
+
+amenity-bench
+en:Bench
+ru:Скамейка|лавка
+th:ม้านั่ง
+
+amenity-ice_cream
+en:3Ice Cream|Gelato
+ru:4Мороженое
+th:แผงขายไอศกรีม
+
+amenity-parking|amenity-parking_entrance|@category_parking
+en:U+1F697|U+1F17F|U+1F698|U+1F699|parking|parking entrance
+ru:Автостоянка|парковка
+
+tourism-information
+en:4Tourist Information|4information|U+1F481
+ru:4Туринформация|3информация
+th:4ข้อมูลการท่องเที่ยว|ข้อมูล
+
+amenity-parcel_locker|@category_post
+en:4Parcel Locker|4Parcel Pickup
+ru:3Почтомат|Постамат|5Получение посылок
+
+amenity-charging_station|@charging_station
+th:สถานีชาร์จ
+
