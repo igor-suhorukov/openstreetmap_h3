@@ -2,6 +2,7 @@ package com.github.isuhorukov.osm.pgsnapshot.pipeline;
 
 import com.github.isuhorukov.osm.pgsnapshot.CliParameters;
 import com.github.isuhorukov.osm.pgsnapshot.ExternalProcessing;
+import com.github.isuhorukov.osm.pgsnapshot.PipedProcess;
 import com.github.isuhorukov.osm.pgsnapshot.Splitter;
 import com.github.isuhorukov.osm.pgsnapshot.arrow.NodeWayArrowWriter;
 import com.github.isuhorukov.osm.pgsnapshot.arrow.RelationArrowWriter;
@@ -10,9 +11,9 @@ import com.github.isuhorukov.osm.pgsnapshot.model.statistics.BlockStat;
 import com.github.isuhorukov.osm.pgsnapshot.model.statistics.MultipolygonTime;
 import com.github.isuhorukov.osm.pgsnapshot.model.statistics.PbfStatistics;
 import com.github.isuhorukov.osm.pgsnapshot.output.*;
+import com.github.isuhorukov.osm.pgsnapshot.util.LimitedQueue;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.uber.h3core.H3Core;
-import org.apache.commons.io.IOUtils;
 import org.openstreetmap.osmosis.core.container.v0_6.EntityContainer;
 import org.openstreetmap.osmosis.pbf2.v0_6.impl.PbfBlobDecoder;
 import org.openstreetmap.osmosis.pbf2.v0_6.impl.PbfBlobDecoderListener;
@@ -21,13 +22,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -61,13 +62,9 @@ public class Pipeline {
             tagExtension.init();
         }
         ExternalProcessing externalProcessing = new ExternalProcessing(parameters.isInvokeDockerCommand());
-        Splitter.Blocks blocks = externalProcessing.enrichSourcePbfAndSplitIt(sourcePbfFile, parameters.isPreserveAllNodes());
 
-        File inputDirectory = new File(blocks.getDirectory());
-        File[] files = inputDirectory.listFiles();
-        Arrays.sort(Objects.requireNonNull(files));
         File resultDirectory = ResultLayout.prepareResultDirectories(
-                new File(inputDirectory.getParent(), ResultLayout.resultDirectoryNameFromSource(inputDirectory)),
+                new File(sourcePbfFile.getParent(), ResultLayout.resultDirectoryNameFromSource(sourcePbfFile)),
                 parameters.isSavePostgresqlTsv(), parameters.isSaveArrow());
 
         ResourceCopier.copyOsmiumSettings(resultDirectory);
@@ -88,22 +85,30 @@ public class Pipeline {
         final H3Core h3Core = H3Core.newInstance();
 
         ExecutorService saveExecutorService = getExecutorService(parameters.getWorkers());
-        ExecutorService executorService = getExecutorService(parameters.getWorkers());
+        ExecutorService executorService = getBlockingExecutorService(parameters.getWorkers());
 
         Map<Long, BlockStat> blockStat = new ConcurrentHashMap<>();
         AtomicInteger currentBlockToSave = new AtomicInteger(0);
-        for (File blockFile : files) {
-            executorService.submit(() -> processBlockFile(blockFile, h3Core, resultDirectory,
-                    blockStat, currentBlockToSave, saveExecutorService));
+        int blockCount;
+        long addLocationsToWaysTime;
+        try (PipedProcess addLocationsToWays = externalProcessing.startAddLocationsToWays(sourcePbfFile,
+                parameters.isPreserveAllNodes())) {
+            blockCount = Splitter.splitPbfByBlocks(addLocationsToWays.getInputStream(), (rawBlob, blockNumber) ->
+                    executorService.submit(() -> processBlock(rawBlob, blockNumber, h3Core, resultDirectory,
+                            blockStat, currentBlockToSave, saveExecutorService)));
+            addLocationsToWays.waitForSuccess();
+            addLocationsToWaysTime = System.currentTimeMillis() - processingStartTime;
+            executorService.shutdown();
+            executorService.awaitTermination(2, TimeUnit.DAYS);
+        } finally {
+            executorService.shutdownNow();
+            saveExecutorService.shutdownNow();
         }
-        executorService.shutdown();
-        executorService.awaitTermination(2, TimeUnit.DAYS);
-        saveExecutorService.shutdown();
 
         List<BlockStat> blockStatistics = new ArrayList<>(blockStat.values());
         long multipolygonCount = blockStatistics.stream().map(BlockStat::getMultipolygonCount).mapToLong(Long::longValue).sum();
         long dataProcessingTime = System.currentTimeMillis() - processingStartTime;
-        StatisticsWriter.printProcessingStatistics(blockStatistics, files.length, dataProcessingTime, multipolygonCount);
+        StatisticsWriter.printProcessingStatistics(blockStatistics, blockCount, dataProcessingTime, multipolygonCount);
 
         if (!parameters.isCollectOnlyStat() && parameters.isSavePostgresqlTsv()) {
             PartitioningScriptWriter.savePartitioningScripts(resultDirectory, parameters.getScriptCount(),
@@ -119,38 +124,31 @@ public class Pipeline {
         }
 
         PbfStatistics statistics = buildStatistics(blockStatistics, multipolygonCount, dataProcessingTime,
-                blocks, multipolygonTime, System.currentTimeMillis() - commandStartTime);
+                addLocationsToWaysTime, multipolygonTime, System.currentTimeMillis() - commandStartTime);
 
         StatisticsWriter.saveStatistics(resultDirectory, statistics);
     }
 
     private static PbfStatistics buildStatistics(List<BlockStat> blockStatistics, long multipolygonCount,
-                                                 long dataProcessingTime, Splitter.Blocks blocks,
+                                                 long dataProcessingTime, long addLocationsToWaysTime,
                                                  MultipolygonTime multipolygonTime, long totalTime) {
         PbfStatistics statistics = new PbfStatistics(blockStatistics);
         statistics.setMultipolygonCount(multipolygonCount);
         statistics.setDataProcessingTime(dataProcessingTime);
-        statistics.setAddLocationsToWaysTime(blocks.getAddLocationsToWaysTime());
-        statistics.setPbfSplitTime(blocks.getPbfSplitTime());
+        statistics.setAddLocationsToWaysTime(addLocationsToWaysTime);
+        statistics.setPbfSplitTime(0);
         statistics.setMultipolygonExportTime(multipolygonTime.getMultipolygonExportTime());
         statistics.setSplitMultipolygonByPartsTime(multipolygonTime.getSplitMultipolygonByPartsTime());
         statistics.setTotalTime(totalTime);
         return statistics;
     }
 
-    private void processBlockFile(File blockFile, H3Core h3Core, File resultDirectory,
-                                   Map<Long, BlockStat> blockStat,
-                                   AtomicInteger currentBlockToSave, ExecutorService saveExecutorService) {
+    private void processBlock(RawBlob rawBlob, Long blockNumber, H3Core h3Core, File resultDirectory,
+                              Map<Long, BlockStat> blockStat,
+                              AtomicInteger currentBlockToSave, ExecutorService saveExecutorService) {
         long threadStart = System.currentTimeMillis();
-        Long blockNumber = Long.parseLong(blockFile.getName());
         if (blockNumber % 1000 == 0) {
             log.info("{}", blockNumber);
-        }
-        RawBlob rawBlob;
-        try (FileInputStream blobInputStream = new FileInputStream(blockFile)) {
-            rawBlob = new RawBlob("OSMData", IOUtils.toByteArray(blobInputStream));
-        } catch (IOException e) {
-            throw new IllegalArgumentException(e);
         }
 
         BlockProcessor blockProcessor = new BlockProcessor(parameters, h3Core, tagExtensions);
@@ -227,6 +225,13 @@ public class Pipeline {
     private static ExecutorService getExecutorService(int workers) {
         if (workers > 0) {
             return Executors.newFixedThreadPool(workers);
+        }
+        return MoreExecutors.newDirectExecutorService();
+    }
+
+    private static ExecutorService getBlockingExecutorService(int workers) {
+        if (workers > 0) {
+            return new ThreadPoolExecutor(workers, workers, 0L, TimeUnit.MILLISECONDS, new LimitedQueue<>(workers));
         }
         return MoreExecutors.newDirectExecutorService();
     }

@@ -6,14 +6,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.StringTokenizer;
@@ -22,6 +26,8 @@ import java.util.stream.Collectors;
 public class ExternalProcessing {
     private static final Logger log = LoggerFactory.getLogger(ExternalProcessing.class);
     public static final String MULTIPOLYGON_SOURCE_TSV = "/multipolygon/source.tsv";
+    private static final long DUCKDB_DEFAULT_MAX_LINE_SIZE = 2_000_000;
+    private static final long DUCKDB_DEFAULT_BUFFER_SIZE = 32_000_000;
 
     private final boolean invokeDockerCommand;
 
@@ -69,18 +75,45 @@ public class ExternalProcessing {
     // Output path is derived from server-controlled resultDirectory, not from external user input.
     @SuppressWarnings("java:S2077")
     public static void transformMultipolygonToParquet(File resultDirectory) {
+        String multipolygonSourceTsv = resultDirectory.getAbsolutePath() + MULTIPOLYGON_SOURCE_TSV;
         try (Connection connection = DriverManager.getConnection("jdbc:duckdb:");
              Statement statement = connection.createStatement()) {
             statement.executeUpdate("COPY (SELECT  column2 id, from_hex(column0) wkb," +
                     "'{'||replace(replace(column3,'\"=>\"','\":\"'),'\\\\','\\')||'}' tags_json FROM read_csv('"
-                    + resultDirectory.getAbsolutePath() + MULTIPOLYGON_SOURCE_TSV +
+                    + multipolygonSourceTsv +
                     "', HEADER=false, " +
                     "columns=STRUCT_PACK(column0 := 'VARCHAR', column1 := 'VARCHAR', column2 := 'BIGINT', column3 := 'VARCHAR')," +
-                    "delim=E'\\t',escape=E'\\\\',quote='',AUTO_DETECT='false') where column1='relation') TO '"
+                    "delim=E'\\t',escape=E'\\\\',quote='',AUTO_DETECT='false'," +
+                    csvLineSizeOptions(new File(multipolygonSourceTsv)) + ") where column1='relation') TO '"
                     + resultDirectory.getAbsolutePath() + "/arrow/multipolygon.parquet' (FORMAT 'PARQUET', CODEC 'ZSTD')");
         } catch (Exception ex) {
             throw new IllegalStateException(ex);
         }
+    }
+
+    static String csvLineSizeOptions(File tsvFile) throws IOException {
+        long maxLineSize = Math.max(DUCKDB_DEFAULT_MAX_LINE_SIZE, longestLineLength(tsvFile) + 1);
+        return "max_line_size=" + maxLineSize + ",buffer_size=" + Math.max(DUCKDB_DEFAULT_BUFFER_SIZE, 2 * maxLineSize);
+    }
+
+    static long longestLineLength(File file) throws IOException {
+        long longest = 0;
+        long current = 0;
+        byte[] buffer = new byte[1 << 20];
+        try (InputStream inputStream = new FileInputStream(file)) {
+            int read;
+            while ((read = inputStream.read(buffer)) != -1) {
+                for (int i = 0; i < read; i++) {
+                    if (buffer[i] == '\n') {
+                        longest = Math.max(longest, current);
+                        current = 0;
+                    } else {
+                        current++;
+                    }
+                }
+            }
+        }
+        return Math.max(longest, current);
     }
 
     public void executeMultipolygonExport(File sourcePbfFile, String resultDirName, String basePath,
@@ -107,31 +140,23 @@ public class ExternalProcessing {
         }
     }
 
-    public Splitter.Blocks enrichSourcePbfAndSplitIt(File sourcePbfFile, boolean preserveAllNodes)
-            throws IOException, InterruptedException {
+    public PipedProcess startAddLocationsToWays(File sourcePbfFile, boolean preserveAllNodes) throws IOException {
+        return PipedProcess.start(addLocationsToWaysCommand(sourcePbfFile, preserveAllNodes),
+                new File(sourcePbfFile.getParent()));
+    }
+
+    List<String> addLocationsToWaysCommand(File sourcePbfFile, boolean preserveAllNodes) {
         String basePath = sourcePbfFile.getParent();
-        String sourcePbfName = sourcePbfFile.getName();
-        String resultPbfName = sourcePbfName.replace(".osm", "").replace(".pbf", "_loc_ways.pbf");
-        File resultPbfNameFile = new File(basePath, resultPbfName);
-        File blockDirectory = new File(Splitter.getBlockDirectoryName(resultPbfNameFile));
-        if (blockDirectory.exists()) {
-            return new Splitter.Blocks(blockDirectory.getAbsolutePath(), -1, -1, -1);
+        List<String> command = new ArrayList<>();
+        if (invokeDockerCommand) {
+            Collections.addAll(command, "docker", "run", "--rm", "--log-driver", "none",
+                    "-w", basePath, "-v", basePath + ":" + basePath, "mschilde/osmium-tool");
         }
-
-        String indexType = getIndexType(sourcePbfFile);
-
-        long addLocationStart = System.currentTimeMillis();
-        if (!resultPbfNameFile.exists()) {
-            String enrichCommand = (invokeDockerCommand ? ("docker run -w " + basePath + " -v " + basePath + ":" + basePath +
-                    " mschilde/osmium-tool ") : "") + "/usr/bin/osmium add-locations-to-ways " +
-                    sourcePbfName + " -v --output-format pbf,pbf_compression=none " +
-                    (preserveAllNodes ? "--keep-untagged-nodes" : "--keep-member-nodes") +
-                    " -i " + indexType + " -o " + resultPbfName;
-            runCliCommand(enrichCommand, basePath);
-        }
-
-        return Splitter.splitPbfByBlocks(new File(basePath, resultPbfName),
-                System.currentTimeMillis() - addLocationStart);
+        Collections.addAll(command, "/usr/bin/osmium", "add-locations-to-ways", sourcePbfFile.getName(), "-v",
+                "--output-format", "pbf,pbf_compression=none",
+                preserveAllNodes ? "--keep-untagged-nodes" : "--keep-member-nodes",
+                "-i", getIndexType(sourcePbfFile), "-o", "-");
+        return command;
     }
 
     private static void runCliCommand(String[] cmdarray) throws IOException, InterruptedException {

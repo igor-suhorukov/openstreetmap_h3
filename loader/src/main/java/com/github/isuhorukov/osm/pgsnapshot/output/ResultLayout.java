@@ -16,8 +16,8 @@ public class ResultLayout {
     private ResultLayout() {
     }
 
-    public static String resultDirectoryNameFromSource(File inputDirectory) {
-        return inputDirectory.getName().replace("_blocks", "");
+    public static String resultDirectoryNameFromSource(File sourcePbfFile) {
+        return sourcePbfFile.getName().replace(".osm", "").replace(".pbf", "_loc_ways");
     }
 
     public static File prepareResultDirectories(File resultDir, boolean savePostgresqlTsv, boolean saveArrow) {

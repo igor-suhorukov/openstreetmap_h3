@@ -15,15 +15,15 @@ else (no)
   stop
 endif
 
-:Enrich & Split PBF;
 :Prepare Result Directories;
 :Copy Osmium Settings;
 :Copy Resources (if needed);
 
 :Initialize H3Core & Executors;
+:Start osmium add-locations-to-ways with output to pipe;
 
-while (Loop through Block Files) is (yes)
-  :Submit Block Processing Task;
+while (Read Block from osmium Output) is (yes)
+  :Submit Block Processing Task (waits while workers are busy);
 
   while (Process Entities) is (yes)
     if (Is Node?) then (yes)
@@ -48,6 +48,7 @@ while (Loop through Block Files) is (yes)
   endif
 endwhile (no)
 
+:Check osmium Exit Code;
 :Shutdown Executors;
 :Calculate Overall Statistics;
 

@@ -135,14 +135,14 @@ class ResultLayoutTest {
     }
 
     @Test
-    void resultDirectoryNameFromSource_stripsBlocksSuffix() {
-        File f = new File("/some/path/maldives_blocks");
-        assertEquals("maldives", ResultLayout.resultDirectoryNameFromSource(f));
+    void resultDirectoryNameFromSource_osmPbf_replacedWithLocWaysSuffix() {
+        File f = new File("/some/path/maldives-latest.osm.pbf");
+        assertEquals("maldives-latest_loc_ways", ResultLayout.resultDirectoryNameFromSource(f));
     }
 
     @Test
-    void resultDirectoryNameFromSource_noSuffix_unchanged() {
-        File f = new File("/some/path/maldives");
-        assertEquals("maldives", ResultLayout.resultDirectoryNameFromSource(f));
+    void resultDirectoryNameFromSource_pbfWithoutOsm_replacedWithLocWaysSuffix() {
+        File f = new File("/some/path/maldives.pbf");
+        assertEquals("maldives_loc_ways", ResultLayout.resultDirectoryNameFromSource(f));
     }
 }
