@@ -313,7 +313,7 @@ public class OsmPbfTransformationTest {
                         collect(Collectors.joining("\n")));
         assertEquals("osmium_export.json 134\n" +
                         "multipolygon_tables.sql 385\n" +
-                        "multipolygon.sql 2468\n" +
+                        "multipolygon.sql 2467\n" +
                         "h3_poly.tsv.gz 3315290\n" +
                         "database_init.sql 10733\n" +
                         "database_after_init.sql 7070",
@@ -325,7 +325,7 @@ public class OsmPbfTransformationTest {
                         collect(Collectors.joining("\n")));
         assertEquals("osmium_export.json c130cbc588a91ee414184f966eb77726\n" +
                         "multipolygon_tables.sql 8dbbadafcf974eb26456198d118ba3c3\n" +
-                        "multipolygon.sql d67fe37e32a5e382d341ee578c3f1565\n" +
+                        "multipolygon.sql 7b176ddc00a0f7ce7683df246042a30b\n" +
                         "h3_poly.tsv.gz 680d35581dc024ff1006b22067a96c89\n" +
                         "database_init.sql 8ff61363b3e45127d0806d77b91f998e\n" +
                         "database_after_init.sql fb616cf0874c700e291a6a69748b831a",

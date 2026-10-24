@@ -1,5 +1,5 @@
 # openstreetmap_h3
-OSM planet dump high performance data loader. Transform OpenStreetMap World/Region PBF dump into partitioned by [H3 regions](https://h3geo.org) PostGIS pgsnapshot (lossless) OSM schema representation and/or into ArrowIPC/Parquet dumps [with schema](https://github.com/igor-suhorukov/openstreetmap_h3/tree/master/src/main/resources/schema). "columnar_storage" option activate Citus columnar storage in PostgreSQL to speedup aggregation queries.
+OSM planet dump high performance data loader. Transform OpenStreetMap World/Region PBF dump into partitioned by [H3 regions](https://h3geo.org) PostGIS pgsnapshot (lossless) OSM schema representation and/or into ArrowIPC/Parquet dumps [with schema](https://github.com/igor-suhorukov/openstreetmap_h3/tree/master/src/main/resources/schema). "columnar_storage" option activate Citus columnar storage in PostgreSQL to speedup aggregation queries (requires PostgreSQL with Citus: the image from postgis_docker-master contains only PostGIS, hstore and h3).
 
 More details in [blog posts](https://habr.com/en/post/717408)...
 
@@ -11,11 +11,11 @@ More details in [blog posts](https://habr.com/en/post/717408)...
 ``` bash
 git clone https://github.com/igor-suhorukov/openstreetmap_h3.git
 cd openstreetmap_h3 && docker build -t openstreetmap_h3 .
-cd postgis_docker-master && docker build -t postgres16_postgis .
+cd postgis_docker-master && docker build -t postgres19_postgis .
 
 wget https://download.geofabrik.de/europe/cyprus-latest.osm.pbf
 docker run -it --rm -w $(pwd) -v $(pwd):/$(pwd) openstreetmap_h3:latest -source_pbf $(pwd)/cyprus-latest.osm.pbf -result_in_tsv true
-docker run --name postgis16-cyprus --memory=12g --memory-swap=12g --memory-swappiness 0 --shm-size=1g -v $(pwd)/database:/var/lib/postgresql/data -v $(pwd)/cyprus-latest_loc_ways:/input -e POSTGRES_PASSWORD=osmworld -d -p 5432:5432 postgres16_postgis:latest -c checkpoint_timeout='15 min' -c checkpoint_completion_target=0.9 -c shared_buffers='4096 MB' -c wal_buffers=-1 -c bgwriter_delay=200ms -c bgwriter_lru_maxpages=100 -c bgwriter_lru_multiplier=2.0 -c bgwriter_flush_after=0 -c max_wal_size='32768 MB' -c min_wal_size='16384 MB'
+docker run --name postgis19-cyprus --memory=12g --memory-swap=12g --memory-swappiness 0 --shm-size=1g -v $(pwd)/database:/var/lib/postgresql -v $(pwd)/cyprus-latest_loc_ways:/input -e POSTGRES_PASSWORD=osmworld -d -p 5432:5432 postgres19_postgis:latest -c checkpoint_timeout='15 min' -c checkpoint_completion_target=0.9 -c shared_buffers='4096 MB' -c wal_buffers=-1 -c bgwriter_delay=200ms -c bgwriter_lru_maxpages=100 -c bgwriter_lru_multiplier=2.0 -c bgwriter_flush_after=0 -c max_wal_size='32768 MB' -c min_wal_size='16384 MB'
 ```
 
 ## Build and run in JVM:
