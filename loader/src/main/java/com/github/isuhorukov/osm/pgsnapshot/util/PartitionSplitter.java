@@ -1,7 +1,6 @@
 package com.github.isuhorukov.osm.pgsnapshot.util;
 
 import com.github.isuhorukov.osm.pgsnapshot.model.Partition;
-import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,7 +32,8 @@ public class PartitionSplitter {
 
     private static int createImportScript(File resultDirectory, int scriptCount, List<Partition> partitions,
                                           boolean storeColumnar, String entityName, String copyColumns) {
-        final List<List<Partition>> partition = Lists.partition(partitions, partitions.size() / scriptCount + 1);
+        final List<List<Partition>> partition = balanceBySize(partitions, scriptCount);
+        String copyFreeze = storeColumnar ? "" : " FREEZE";
         for (int partIdx = 0; partIdx < partition.size(); partIdx++) {
             List<Partition> part = partition.get(partIdx);
             String scriptName = String.format("sql/%s_import_%03d.sql", entityName, partIdx);
@@ -47,9 +47,11 @@ public class PartitionSplitter {
                     List<Short> h33RegionsInside = currentPart.getH33RegionsInside();
                     Collections.sort(h33RegionsInside);
                     for (Short h33Region : h33RegionsInside) {
-                        scriptOs.write(String.format("COPY \"%s_%03d\"(%s) FROM '/input/%s/%05d.tsv' DELIMITER E'\\t' ESCAPE '\\' NULL '\\N' CSV;%n",
-                                entityName, currentPart.getId(), copyColumns, entityName, h33Region).getBytes(StandardCharsets.UTF_8));
+                        scriptOs.write(String.format("COPY \"%s_%03d\"(%s) FROM '/input/%s/%05d.tsv' DELIMITER E'\\t' ESCAPE '\\' NULL '\\N' CSV%s;%n",
+                                entityName, currentPart.getId(), copyColumns, entityName, h33Region, copyFreeze).getBytes(StandardCharsets.UTF_8));
                     }
+                    scriptOs.write(String.format("ANALYZE \"%s_%03d\";%n", entityName, currentPart.getId())
+                            .getBytes(StandardCharsets.UTF_8));
                 }
                 for (Partition currentPart : part) {
                     scriptOs.write(String.format("ALTER TABLE  %s ATTACH PARTITION  \"%s_%03d\" FOR VALUES FROM (%s) TO (%s);%n",
@@ -62,6 +64,31 @@ public class PartitionSplitter {
             }
         }
         return partition.size();
+    }
+
+    static List<List<Partition>> balanceBySize(List<Partition> partitions, int scriptCount) {
+        int binCount = Math.min(Math.max(scriptCount, 1), partitions.size());
+        List<List<Partition>> bins = new ArrayList<>(binCount);
+        long[] binSizes = new long[binCount];
+        for (int i = 0; i < binCount; i++) {
+            bins.add(new ArrayList<>());
+        }
+        List<Partition> largestFirst = new ArrayList<>(partitions);
+        largestFirst.sort(Comparator.comparingLong(Partition::getSerializedSize).reversed());
+        for (Partition partition : largestFirst) {
+            int smallestBin = 0;
+            for (int i = 1; i < binCount; i++) {
+                if (binSizes[i] < binSizes[smallestBin]) {
+                    smallestBin = i;
+                }
+            }
+            bins.get(smallestBin).add(partition);
+            binSizes[smallestBin] += partition.getSerializedSize();
+        }
+        for (List<Partition> bin : bins) {
+            bin.sort(Comparator.comparingInt(Partition::getId));
+        }
+        return bins;
     }
 
     private static String getColumnarString(boolean storeColumnar) {

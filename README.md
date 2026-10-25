@@ -87,6 +87,11 @@ Usage: <main class> [options]
       Default: 0.48
     -help, --help
       Information about command line parameters
+    -parallel_multipolygon_export
+      Run osmium multipolygon export concurrently with data processing. Use 
+      'false' when memory is not enough for the second osmium node location 
+      index
+      Default: true
     -pg_script_count
       Script count for PostgreSQL parallel COPY
       Default: 4
@@ -378,6 +383,8 @@ cat /home/acc/dev/map/thailand/thailand-latest_loc_ways/multipolygon/source.tsv 
 │   ├── nodes_import_001.sql
 │   ├── nodes_import_002.sql
 │   ├── nodes_import_003.sql
+│   ├── relations_import.sql
+│   ├── ways_32767_import.sql
 │   ├── ways_import_000.sql
 │   ├── ways_import_001.sql
 │   ├── ways_import_002.sql
@@ -387,6 +394,10 @@ cat /home/acc/dev/map/thailand/thailand-latest_loc_ways/multipolygon/source.tsv 
 │   ├── y_multipoly_ac.sql
 │   ├── y_multipoly_ad.sql
 │   └── y_multipoly_ae.sql
+├── sql_finalize
+│   ├── multipolygon_import.sql
+│   ├── nodes_analyze.sql
+│   └── ways_default_partition.sql
 ├── static
 │   ├── database_after_init.sql
 │   ├── database_init.sql
@@ -471,10 +482,16 @@ cat /home/acc/dev/map/thailand/thailand-latest_loc_ways/multipolygon/source.tsv 
     ├── 26030.tsv
     └── 32767.tsv
 
-7 directories, 184 files
+8 directories, 189 files
 ```
 
 ## Run PostGIS and import data:
+The image from `postgis_docker-master` imports the data in four steps: `static/database_init.sql`, then all `sql/*.sql`
+scripts in parallel (nodes and ways partitions balanced by size, relations, ways crossing H3 cells, multipolygon parts),
+then all `sql_finalize/*.sql` scripts in parallel (multipolygons, the default ways partition, statistics) and finally
+`static/database_after_init.sql`. Partitions are loaded with `COPY ... FREEZE`, so a fresh database needs no vacuum to
+freeze or mark pages all-visible. Rebuild the image after updating the loader. For a one-time import
+`-c wal_level=minimal -c max_wal_senders=0` lets `COPY` skip WAL for the tables created in the same transaction.
 ```
 docker run --name postgis14-thailand --memory=12g --memory-swap=12g --memory-swappiness 0 --shm-size=1g -v /home/acc/dev/map/database/thailand:/var/lib/postgresql/data -v /home/acc/dev/map/thailand/thailand-latest_loc_ways:/input -e POSTGRES_PASSWORD=osmworld -e LD_LIBRARY_PATH=/usr/lib/jvm/java-11-openjdk-amd64/lib/server/ -d -p 5432:5432 -p 5005:5005 5d411c3be57f -c checkpoint_timeout='15 min' -c checkpoint_completion_target=0.9 -c shared_buffers='4096 MB' -c wal_buffers=-1 -c bgwriter_delay=200ms -c bgwriter_lru_maxpages=100 -c bgwriter_lru_multiplier=2.0 -c bgwriter_flush_after=0 -c max_wal_size='32768 MB' -c min_wal_size='16384 MB'
 

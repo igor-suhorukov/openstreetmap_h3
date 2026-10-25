@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -72,8 +73,11 @@ class PipelineOsmiumTest {
         assertTrue(content(result.resolve("ways")).contains("Majeedhee Magu"));
         assertTrue(content(result.resolve("relations")).contains("is.test\\\"=>\\\"v-Relation"));
         assertTrue(content(result.resolve("multipolygon")).contains("201"));
-        assertTrue(fileNames(result.resolve("sql")).containsAll(
-                List.of("nodes_import_000.sql", "ways_import_000.sql", "y_multipoly_aa.sql")));
+        assertTrue(fileNames(result.resolve("sql")).containsAll(List.of("nodes_import_000.sql", "ways_import_000.sql",
+                "y_multipoly_aa.sql", "relations_import.sql", "ways_32767_import.sql")));
+        assertEquals(List.of("multipolygon_import.sql", "nodes_analyze.sql", "ways_default_partition.sql"),
+                fileNames(result.resolve("sql_finalize")));
+        assertTrue(content(result.resolve("sql")).contains("CSV FREEZE;"));
         assertTrue(fileNames(result.resolve("static")).containsAll(List.of("database_init.sql",
                 "database_after_init.sql", "multipolygon.sql", "multipolygon_tables.sql", "h3_poly.tsv.gz")));
         assertTrue(content(result.resolve("static")).contains("extension_tags from relations"));
@@ -90,7 +94,7 @@ class PipelineOsmiumTest {
         Path pbf = samplePbf("arrow");
 
         assertEquals(0, OsmPbfTransformation.run(new String[]{"-source_pbf", pbf.toString(), "-osmium_docker", "false",
-                "-arrow_format", "ARROW_IPC", "-result_in_tsv", "false"}));
+                "-arrow_format", "ARROW_IPC", "-result_in_tsv", "false", "-parallel_multipolygon_export", "false"}));
 
         Path result = pbf.resolveSibling("sample_loc_ways");
         assertTrue(Files.isRegularFile(result.resolve("arrow/multipolygon.parquet")));
@@ -98,6 +102,34 @@ class PipelineOsmiumTest {
         assertFalse(fileNames(result.resolve("arrow/ways")).isEmpty());
         assertFalse(Files.exists(result.resolve("multipolygon")));
         assertFalse(Files.exists(result.resolve("nodes")));
+    }
+
+    private Throwable runFailureRootCause(String testTagValue) throws Exception {
+        Path pbf = samplePbf(testTagValue);
+        String[] arguments = {"-source_pbf", pbf.toString(), "-osmium_docker", "false",
+                "-worker_threads", "2", "-test_tag_value", testTagValue};
+
+        IllegalStateException exception = assertTimeoutPreemptively(Duration.ofMinutes(2),
+                () -> assertThrows(IllegalStateException.class, () -> OsmPbfTransformation.run(arguments)));
+
+        Throwable rootCause = exception;
+        while (rootCause.getCause() != null) {
+            rootCause = rootCause.getCause();
+        }
+        return rootCause;
+    }
+
+    @Test
+    void run_blockProcessingThrowsException_runFailsWithCause() throws Exception {
+        assertEquals("test extension failure", runFailureRootCause("fail").getMessage());
+    }
+
+    @Test
+    void run_blockProcessingThrowsError_runFailsWithCause() throws Exception {
+        Throwable rootCause = runFailureRootCause("error");
+
+        assertInstanceOf(LinkageError.class, rootCause);
+        assertEquals("test extension error", rootCause.getMessage());
     }
 
     @Test

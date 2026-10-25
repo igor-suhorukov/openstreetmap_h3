@@ -31,6 +31,8 @@ public class CliParameters {
     private int scriptCount  = 4;
     @Parameter(names = {"-data_partition_ratio"}, description = "Filling ratio from maximum size of partition. This parameter change PostgreSQL partitions count")
     private double thresholdPercentFromMaxPartition = 0.48;
+    @Parameter(names = {"-parallel_multipolygon_export"}, arity = 1, description = "Run osmium multipolygon export concurrently with data processing. Use 'false' when memory is not enough for the second osmium node location index")
+    private boolean parallelMultipolygonExport = true;
     @Parameter(names = {"-help", "--help"}, help = true, description = "Information about command line parameters")
     private boolean help;
 
@@ -47,6 +49,7 @@ public class CliParameters {
     public int getWorkers() { return workers; }
     public int getScriptCount() { return scriptCount; }
     public double getThresholdPercentFromMaxPartition() { return thresholdPercentFromMaxPartition; }
+    public boolean isParallelMultipolygonExport() { return parallelMultipolygonExport; }
     public boolean isHelp() { return help; }
 
     public boolean isSaveArrow() {
@@ -69,6 +72,7 @@ public class CliParameters {
                 .append("workers", workers)
                 .append("scriptCount", scriptCount)
                 .append("thresholdPercentFromMaxPartition", thresholdPercentFromMaxPartition)
+                .append("parallelMultipolygonExport", parallelMultipolygonExport)
                 .toString();
     }
 }

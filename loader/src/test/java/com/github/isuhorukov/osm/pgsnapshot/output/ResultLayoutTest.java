@@ -64,6 +64,7 @@ class ResultLayoutTest {
         assertTrue(new File(resultDir, ResultLayout.RELATIONS_DIR).exists());
         assertTrue(new File(resultDir, ResultLayout.MULTIPOLYGON_DIR).exists());
         assertTrue(new File(resultDir, ResultLayout.SQL_DIR).exists());
+        assertTrue(new File(resultDir, ResultLayout.SQL_FINALIZE_DIR).exists());
     }
 
     @Test

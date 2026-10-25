@@ -39,9 +39,18 @@ public class ResourceCopier {
                 ? "" : " left join (select id, slice(tags, " + sqlTextArray(multipolygonTagKeys) + ") extension_tags"
                 + " from relations where tags ?| " + sqlTextArray(multipolygonTagKeys) + ") r on r.id=p.id");
         copyResourceWithSubstitutes("/multipolygon.sql", new File(staticDir, "multipolygon.sql"), multipolygonSubstitutes);
-        copyResourceWithSubstitute("/database_after_init.sql",
-                new File(staticDir, "database_after_init.sql"),
+        copyResource("/database_after_init.sql", new File(staticDir, "database_after_init.sql"));
+    }
+
+    public static void copyImportScripts(File resultDir, boolean columnarStorage) throws IOException {
+        File sqlDir = new File(resultDir, ResultLayout.SQL_DIR);
+        File sqlFinalizeDir = new File(resultDir, ResultLayout.SQL_FINALIZE_DIR);
+        copyResource("/relations_import.sql", new File(sqlDir, "relations_import.sql"));
+        copyResourceWithSubstitute("/ways_32767_import.sql", new File(sqlDir, "ways_32767_import.sql"),
                 columnarStorage ? "SELECT alter_table_set_access_method('ways_32767', 'columnar');" : "");
+        copyResource("/ways_default_partition.sql", new File(sqlFinalizeDir, "ways_default_partition.sql"));
+        copyResource("/nodes_analyze.sql", new File(sqlFinalizeDir, "nodes_analyze.sql"));
+        copyResource("/multipolygon_import.sql", new File(sqlFinalizeDir, "multipolygon_import.sql"));
     }
 
     public static void copyResource(String classpath, File destination) throws IOException {

@@ -108,8 +108,50 @@ class ResourceCopierTest {
         assertFalse(multipolygon.contains("${substitute}"));
 
         String afterInit = Files.readString(new File(staticDir, "database_after_init.sql").toPath());
-        assertTrue(afterInit.contains("SELECT alter_table_set_access_method"));
+        assertFalse(afterInit.contains("alter_table_set_access_method"));
         assertFalse(afterInit.contains("${substitute}"));
+    }
+
+    private File prepareImportDirs() {
+        File resultDir = tempDir.toFile();
+        ResultLayout.prepareResultDirectories(resultDir, true, false);
+        return resultDir;
+    }
+
+    @Test
+    void copyImportScripts_writesLoadAndFinalizeScripts() throws IOException {
+        File resultDir = prepareImportDirs();
+
+        ResourceCopier.copyImportScripts(resultDir, false);
+
+        File sqlDir = new File(resultDir, ResultLayout.SQL_DIR);
+        String relations = Files.readString(new File(sqlDir, "relations_import.sql").toPath());
+        assertTrue(relations.contains("TRUNCATE relations, relation_members;"));
+        assertTrue(relations.contains("FROM '/input/relations/00001.tsv' DELIMITER E'\\t' ESCAPE '\\' NULL '\\N' CSV FREEZE;"));
+        String ways32767 = Files.readString(new File(sqlDir, "ways_32767_import.sql").toPath());
+        assertTrue(ways32767.contains("create table ways_32767 as select"));
+        assertFalse(ways32767.contains("ATTACH PARTITION"));
+        assertFalse(ways32767.contains("${substitute}"));
+        assertFalse(ways32767.contains("alter_table_set_access_method"));
+
+        File sqlFinalizeDir = new File(resultDir, ResultLayout.SQL_FINALIZE_DIR);
+        String waysDefault = Files.readString(new File(sqlFinalizeDir, "ways_default_partition.sql").toPath());
+        assertTrue(waysDefault.contains("ALTER TABLE  ways ATTACH PARTITION  \"ways_32767\" DEFAULT;"));
+        assertTrue(waysDefault.contains("ANALYZE ONLY ways;"));
+        assertTrue(Files.readString(new File(sqlFinalizeDir, "nodes_analyze.sql").toPath()).contains("ANALYZE ONLY nodes;"));
+        assertTrue(Files.readString(new File(sqlFinalizeDir, "multipolygon_import.sql").toPath())
+                .contains("\\i /input/static/multipolygon.sql\nANALYZE multipolygon;"));
+    }
+
+    @Test
+    void copyImportScripts_columnar_convertsDefaultWaysPartition() throws IOException {
+        File resultDir = prepareImportDirs();
+
+        ResourceCopier.copyImportScripts(resultDir, true);
+
+        String ways32767 = Files.readString(
+                new File(new File(resultDir, ResultLayout.SQL_DIR), "ways_32767_import.sql").toPath());
+        assertTrue(ways32767.contains("SELECT alter_table_set_access_method('ways_32767', 'columnar');\nCOMMIT;"));
     }
 
     @Test

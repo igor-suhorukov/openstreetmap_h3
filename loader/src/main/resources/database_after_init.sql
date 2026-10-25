@@ -1,47 +1,8 @@
 \timing on
 \c osmworld
 
-BEGIN;
-CREATE TABLE "preimport_ways_32767"  (like ways);
-COPY "preimport_ways_32767"(h3_3,h3_8, id,closed,building,highway,scale,centre,bbox,linestring,points,h3_8_regions,tags) FROM '/input/ways/32767.tsv' DELIMITER E'\t' ESCAPE '\' NULL '\N' CSV;
-
-create table preimport_ways_large_h3_3 as select id, array_agg (h3_3) h3_3_multi_regions from (select distinct wl.id, h3b.id h3_3 from "preimport_ways_32767"  wl inner join h3_3_bounds_complex h3b on ST_Intersects(wl.linestring, h3b.bounds)) a group by id;
-create table ways_32767 as select  closed,building,highway,h3_3,h3_8, scale,tags,bbox,centre,p.id,linestring,points,h3_8_regions, CASE WHEN cardinality(h3.h3_3_multi_regions)>1 THEN h3.h3_3_multi_regions ELSE ARRAY(select distinct unnest((tags->'is.h33idxs')::smallint[]) order by 1)::smallint[]  END h3_3_multi_regions  from preimport_ways_32767 p inner join preimport_ways_large_h3_3 h3 on h3.id=p.id order by p.id;
-
-alter table ways_32767 alter COLUMN id set NOT NULL;
-alter table ways_32767 alter COLUMN h3_8 set NOT NULL;
-alter table ways_32767 alter COLUMN scale set NOT NULL;
-alter table ways_32767 alter COLUMN closed set NOT NULL;
-alter table ways_32767 alter COLUMN building set NOT NULL;
-alter table ways_32767 alter COLUMN highway set NOT NULL;
-alter table ways_32767 alter COLUMN bbox set NOT NULL;
-alter table ways_32767 alter COLUMN centre set NOT NULL;
-alter table ways_32767 alter COLUMN linestring set NOT NULL;
-alter table ways_32767 alter COLUMN points set NOT NULL;
-
-ALTER TABLE ways ADD COLUMN h3_3_multi_regions smallint[];
-
-ALTER TABLE  ways ATTACH PARTITION  "ways_32767" DEFAULT;
-drop table preimport_ways_large_h3_3;
-drop table preimport_ways_32767;
-${substitute}
-
-COPY relations(id,tags) FROM '/input/relations/00000.tsv' DELIMITER E'\t' ESCAPE '\' NULL '\N' CSV;
-COPY relation_members(relation_id,member_id,member_type,member_role,sequence_id) FROM '/input/relations/00001.tsv' DELIMITER E'\t' ESCAPE '\' NULL '\N' CSV;
-ALTER TABLE ONLY relation_members ADD CONSTRAINT pk_relation_members PRIMARY KEY (relation_id, sequence_id);
-
-COMMIT;
-
-
-\i /input/static/multipolygon.sql
-
 --CREATE STATISTICS ways_stat ON id,h3_3,h3_8 FROM ways;
 
-ANALYZE nodes;
-ANALYZE ways;
-ANALYZE multipolygon;
-ANALYZE relations;
-ANALYZE relation_members;
 --create table preimport_multipolygon_relations_h3_3 as select m.id, CASE WHEN cardinality(array_agg(distinct h.id))=1 THEN min(h.id) ELSE null END h3_3,CASE WHEN cardinality(array_agg(distinct h.id))>1 THEN array_agg(distinct h.id) ELSE null END h3_3_multi_regions from preimport_multipolygon m left join h3_3_bounds_complex h on st_intersects(h.bounds,m.polygon) group by 1 order by 1;
 --explain insert into multipolygon select p.id, h3_3, GREATEST(ST_XMax(ST_Envelope(polygon)) - ST_XMin(ST_Envelope(polygon)),ST_YMax(ST_Envelope(polygon)) - ST_YMin(ST_Envelope(polygon)))::real as scale, ST_Envelope(polygon) as bbox, polygon, tags, h3_3_multi_regions from preimport_multipolygon p left join preimport_multipolygon_relations_h3_3 h on p.id=h.id order by 2,1;
 -- create table circle_multipolygon as select id,h3_3,scale,  CASE WHEN ST_MemSize(polygon)<10000 THEN (ST_MinimumBoundingRadius(polygon)).radius ELSE (ST_MinimumBoundingRadius(ST_Simplify(polygon, GREATEST(ST_XMax(ST_Envelope(polygon)) - ST_XMin(ST_Envelope(polygon)),ST_YMax(ST_Envelope(polygon)) - ST_YMin(ST_Envelope(polygon)))::real / 1000, true))).radius END radius from multipolygon;

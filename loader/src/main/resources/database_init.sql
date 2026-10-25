@@ -42,7 +42,8 @@ CREATE TABLE ways (
     id bigint NOT NULL,
     linestring geometry(LINESTRING,4326) NOT NULL,
     points bigint[],
-    h3_8_regions integer[]
+    h3_8_regions integer[],
+    h3_3_multi_regions smallint[]
 ) PARTITION BY RANGE (h3_3);
 --Alignment Padding: reordered by dba utility advise - closed,h3_3,scale,tags,bbox,centre,p.id,linestring,points
 

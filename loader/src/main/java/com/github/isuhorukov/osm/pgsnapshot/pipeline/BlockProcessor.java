@@ -12,10 +12,10 @@ import com.github.isuhorukov.osm.pgsnapshot.model.statistics.Stat;
 import com.github.isuhorukov.osm.pgsnapshot.util.CompactH3;
 import com.uber.h3core.H3Core;
 import org.geotools.referencing.CRS;
+import org.geotools.referencing.GeodeticCalculator;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.io.WKBWriter;
 import org.opengis.referencing.FactoryException;
-import org.opengis.referencing.crs.CoordinateReferenceSystem;
 import org.openstreetmap.osmosis.core.container.v0_6.EntityContainer;
 import org.openstreetmap.osmosis.core.container.v0_6.NodeContainer;
 import org.openstreetmap.osmosis.core.container.v0_6.RelationContainer;
@@ -32,7 +32,7 @@ public class BlockProcessor {
     private final GeometryFactory geometryFactory;
     private final MemberTypeValueMapper memberTypeValueMapper;
     private final WKBWriter wkbWriter;
-    private final CoordinateReferenceSystem coordinateReferenceSystem;
+    private final GeodeticCalculator geodeticCalculator;
     private final Serializer serializer;
     private final List<TagExtension> tagExtensions;
 
@@ -49,7 +49,7 @@ public class BlockProcessor {
         this.wkbWriter = new WKBWriter();
         this.serializer = new Serializer();
         try {
-            this.coordinateReferenceSystem = CRS.decode("EPSG:" + Serializer.SRID);
+            this.geodeticCalculator = new GeodeticCalculator(CRS.decode("EPSG:" + Serializer.SRID));
         } catch (FactoryException e) {
             throw new IllegalStateException(e);
         }
@@ -164,7 +164,7 @@ public class BlockProcessor {
 
         if (!parameters.isCollectOnlyStat()) {
             WayGeometry geom = WayGeometry.from(entity, h3Core, geometryFactory,
-                    coordinateReferenceSystem, parameters.isScaleApproximation(), wkbWriter);
+                    geodeticCalculator, parameters.isScaleApproximation(), wkbWriter);
 
             if (parameters.isSaveArrow()) {
                 int[] h38Idxs = !geom.getWayIntersectionH38Indexes().isEmpty()

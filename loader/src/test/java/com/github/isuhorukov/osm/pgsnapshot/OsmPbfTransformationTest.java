@@ -112,7 +112,7 @@ public class OsmPbfTransformationTest {
         File[] files = new File(pbfFile.getParent(),
                 pbfFile.getName().replace(".osm.pbf", "_loc_ways")).listFiles();
 
-        Set<String> dir = Set.of("import_related_metadata", "multipolygon", "nodes", "relations", "sql", "static", "ways", "arrow");
+        Set<String> dir = Set.of("import_related_metadata", "multipolygon", "nodes", "relations", "sql", "sql_finalize", "static", "ways", "arrow");
         assertTrue(Arrays.stream(Objects.requireNonNull(files)).allMatch(file -> dir.contains(file.getName())));
 
         File arrowDir = Arrays.stream(files).filter(f -> "arrow".equals(f.getName())).findFirst().orElseThrow();
@@ -135,7 +135,7 @@ public class OsmPbfTransformationTest {
         assertParquetCount(1125,  arrowDir + "/multipolygon.parquet");
         assertEquals("32767.tsv 352459\n" +
                         "24942.tsv 330117\n" +
-                        "24940.tsv 1678431\n" +
+                        "24940.tsv 1678429\n" +
                         "24929.tsv 1148459\n" +
                         "24926.tsv 4588112\n" +
                         "24924.tsv 4686054\n" +
@@ -144,10 +144,10 @@ public class OsmPbfTransformationTest {
                         "24913.tsv 1144576\n" +
                         "24901.tsv 2946252\n" +
                         "24900.tsv 577\n" +
-                        "24899.tsv 4903916\n" +
+                        "24899.tsv 4903914\n" +
                         "24898.tsv 12543046\n" +
                         "24897.tsv 2637343\n" +
-                        "24896.tsv 2286433\n" +
+                        "24896.tsv 2286434\n" +
                         "24621.tsv 2492893\n" +
                         "-31636.tsv 1851045\n" +
                         "-31635.tsv 3173062",
@@ -213,24 +213,24 @@ public class OsmPbfTransformationTest {
                         sorted(Comparator.reverseOrder()).
                         collect(Collectors.joining("\n")));
 
-        assertEquals("32767.tsv 596fd854008e73851dc09b843df4fa0b\n" +
+        assertEquals("32767.tsv 7dca76d3fc5b7144838774e7b102974b\n" +
                         "24942.tsv ba0ea13a314de09a3617aaa408bfaeeb\n" +
-                        "24940.tsv 6394b7e4840cb59c86e94b79df493eb2\n" +
-                        "24929.tsv 8524129cb4993f9a56ce74a36c65c6f8\n" +
-                        "24926.tsv a851d9816e5b584e4bef7d9e1fa45849\n" +
-                        "24924.tsv a16b41955b3dfd002517858e60f9939e\n" +
+                        "24940.tsv cd48167207c328a39a2b4c5ca91a56cd\n" +
+                        "24929.tsv 9024cc2bef450a4b0d15d64add2a2d7c\n" +
+                        "24926.tsv 3e5397ab6ab5710cfc4d6467f26d3d3d\n" +
+                        "24924.tsv 667642924b76198f18df706831da8a67\n" +
                         "24922.tsv 585247becea4fbb0f2846f700df68bdb\n" +
                         "24920.tsv cf9df7b5127f8bf5c8e55c06524d6125\n" +
                         "24913.tsv 6a8a52d5e40139514f41a89cc1283256\n" +
-                        "24901.tsv a3e60949167ec099f094cb573e074a37\n" +
+                        "24901.tsv dcd3b991196c3642b502dbd12e42c568\n" +
                         "24900.tsv 7850051b2f60c4797fa321e02d208b6c\n" +
-                        "24899.tsv 4c5f27a96306c787631aeb69eb689073\n" +
-                        "24898.tsv 6ab75ad956a58b56540b216e104504cf\n" +
-                        "24897.tsv 7f8e87711ed8bae6960d1c10d056356b\n" +
-                        "24896.tsv 89ff25c679846f687b608b7a1223a7e5\n" +
-                        "24621.tsv 1ed6c4b99613b0c31e91aeaac11347d0\n" +
+                        "24899.tsv 557a950a9470e09a26fbe1314cd3cbc3\n" +
+                        "24898.tsv c5a89371d1b8735bbc11a6c8e57abe28\n" +
+                        "24897.tsv 46f9bf0c7eaf4ae312bc3af74d25ec7e\n" +
+                        "24896.tsv b2c4cd1a98dae46afa406e5d017a02c1\n" +
+                        "24621.tsv 1fd114289b2255e8c542422b2251d152\n" +
                         "-31636.tsv 56a0c4d5bbf4eb4a43bf4b3ee392689a\n" +
-                        "-31635.tsv 6935cd5ef97d20e7b049da7f54b234b9",
+                        "-31635.tsv 48755076825f6c3b576117e93e4228f1",
                 Arrays.stream(Objects.requireNonNull(
                                 Arrays.stream(files).filter(file -> "ways".contains(file.getName())).
                                         findFirst().orElse(pbfFile).listFiles())).
@@ -301,10 +301,16 @@ public class OsmPbfTransformationTest {
                         "y_multipoly_ac.sql 82\n" +
                         "y_multipoly_ab.sql 82\n" +
                         "y_multipoly_aa.sql 82\n" +
-                        "ways_import_001.sql 1754\n" +
-                        "ways_import_000.sql 1936\n" +
-                        "nodes_import_001.sql 1574\n" +
-                        "nodes_import_000.sql 2369",
+                        "ways_import_003.sql 593\n" +
+                        "ways_import_002.sql 782\n" +
+                        "ways_import_001.sql 1337\n" +
+                        "ways_import_000.sql 1337\n" +
+                        "ways_32767_import.sql 1671\n" +
+                        "relations_import.sql 546\n" +
+                        "nodes_import_003.sql 587\n" +
+                        "nodes_import_002.sql 1791\n" +
+                        "nodes_import_001.sql 1187\n" +
+                        "nodes_import_000.sql 827",
                 Arrays.stream(Objects.requireNonNull(
                                 Arrays.stream(files).filter(file -> "sql".equals(file.getName())).
                                         findFirst().orElseThrow().listFiles())).
@@ -315,8 +321,8 @@ public class OsmPbfTransformationTest {
                         "multipolygon_tables.sql 385\n" +
                         "multipolygon.sql 2467\n" +
                         "h3_poly.tsv.gz 3315290\n" +
-                        "database_init.sql 10733\n" +
-                        "database_after_init.sql 7070",
+                        "database_init.sql 10768\n" +
+                        "database_after_init.sql 4876",
                 Arrays.stream(Objects.requireNonNull(
                                 Arrays.stream(files).filter(file -> "static".equals(file.getName())).
                                         findFirst().orElseThrow().listFiles())).
@@ -327,8 +333,8 @@ public class OsmPbfTransformationTest {
                         "multipolygon_tables.sql 8dbbadafcf974eb26456198d118ba3c3\n" +
                         "multipolygon.sql 7b176ddc00a0f7ce7683df246042a30b\n" +
                         "h3_poly.tsv.gz 680d35581dc024ff1006b22067a96c89\n" +
-                        "database_init.sql 8ff61363b3e45127d0806d77b91f998e\n" +
-                        "database_after_init.sql fb616cf0874c700e291a6a69748b831a",
+                        "database_init.sql 9fedc037e007e62e3d4f9808963904ec\n" +
+                        "database_after_init.sql 5f2ffc1ccbdd46fe8869b4012a5828a9",
                 Arrays.stream(Objects.requireNonNull(
                                 Arrays.stream(files).filter(file -> "static".equals(file.getName())).
                                         findFirst().orElseThrow().listFiles())).
@@ -340,12 +346,27 @@ public class OsmPbfTransformationTest {
                         "y_multipoly_ac.sql 1b66980ed4282ca99fb058a9b830bfb5\n" +
                         "y_multipoly_ab.sql be4e03275a3a8a39b68f90ada6778c87\n" +
                         "y_multipoly_aa.sql dc6e8a5c07a2914d0690879beb96eb25\n" +
-                        "ways_import_001.sql 2f8ee956ac6c39ccde6e19e4af7b8b9c\n" +
-                        "ways_import_000.sql 498c35a1886eb6271e55330cdef11f28\n" +
-                        "nodes_import_001.sql e3d794ec9695101e9e9634a13d3d25db\n" +
-                        "nodes_import_000.sql 3ead511186dcb12d401c0a65f336d544",
+                        "ways_import_003.sql 294908bc924e8e618a129b49c2f215bd\n" +
+                        "ways_import_002.sql e223f35c9ddde8f2056affbde1438cb7\n" +
+                        "ways_import_001.sql bcb55f267c6340e9dc4c909e278866b8\n" +
+                        "ways_import_000.sql e60f80133aeb38a799376d646a7c3ff9\n" +
+                        "ways_32767_import.sql fb2373ad05648aba31611f0ddeea25e7\n" +
+                        "relations_import.sql b01daaf3a801bd3e7fb1dac67c3a4294\n" +
+                        "nodes_import_003.sql 87d9bf3359cf3bad460483265677c1b0\n" +
+                        "nodes_import_002.sql d88648c3b1d7187717dde03e992621d2\n" +
+                        "nodes_import_001.sql fa777586acd1cba90973d76fe4d6b07a\n" +
+                        "nodes_import_000.sql e42390d31f4377663ed604938faa9b84",
                 Arrays.stream(Objects.requireNonNull(
                                 Arrays.stream(files).filter(file -> "sql".equals(file.getName())).
+                                        findFirst().orElseThrow().listFiles())).
+                        map(file -> file.getName() + " " + fileMd5(file)).
+                        sorted(Comparator.reverseOrder()).
+                        collect(Collectors.joining("\n")));
+        assertEquals("ways_default_partition.sql c0d1759b0e0de9b05a297abb339472a0\n" +
+                        "nodes_analyze.sql 3ac6bb43232fa700f6a9c016c632a34c\n" +
+                        "multipolygon_import.sql 2b81dceb7d17a0156a1f6a0539b9a90f",
+                Arrays.stream(Objects.requireNonNull(
+                                Arrays.stream(files).filter(file -> "sql_finalize".equals(file.getName())).
                                         findFirst().orElseThrow().listFiles())).
                         map(file -> file.getName() + " " + fileMd5(file)).
                         sorted(Comparator.reverseOrder()).

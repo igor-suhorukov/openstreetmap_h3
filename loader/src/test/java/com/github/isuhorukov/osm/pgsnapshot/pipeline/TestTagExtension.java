@@ -44,6 +44,12 @@ public class TestTagExtension implements TagExtension {
 
     @Override
     public List<Tag> additionalTags(Entity entity) {
+        if ("fail".equals(value)) {
+            throw new IllegalStateException("test extension failure");
+        }
+        if ("error".equals(value)) {
+            throw new LinkageError("test extension error");
+        }
         boolean amenity = entity.getTags().stream().anyMatch(tag -> "amenity".equals(tag.getKey()));
         return amenity ? List.of(new Tag(key, value + '-' + entity.getType())) : Collections.emptyList();
     }

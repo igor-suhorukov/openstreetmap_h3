@@ -13,6 +13,8 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -135,6 +137,47 @@ class ExternalProcessingTest {
             assertTrue(content.contains("copy preimport_multipolygon FROM"));
             assertTrue(content.contains("\\timing on"));
         }
+    }
+
+    @Test
+    void splitMultipolygonsAndWriteScripts_relationsSplitIntoPartsWithCopyScripts() throws Exception {
+        File resultDir = tempDir.toFile();
+        new File(resultDir, "multipolygon").mkdirs();
+        new File(resultDir, "sql").mkdirs();
+        File source = new File(resultDir, "multipolygon/source.tsv");
+        Files.writeString(source.toPath(), "01\tway\t1\t\\N\n02\trelation\t2\t\\N\n03\trelation\t3\t\\N\n04\trelation\t4\t\\N\n");
+
+        long splitTime = new ExternalProcessing(false).splitMultipolygonsAndWriteScripts(resultDir, 2, 3);
+
+        assertTrue(splitTime >= 0);
+        assertFalse(source.exists());
+        assertEquals("02\trelation\t2\t\\N\n03\trelation\t3\t\\N\n",
+                Files.readString(new File(resultDir, "multipolygon/multipolygon_aa").toPath()));
+        assertEquals("04\trelation\t4\t\\N\n",
+                Files.readString(new File(resultDir, "multipolygon/multipolygon_ab").toPath()));
+        assertTrue(new File(resultDir, "sql/y_multipoly_aa.sql").exists());
+        assertTrue(new File(resultDir, "sql/y_multipoly_ab.sql").exists());
+    }
+
+    @Test
+    void runProcess_interrupted_destroysProcess() throws Exception {
+        Process process = new ProcessBuilder("sleep", "60").start();
+        AtomicReference<Exception> thrown = new AtomicReference<>();
+        Thread runner = new Thread(() -> {
+            try {
+                ExternalProcessing.runProcess(process, "sleep 60");
+            } catch (IOException | InterruptedException e) {
+                thrown.set(e);
+            }
+        });
+        runner.start();
+
+        runner.interrupt();
+        runner.join(10_000);
+
+        assertFalse(runner.isAlive());
+        assertInstanceOf(InterruptedException.class, thrown.get());
+        assertTrue(process.waitFor(10, TimeUnit.SECONDS));
     }
 
     @Test

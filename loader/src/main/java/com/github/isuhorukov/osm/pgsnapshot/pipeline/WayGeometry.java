@@ -2,14 +2,15 @@ package com.github.isuhorukov.osm.pgsnapshot.pipeline;
 
 import com.github.isuhorukov.osm.pgsnapshot.Serializer;
 import com.github.isuhorukov.osm.pgsnapshot.util.CompactH3;
+import com.github.isuhorukov.osm.pgsnapshot.util.MinimumEnclosingCircle;
 import com.uber.h3core.H3Core;
 import com.uber.h3core.util.LatLng;
 import net.postgis.jdbc.geometry.LinearRing;
 import net.postgis.jdbc.geometry.Point;
 import net.postgis.jdbc.geometry.Polygon;
-import org.geotools.geometry.jts.JTS;
+import org.geotools.geometry.DirectPosition2D;
+import org.geotools.referencing.GeodeticCalculator;
 import org.h2gis.functions.spatial.properties.ST_IsClosed;
-import org.locationtech.jts.algorithm.MinimumBoundingCircle;
 import org.locationtech.jts.geom.*;
 import org.locationtech.jts.io.WKBWriter;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
@@ -189,7 +190,7 @@ public class WayGeometry {
 
     public static WayGeometry from(org.openstreetmap.osmosis.core.domain.v0_6.Way entity,
                                    H3Core h3Core, GeometryFactory geometryFactory,
-                                   CoordinateReferenceSystem coordinateReferenceSystem,
+                                   GeodeticCalculator geodeticCalculator,
                                    boolean scaleApproximation, WKBWriter wkbWriter) {
         List<WayNode> wayNodes = entity.getWayNodes();
         WayPoints wayPoints = WayPoints.from(wayNodes);
@@ -204,8 +205,8 @@ public class WayGeometry {
         Envelope envelopeInternal = currentWayGeometry.getEnvelopeInternal();
         BoundingBox boundingBox = BoundingBox.from(envelopeInternal, geometryFactory, wkbWriter);
 
-        CentreData centreData = computeCentreAndScale(
-                currentWayGeometry, envelopeInternal, scaleApproximation, coordinateReferenceSystem);
+        CentreData centreData = computeCentreAndScale(currentWayGeometry, wayPoints.coordinates,
+                envelopeInternal, scaleApproximation, geodeticCalculator);
 
         long centerSrcIndex = h3Core.latLngToCell(centreData.latitude, centreData.longitude, 8);
         int h38 = CompactH3.serialize8(centerSrcIndex);
@@ -230,24 +231,16 @@ public class WayGeometry {
                 .build();
     }
 
-    private static CentreData computeCentreAndScale(Geometry wayGeometry, Envelope envelopeInternal,
-            boolean scaleApproximation, CoordinateReferenceSystem crs) {
+    private static CentreData computeCentreAndScale(Geometry wayGeometry, Coordinate[] coordinates,
+            Envelope envelopeInternal, boolean scaleApproximation, GeodeticCalculator geodeticCalculator) {
         double latitude;
         double longitude;
         float scaleDim;
         if (!scaleApproximation) {
-            MinimumBoundingCircle boundingCircle = new MinimumBoundingCircle(wayGeometry);
-            scaleDim = (float) boundingCircle.getRadius();
-            Coordinate coordinate = boundingCircle.getCentre();
-            if (coordinate != null) {
-                latitude = coordinate.y;
-                longitude = boundingCircle.getCentre().x;
-            } else {
-                org.locationtech.jts.geom.Point centroid = wayGeometry.getCentroid();
-                longitude = centroid.getX();
-                latitude = centroid.getY();
-                scaleDim = (float) envelopeInternal.maxExtent();
-            }
+            MinimumEnclosingCircle enclosingCircle = MinimumEnclosingCircle.of(coordinates);
+            scaleDim = (float) enclosingCircle.getRadius();
+            latitude = enclosingCircle.getCentreY();
+            longitude = enclosingCircle.getCentreX();
         } else {
             org.locationtech.jts.geom.Point centroid = wayGeometry.getCentroid();
             longitude = centroid.getX();
@@ -257,9 +250,10 @@ public class WayGeometry {
         Point centre = Serializer.getPoint(latitude, longitude);
         double distanceMeter = Double.MIN_VALUE;
         try {
-            distanceMeter = JTS.orthodromicDistance(
-                    new CoordinateXY(longitude, latitude),
-                    new CoordinateXY(longitude + scaleDim, latitude), crs);
+            CoordinateReferenceSystem crs = geodeticCalculator.getCoordinateReferenceSystem();
+            geodeticCalculator.setStartingPosition(new DirectPosition2D(crs, longitude, latitude));
+            geodeticCalculator.setDestinationPosition(new DirectPosition2D(crs, longitude + scaleDim, latitude));
+            distanceMeter = geodeticCalculator.getOrthodromicDistance();
         } catch (TransformException e) {
             // ignore — distanceMeter stays at Double.MIN_VALUE, scaleDim is unchanged
         }

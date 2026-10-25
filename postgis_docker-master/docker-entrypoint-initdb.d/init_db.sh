@@ -14,6 +14,10 @@ echo "parallel OSM data loading"
 
 find /input/sql/ | grep "/.*sql$" | sort | PGHOST= PGHOSTADDR=  parallel psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --no-password --no-psqlrc  --dbname "osmworld" -f
 
+echo "parallel OSM data finalization"
+
+find /input/sql_finalize/ | grep "/.*sql$" | sort | PGHOST= PGHOSTADDR=  parallel psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --no-password --no-psqlrc  --dbname "osmworld" -f
+
 echo "finish OSM database initialization"
 
 "${psql[@]}" <<- 'EOSQL'

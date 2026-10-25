@@ -9,6 +9,7 @@ public class ResultLayout {
     public static final String WAYS_DIR = "ways";
     public static final String MULTIPOLYGON_DIR = "multipolygon";
     public static final String SQL_DIR = "sql";
+    public static final String SQL_FINALIZE_DIR = "sql_finalize";
     public static final String ARROW_DIR = "arrow";
     public static final String IMPORT_RELATED_METADATA_DIR = "import_related_metadata";
     public static final String STATIC_DIR = "static";
@@ -40,6 +41,7 @@ public class ResultLayout {
             waysDir.mkdir();
             relationsDir.mkdir();
             new File(resultDir, SQL_DIR).mkdirs();
+            new File(resultDir, SQL_FINALIZE_DIR).mkdirs();
         }
         new File(resultDir, IMPORT_RELATED_METADATA_DIR).mkdirs();
         if (saveArrow) {

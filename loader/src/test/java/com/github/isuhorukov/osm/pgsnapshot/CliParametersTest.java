@@ -13,7 +13,8 @@ class CliParametersTest {
         JCommander.newBuilder().addObject(parameters).build().parse("-source_pbf", "a.osm.pbf", "-scale_approx_calc",
                 "-collect_only_statistics", "-skip_buildings", "-skip_highway", "-preserve_all_nodes",
                 "-arrow_format", "PARQUET", "-result_in_tsv", "false", "-columnar_storage", "-osmium_docker", "false",
-                "-worker_threads", "3", "-pg_script_count", "5", "-data_partition_ratio", "0.5");
+                "-worker_threads", "3", "-pg_script_count", "5", "-data_partition_ratio", "0.5",
+                "-parallel_multipolygon_export", "false");
 
         assertEquals("a.osm.pbf", parameters.getSourceFilePath());
         assertTrue(parameters.isScaleApproximation());
@@ -29,11 +30,13 @@ class CliParametersTest {
         assertEquals(3, parameters.getWorkers());
         assertEquals(5, parameters.getScriptCount());
         assertEquals(0.5, parameters.getThresholdPercentFromMaxPartition());
+        assertFalse(parameters.isParallelMultipolygonExport());
         assertFalse(parameters.isHelp());
         String text = parameters.toString();
         assertTrue(text.contains("\"sourceFilePath\":\"a.osm.pbf\""), text);
         assertTrue(text.contains("\"workers\":3"), text);
         assertTrue(text.contains("\"arrowFormat\":\"PARQUET\""), text);
+        assertTrue(text.contains("\"parallelMultipolygonExport\":false"), text);
     }
 
     @Test
@@ -48,5 +51,6 @@ class CliParametersTest {
         assertEquals(4, parameters.getWorkers());
         assertEquals(4, parameters.getScriptCount());
         assertEquals(0.48, parameters.getThresholdPercentFromMaxPartition());
+        assertTrue(parameters.isParallelMultipolygonExport());
     }
 }

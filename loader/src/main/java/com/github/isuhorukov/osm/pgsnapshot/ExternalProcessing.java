@@ -1,6 +1,5 @@
 package com.github.isuhorukov.osm.pgsnapshot;
 
-import com.github.isuhorukov.osm.pgsnapshot.model.statistics.MultipolygonTime;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,32 +34,27 @@ public class ExternalProcessing {
         this.invokeDockerCommand = invokeDockerCommand;
     }
 
-    public MultipolygonTime prepareMultipolygonDataAndScripts(File sourcePbfFile, File resultDirectory,
-                                                              int scriptCount, long multipolygonCount,
-                                                              boolean saveArrow)
+    public long exportMultipolygons(File sourcePbfFile, File resultDirectory, boolean saveArrow)
             throws IOException, InterruptedException {
-
-        MultipolygonTime multipolygonTime = new MultipolygonTime();
-
-        String resultDirName = resultDirectory.getName();
-        String basePath = resultDirectory.getParent();
-        String indexType = getIndexType(sourcePbfFile);
         long osmiumExportStart = System.currentTimeMillis();
-        executeMultipolygonExport(sourcePbfFile, resultDirName, basePath, indexType);
+        executeMultipolygonExport(sourcePbfFile, resultDirectory.getName(), resultDirectory.getParent(),
+                getIndexType(sourcePbfFile));
         if (saveArrow) {
             transformMultipolygonToParquet(resultDirectory);
         }
+        return System.currentTimeMillis() - osmiumExportStart;
+    }
 
-        multipolygonTime.setMultipolygonExportTime(System.currentTimeMillis() - osmiumExportStart);
-
+    public long splitMultipolygonsAndWriteScripts(File resultDirectory, int scriptCount, long multipolygonCount)
+            throws IOException, InterruptedException {
         long partSize = multipolygonCount / scriptCount + 1;
-        String resultDirFullPath = new File(basePath, resultDirName).getPath();
+        String resultDirFullPath = resultDirectory.getPath();
         String multipolygonSourceTsv = resultDirFullPath + MULTIPOLYGON_SOURCE_TSV;
         String splitCommand = "cat " + multipolygonSourceTsv + " | grep $'\\trelation\\t' | split -l " + partSize + " - " + resultDirFullPath + "/multipolygon/multipolygon_";
         log.info(splitCommand);
         long multipolygonSplitStart = System.currentTimeMillis();
         runCliCommand(new String[]{"/bin/bash", "-c", splitCommand});
-        multipolygonTime.setSplitMultipolygonByPartsTime(System.currentTimeMillis() - multipolygonSplitStart);
+        long splitTime = System.currentTimeMillis() - multipolygonSplitStart;
 
         try {
             Files.delete(new File(multipolygonSourceTsv).toPath());
@@ -69,7 +63,7 @@ public class ExternalProcessing {
         }
 
         generateMultipolygonCopyScripts(resultDirFullPath);
-        return multipolygonTime;
+        return splitTime;
     }
 
     // Output path is derived from server-controlled resultDirectory, not from external user input.
@@ -182,8 +176,14 @@ public class ExternalProcessing {
         return commandArray;
     }
 
-    private static void runProcess(Process process, String commandDescription) throws IOException, InterruptedException {
-        int exitCode = process.waitFor();
+    static void runProcess(Process process, String commandDescription) throws IOException, InterruptedException {
+        int exitCode;
+        try {
+            exitCode = process.waitFor();
+        } catch (InterruptedException e) {
+            process.destroy();
+            throw e;
+        }
         if (log.isInfoEnabled()) {
             log.info(IOUtils.toString(process.getInputStream(), StandardCharsets.UTF_8));
         }

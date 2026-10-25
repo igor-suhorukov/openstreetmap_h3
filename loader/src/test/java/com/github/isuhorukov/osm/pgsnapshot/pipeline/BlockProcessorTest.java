@@ -2,12 +2,20 @@ package com.github.isuhorukov.osm.pgsnapshot.pipeline;
 
 import com.github.isuhorukov.osm.pgsnapshot.CliParameters;
 import com.github.isuhorukov.osm.pgsnapshot.extension.TagExtension;
+import com.github.isuhorukov.osm.pgsnapshot.model.ArrowNodeOrWay;
+import com.github.isuhorukov.osm.pgsnapshot.util.MinimumEnclosingCircle;
 import com.uber.h3core.H3Core;
+import org.geotools.geometry.jts.JTS;
+import org.geotools.referencing.CRS;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.CoordinateXY;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.opengis.referencing.crs.CoordinateReferenceSystem;
+import org.openstreetmap.osmosis.core.container.v0_6.EntityContainer;
 import org.openstreetmap.osmosis.core.container.v0_6.NodeContainer;
 import org.openstreetmap.osmosis.core.container.v0_6.RelationContainer;
 import org.openstreetmap.osmosis.core.container.v0_6.WayContainer;
@@ -17,6 +25,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.when;
@@ -213,6 +222,63 @@ class BlockProcessorTest {
 
         assertEquals(1, result.getWayCount());
         assertEquals(1, result.getArrowNodeOrWays().size());
+    }
+
+    @Test
+    void process_wayScale_equalsGeoToolsOrthodromicDistance() throws Exception {
+        when(parameters.isSkipBuildings()).thenReturn(false);
+        when(parameters.isSkipHighway()).thenReturn(false);
+        when(parameters.isCollectOnlyStat()).thenReturn(false);
+        when(parameters.isSaveArrow()).thenReturn(true);
+        when(parameters.isSavePostgresqlTsv()).thenReturn(false);
+        when(parameters.isScaleApproximation()).thenReturn(false);
+        List<Way> ways = List.of(
+                createWay(1L, Collections.emptyList(), List.of(new WayNode(1L, 13.7563, 100.5018),
+                        new WayNode(2L, 13.7570, 100.5030), new WayNode(3L, 13.7575, 100.5021),
+                        new WayNode(1L, 13.7563, 100.5018))),
+                createWay(2L, Collections.emptyList(), List.of(new WayNode(4L, 4.0, 73.0), new WayNode(5L, 4.01, 73.01))),
+                createWay(3L, Collections.emptyList(), List.of(new WayNode(6L, 69.65, 18.95),
+                        new WayNode(7L, 69.70, 19.10), new WayNode(8L, 69.68, 19.30))));
+
+        BlockResult result = blockProcessor.process(ways.stream().<EntityContainer>map(WayContainer::new)
+                .collect(Collectors.toList()), 1L, System.currentTimeMillis());
+
+        CoordinateReferenceSystem crs = CRS.decode("EPSG:4326");
+        for (int i = 0; i < ways.size(); i++) {
+            Coordinate[] coordinates = ways.get(i).getWayNodes().stream()
+                    .map(wayNode -> new CoordinateXY(wayNode.getLongitude(), wayNode.getLatitude()))
+                    .toArray(Coordinate[]::new);
+            MinimumEnclosingCircle circle = MinimumEnclosingCircle.of(coordinates);
+            float radius = (float) circle.getRadius();
+            float expected = (float) JTS.orthodromicDistance(new CoordinateXY(circle.getCentreX(), circle.getCentreY()),
+                    new CoordinateXY(circle.getCentreX() + radius, circle.getCentreY()), crs);
+            ArrowNodeOrWay way = result.getArrowNodeOrWays().get(i);
+            assertEquals(expected, way.getScaleDim(), "way " + way.getId());
+        }
+    }
+
+    @Test
+    void process_processorReusedForNextBlocks_sameResultAsFreshProcessor() {
+        when(parameters.isSkipBuildings()).thenReturn(false);
+        when(parameters.isSkipHighway()).thenReturn(false);
+        when(parameters.isCollectOnlyStat()).thenReturn(false);
+        when(parameters.isSaveArrow()).thenReturn(true);
+        when(parameters.isSavePostgresqlTsv()).thenReturn(true);
+        when(parameters.isScaleApproximation()).thenReturn(false);
+        Way road = createWay(1L, List.of(new Tag("highway", "primary")),
+                List.of(new WayNode(1L, 13.75, 100.50), new WayNode(2L, 13.80, 100.62)));
+        Way building = createWay(2L, List.of(new Tag("building", "yes")), List.of(new WayNode(3L, 18.79, 98.98),
+                new WayNode(4L, 18.791, 98.98), new WayNode(5L, 18.791, 98.981), new WayNode(3L, 18.79, 98.98)));
+
+        BlockResult first = blockProcessor.process(List.of(new WayContainer(road)), 1L, System.currentTimeMillis());
+        blockProcessor.process(List.of(new WayContainer(building)), 2L, System.currentTimeMillis());
+        BlockResult repeated = blockProcessor.process(List.of(new WayContainer(road)), 3L, System.currentTimeMillis());
+        BlockResult fresh = new BlockProcessor(parameters, h3Core)
+                .process(List.of(new WayContainer(road)), 4L, System.currentTimeMillis());
+
+        assertEquals(csv(first), csv(repeated));
+        assertEquals(csv(first), csv(fresh));
+        assertEquals(first.getArrowNodeOrWays().get(0).getScaleDim(), repeated.getArrowNodeOrWays().get(0).getScaleDim());
     }
 
     @Test
