@@ -1,0 +1,1 @@
+COPY osm_import_state(operation,source_pbf,replication_timestamp,replication_sequence,replication_url,parameters) FROM '/input/import_related_metadata/osm_import_state.tsv' DELIMITER E'\t' ESCAPE '\' NULL '\N' CSV;

@@ -122,6 +122,14 @@ Usage: <main class> [options]
     -skip_highway
       Skip any ways with 'highway' tag
       Default: false
+    -updatable
+      Store object versions, line geometry hashes, id indexes and the import 
+      journal, so the database can be updated later with -update
+      Default: false
+    -update
+      Update a database loaded with -updatable from a newer PBF: only new, 
+      changed and deleted objects are written. Requires -pg_jdbc_url
+      Default: false
     -worker_threads
       Worker threads count for data processing
       Default: 4
@@ -704,6 +712,70 @@ PGPASSWORD=osmworld java -jar loader/target/osm-to-pgsnapshot-schema-ng-1.0-SNAP
 The loader image needs network access to the database, e.g. `docker run --network host ... openstreetmap_h3:latest
 -source_pbf ... -pg_jdbc_url ...`. Thailand (16 worker threads, 8 COPY connections) loads in about 19 s instead of
 29 s for the loader and the import of the file mode, without 3.9 GB of TSV files and with the same table content.
+
+## Update the database from a newer PBF:
+A database loaded with `-updatable` (file mode or `-pg_jdbc_url`) can be brought up to date from a newer full PBF of
+the same region with `-update`. Only new, changed and deleted objects are written; the tables, indexes and derived data
+of the database stay, and readers see the old content until the update commits in one transaction.
+``` bash
+PGPASSWORD=osmworld java -jar loader/target/osm-to-pgsnapshot-schema-ng-1.0-SNAPSHOT.jar -source_pbf thailand-260904.osm.pbf -pg_jdbc_url "jdbc:postgresql://localhost:5432/osmworld?user=postgres" -worker_threads 16 -pg_script_count 8 -updatable
+PGPASSWORD=osmworld java -jar loader/target/osm-to-pgsnapshot-schema-ng-1.0-SNAPSHOT.jar -source_pbf thailand-260911.osm.pbf -pg_jdbc_url "jdbc:postgresql://localhost:5432/osmworld?user=postgres" -worker_threads 16 -update
+```
+`-updatable` adds to the schema:
+- `nodes.version`, `ways.version`, `ways.geom_hash` and `relations.version`. `geom_hash` is the 64-bit
+  `farmhash::Fingerprint64` (Guava `Hashing.farmHashFingerprint64()`) of the way node coordinates as PBF integers in
+  1e-7 degree units: int32 latitude, int32 longitude, little-endian, in way order. It finds ways whose nodes moved
+  without a new way version;
+- the covering indexes `idx_nodes_id (id) INCLUDE (version)`, `idx_ways_id (id) INCLUDE (version, geom_hash)` and the
+  primary key `pk_relations (id) INCLUDE (version)`;
+- empty `nodes` and `ways` partitions for every H3 range, so new objects anywhere in the region find their partition;
+- `osm_import_state`: one row per load or update with the source PBF name, the `osmosis_replication_*` fields of its
+  header and the loader parameters that define the table content (`-scale_approx_calc`, `-skip_buildings`,
+  `-skip_highway`, `-preserve_all_nodes`, the tag extensions with their multipolygon tag keys and rule fingerprints);
+- `osm_change_log(import_id, object_type, id, operation)`: objects created (`C`), updated (`U`) and deleted (`D`) by
+  each update, `object_type` is `N`, `W`, `R` or `M` (multipolygon). Use it to recompute tables derived from the
+  changed objects, and delete old rows by `import_id`.
+
+Without `-updatable` the schema, the TSV files and the database content stay as before.
+
+How `-update` works:
+1. It takes `pg_try_advisory_lock`, so a second update of the same database is refused at once. The update is refused
+   when the database was loaded without `-updatable`, when the content parameters or the extension rules (for
+   `poi-organicmaps` the SHA-256 of its rule files) differ from the stored ones, and when the PBF is older than the
+   database by its replication sequence (or timestamp). The same PBF exits immediately without changes.
+2. The ids, versions and line hashes of the database are read by binary `COPY` over the id indexes into sorted arrays
+   (about 110 MB of heap for this PBF).
+3. The usual pass over `osmium add-locations-to-ways` skips unchanged objects before any geometry work and streams
+   the rows of changed and new objects into unlogged `osm_delta_*` tables; objects of the database not seen in the PBF
+   are deleted.
+4. Multipolygons are recomputed only for affected area relations (changed relations, relations with changed, new or
+   deleted member ways, and area relations whose member ways are not in `ways`, e.g. skipped by `-skip_buildings`):
+   `osmium getid -r` extracts them with their members into a temporary file and `osmium export` builds the polygons.
+   This runs concurrently with the row changes.
+5. One transaction deletes and inserts the changed rows of `nodes`, `ways`, `relations`, `relation_members` and
+   `multipolygon` and writes `osm_import_state` and `osm_change_log`. A failure rolls everything back; the next run
+   drops the leftover `osm_delta_*` tables.
+6. `VACUUM` runs on the changed tables, with `ANALYZE` where at least 10% of the rows changed.
+
+The update exits with code 3 when it is refused and with code 2 for invalid options: `-update` needs `-pg_jdbc_url`
+and can't be combined with `-arrow_format` or `-collect_only_statistics`; `-updatable` and `-update` can't be combined
+with `-columnar_storage`, because Citus columnar tables don't support `UPDATE` and `DELETE`. The source must be a full
+PBF with object versions (not OSC diffs); `osm_file_*` and `osm_stat_*` keep describing the initial load. Derived tables
+such as the ones of `h3_indexes.sql` are not updated. After a large delta the tables keep the space of deleted rows
+for later inserts, and an update of a large delta is not faster than a full load: the gain is that the database and
+its derived data stay online.
+
+16 worker threads, 8 COPY connections, PostgreSQL 19 in Docker; every update gave the same content as the
+full load of the new PBF:
+
+| | Time | Changed rows |
+|-|-----:|-------------:|
+| Full load with `-updatable` | 18–23 s | |
+| Update for a week (Geofabrik 2026-09-04 → 2026-09-11) | 9 s | 12,500 |
+| Update for 16 months (2025-05-24 → 2026-09-04) | 26–28 s | 1.16 million |
+| The same PBF again | 0.4 s | 0 |
+
+`-updatable` makes the initial load about 1–2 s longer and the database 8.5% larger (3,066 MB instead of 2,826 MB).
 
 ## Apache Parquet export
 

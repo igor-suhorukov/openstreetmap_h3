@@ -40,6 +40,11 @@
             <version>7.0.0</version>
         </dependency>
         <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>26.0-jre</version>
+        </dependency>
+        <dependency>
             <!-- use only for org.openstreetmap.osmosis.pgsnapshot.v0_6.impl.MemberTypeValueMapper class-->
             <groupId>org.openstreetmap.osmosis</groupId>
             <artifactId>osmosis-pgsnapshot</artifactId>

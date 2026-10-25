@@ -429,6 +429,92 @@ class BlockProcessorTest {
         assertEquals(0, result.getRelationCount());
     }
 
+    @Test
+    void process_updatable_tsvRowsEndWithVersionAndGeomHash() {
+        when(parameters.isUpdatable()).thenReturn(true);
+        when(parameters.isSavePostgresqlTsv()).thenReturn(true);
+        BlockProcessor processor = new BlockProcessor(parameters, h3Core);
+        Node node = new Node(new CommonEntityData(1L, 3, new Date(), OsmUser.NONE, 1L), 4.1755, 73.5093);
+        List<WayNode> wayNodes = List.of(new WayNode(1L, 4.0, 73.0), new WayNode(2L, 4.01, 73.01));
+        Way way = createWay(2L, Collections.emptyList(), wayNodes);
+        Relation relation = createRelation(3L, List.of(new Tag("type", "multipolygon")),
+                List.of(new RelationMember(2L, EntityType.Way, "outer")));
+
+        String nodeCsv = csv(processor.process(List.of(new NodeContainer(node)), 1L, System.currentTimeMillis()));
+        String wayCsv = csv(processor.process(List.of(new WayContainer(way)), 2L, System.currentTimeMillis()));
+        BlockResult relationResult = processor.process(List.of(new RelationContainer(relation)), 3L, System.currentTimeMillis());
+
+        assertTrue(nodeCsv.endsWith("\\N\t3\n"), nodeCsv);
+        assertEquals(6, nodeCsv.split("\t", -1).length, nodeCsv);
+        assertTrue(wayCsv.endsWith("\\N\t1\t" + WayGeometry.geomHash(wayNodes) + "\n"), wayCsv);
+        assertEquals(15, wayCsv.split("\t", -1).length, wayCsv);
+        assertTrue(relationResult.getCsvResultPerH33().get((short) 0).toString()
+                .endsWith("\t1\n"), relationResult.getCsvResultPerH33().toString());
+        assertEquals("3\t2\tW\t\"outer\"\t0\n", relationResult.getCsvResultPerH33().get((short) 1).toString());
+    }
+
+    @Test
+    void process_storedVersions_onlyChangedAndCreatedObjectsSerialized() {
+        when(parameters.isUpdatable()).thenReturn(true);
+        when(parameters.isSavePostgresqlTsv()).thenReturn(true);
+        List<WayNode> wayNodes = List.of(new WayNode(1L, 4.0, 73.0), new WayNode(2L, 4.01, 73.01));
+        long storedHash = WayGeometry.geomHash(wayNodes);
+        List<String> checked = new java.util.ArrayList<>();
+        StoredVersions storedVersions = new StoredVersions() {
+            @Override
+            public boolean unchangedNode(long id, int version) {
+                checked.add("n" + id + "v" + version);
+                return id == 1;
+            }
+
+            @Override
+            public boolean unchangedWay(long id, int version, long geomHash) {
+                checked.add("w" + id + "v" + version);
+                return id == 10 && geomHash == storedHash;
+            }
+
+            @Override
+            public boolean unchangedRelation(long id, int version) {
+                checked.add("r" + id + "v" + version);
+                return id == 100;
+            }
+        };
+        BlockProcessor processor = new BlockProcessor(parameters, h3Core, Collections.emptyList(), storedVersions);
+
+        BlockResult nodes = processor.process(List.of(new NodeContainer(createNode(1L, 4.1, 73.1)),
+                new NodeContainer(createNode(2L, 4.2, 73.2))), 1L, System.currentTimeMillis());
+        BlockResult ways = processor.process(List.of(new WayContainer(createWay(10L, Collections.emptyList(), wayNodes)),
+                new WayContainer(createWay(11L, Collections.emptyList(), wayNodes))), 2L, System.currentTimeMillis());
+        BlockResult relations = processor.process(List.of(
+                new RelationContainer(createRelation(100L, Collections.emptyList(), Collections.emptyList())),
+                new RelationContainer(createRelation(101L, Collections.emptyList(),
+                        List.of(new RelationMember(10L, EntityType.Way, ""))))), 3L, System.currentTimeMillis());
+
+        assertEquals(List.of("n1v1", "n2v1", "w10v1", "w11v1", "r100v1", "r101v1"), checked);
+        assertEquals(2, nodes.getNodeCount());
+        assertEquals(1, csv(nodes).split("\n").length);
+        assertTrue(csv(nodes).contains("\t2\t"), csv(nodes));
+        assertEquals(1, csv(ways).split("\n").length);
+        assertTrue(csv(ways).contains("\t11\t"), csv(ways));
+        assertEquals(2, ways.getWayCount());
+        assertTrue(relations.getCsvResultPerH33().get((short) 0).toString().startsWith("101\t"));
+        assertEquals("101\t10\tW\t\\N\t0\n", relations.getCsvResultPerH33().get((short) 1).toString());
+        assertEquals(2, relations.getRelationCount());
+    }
+
+    @Test
+    void process_updatableEntityWithoutVersion_throws() {
+        when(parameters.isUpdatable()).thenReturn(true);
+        Node node = new Node(new CommonEntityData(7L, -1, new Date(), OsmUser.NONE, 1L), 4.1755, 73.5093);
+        List<EntityContainer> entities = List.of(new NodeContainer(node));
+        long threadStart = System.currentTimeMillis();
+
+        IllegalStateException exception = assertThrows(IllegalStateException.class,
+                () -> blockProcessor.process(entities, 1L, threadStart));
+
+        assertTrue(exception.getMessage().contains("Node 7 has no version"), exception.getMessage());
+    }
+
     private BlockProcessor extensionBlockProcessor(TagExtension... tagExtensions) {
         return new BlockProcessor(parameters, h3Core, List.of(tagExtensions));
     }

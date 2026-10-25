@@ -35,6 +35,7 @@ class TagExtensionTest {
         List<String> resources = new ArrayList<>();
 
         assertNull(MINIMAL_EXTENSION.getParameters());
+        assertEquals("", MINIMAL_EXTENSION.getFingerprint());
         assertTrue(MINIMAL_EXTENSION.multipolygonTagKeys().isEmpty());
         assertDoesNotThrow(MINIMAL_EXTENSION::init);
         MINIMAL_EXTENSION.writePostgresqlResources(new PostgresqlResources() {

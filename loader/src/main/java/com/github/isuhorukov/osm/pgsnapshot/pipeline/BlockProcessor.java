@@ -35,19 +35,26 @@ public class BlockProcessor {
     private final GeodeticCalculator geodeticCalculator;
     private final Serializer serializer;
     private final List<TagExtension> tagExtensions;
+    private final StoredVersions storedVersions;
 
     public BlockProcessor(CliParameters parameters, H3Core h3Core) {
         this(parameters, h3Core, Collections.emptyList());
     }
 
     public BlockProcessor(CliParameters parameters, H3Core h3Core, List<TagExtension> tagExtensions) {
+        this(parameters, h3Core, tagExtensions, StoredVersions.NONE);
+    }
+
+    public BlockProcessor(CliParameters parameters, H3Core h3Core, List<TagExtension> tagExtensions,
+                          StoredVersions storedVersions) {
         this.parameters = parameters;
         this.h3Core = h3Core;
         this.tagExtensions = tagExtensions;
+        this.storedVersions = storedVersions;
         this.geometryFactory = new GeometryFactory();
         this.memberTypeValueMapper = new MemberTypeValueMapper();
         this.wkbWriter = new WKBWriter();
-        this.serializer = new Serializer();
+        this.serializer = new Serializer(parameters.isUpdatable());
         try {
             this.geodeticCalculator = new GeodeticCalculator(CRS.decode("EPSG:" + Serializer.SRID));
         } catch (FactoryException e) {
@@ -101,6 +108,10 @@ public class BlockProcessor {
 
     private void processNode(Node entity, BlockResult result, Map<Short, Stat> nodeStat) {
         long id = entity.getId();
+        int version = version(entity);
+        if (storedVersions.unchangedNode(id, version)) {
+            return;
+        }
         final double latitude = entity.getLatitude();
         final double longitude = entity.getLongitude();
         short h33 = CompactH3.serialize3(h3Core.latLngToCell(latitude, longitude, 3));
@@ -119,7 +130,7 @@ public class BlockProcessor {
             }
             if (parameters.isSavePostgresqlTsv()) {
                 StringBuilder resultBuilder = result.getCsvResultPerH33().computeIfAbsent(h33, key -> new StringBuilder());
-                serializer.serializeNode(resultBuilder, h33, h38, id, latitude, longitude, tags);
+                serializer.serializeNode(resultBuilder, h33, h38, entity, tags);
             }
         }
     }
@@ -136,14 +147,16 @@ public class BlockProcessor {
     }
 
     private void processWay(Way entity, BlockResult result, Map<Short, Stat> wayStat) {
-        if (parameters.isSkipBuildings() && entity.getTags().stream().anyMatch(tag -> "building".equals(tag.getKey()))) {
-            return;
-        }
-        if (parameters.isSkipHighway() && entity.getTags().stream().anyMatch(tag -> "highway".equals(tag.getKey()))) {
+        if (isSkipped(entity)) {
             return;
         }
         long id = entity.getId();
         List<WayNode> wayNodes = entity.getWayNodes();
+        int version = version(entity);
+        long geomHash = parameters.isUpdatable() ? WayGeometry.geomHash(wayNodes) : 0;
+        if (storedVersions.unchangedWay(id, version, geomHash)) {
+            return;
+        }
 
         short[] h3Idxs = new short[wayNodes.size()];
         for (int i = 0; i < wayNodes.size(); i++) {
@@ -194,18 +207,30 @@ public class BlockProcessor {
                         .centre(geom.getCentre()).scaleDim(geom.getScaleDim())
                         .bboxGeometry(geom.getBboxGeometry()).lineString(geom.getLineString())
                         .tags(tags)
+                        .version(version).geomHash(geomHash)
                         .build();
                 serializer.serializeWay(resultBuilder, wayData);
             }
         }
     }
 
+    private boolean isSkipped(Way entity) {
+        return (parameters.isSkipBuildings() && hasTag(entity, "building"))
+                || (parameters.isSkipHighway() && hasTag(entity, "highway"));
+    }
+
+    private static boolean hasTag(Way entity, String key) {
+        return entity.getTags().stream().anyMatch(tag -> key.equals(tag.getKey()));
+    }
+
     private long processRelations(List<EntityContainer> decodedEntities, BlockResult result) {
         long relationCount = 0;
         for (EntityContainer entityContainer : decodedEntities) {
             if (entityContainer instanceof RelationContainer) {
-                if (!parameters.isCollectOnlyStat()) {
-                    serializeRelation(((RelationContainer) entityContainer).getEntity(), result);
+                Relation relation = ((RelationContainer) entityContainer).getEntity();
+                int version = version(relation);
+                if (!parameters.isCollectOnlyStat() && !storedVersions.unchangedRelation(relation.getId(), version)) {
+                    serializeRelation(relation, version, result);
                 }
                 relationCount++;
             }
@@ -213,12 +238,12 @@ public class BlockProcessor {
         return relationCount;
     }
 
-    private void serializeRelation(Relation entity, BlockResult result) {
+    private void serializeRelation(Relation entity, int version, BlockResult result) {
         long relationId = entity.getId();
         Collection<Tag> tags = getTags(entity);
         if (parameters.isSavePostgresqlTsv()) {
             StringBuilder relationCsv = result.getCsvResultPerH33().computeIfAbsent((short) 0, k -> new StringBuilder());
-            serializer.serializeRelation(relationCsv, relationId, tags);
+            serializer.serializeRelation(relationCsv, relationId, tags, version);
         }
 
         ArrowRelation arrowRelation = null;
@@ -283,6 +308,15 @@ public class BlockProcessor {
             stat.incrementSize(1);
             stat.incrementSize(tag.getValue().length());
         }
+    }
+
+    private int version(Entity entity) {
+        int version = entity.getVersion();
+        if (version < 1 && parameters.isUpdatable()) {
+            throw new IllegalStateException(entity.getType() + " " + entity.getId() + " has no version: "
+                    + "-updatable and -update need a PBF with object metadata");
+        }
+        return version;
     }
 
     private Collection<Tag> getTags(Entity entity) {

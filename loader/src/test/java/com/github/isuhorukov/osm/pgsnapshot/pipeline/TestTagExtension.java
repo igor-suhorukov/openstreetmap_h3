@@ -55,6 +55,11 @@ public class TestTagExtension implements TagExtension {
     }
 
     @Override
+    public String getFingerprint() {
+        return "value=" + value;
+    }
+
+    @Override
     public Set<String> multipolygonTagKeys() {
         return Set.of(key);
     }

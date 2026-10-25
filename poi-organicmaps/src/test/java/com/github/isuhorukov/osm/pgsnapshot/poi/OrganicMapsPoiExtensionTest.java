@@ -6,8 +6,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.openstreetmap.osmosis.core.domain.v0_6.*;
 
+import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -73,6 +75,42 @@ class OrganicMapsPoiExtensionTest {
     void init_missingDirectory_throws() {
         OrganicMapsPoiExtension extension = parse("-poi_mapping_dir", tempDir.resolve("no_such_dir").toString());
         assertThrows(NoSuchFileException.class, extension::init);
+    }
+
+    @Test
+    void getFingerprint_sha256OfRuleFiles() throws Exception {
+        String fingerprint = initializedExtension().getFingerprint();
+
+        assertTrue(fingerprint.matches("[0-9a-f]{64}"), fingerprint);
+        assertEquals(fingerprint, initializedExtension().getFingerprint());
+        assertEquals(fingerprint, RulesFingerprint.of(OrganicMapsPoiClassifierTest.testDataDirectory()));
+    }
+
+    @Test
+    void getFingerprint_changedOrMissingRuleFile_differs() throws Exception {
+        Path data = Files.createDirectories(tempDir.resolve("data"));
+        Path source = OrganicMapsPoiClassifierTest.testDataDirectory();
+        for (String file : List.of(OrganicMapsPoiClassifier.MAPPING_FILE, OrganicMapsPoiClassifier.REPLACED_TAGS_FILE,
+                OrganicMapsPoiClassifier.CATEGORIES_FILE)) {
+            Files.copy(source.resolve(file), data.resolve(file));
+        }
+        String withoutTypeNames = RulesFingerprint.of(data);
+        Files.writeString(data.resolve(OrganicMapsPoiClassifier.CATEGORIES_FILE), "\n", StandardOpenOption.APPEND);
+
+        assertNotEquals(RulesFingerprint.of(source), withoutTypeNames);
+        assertNotEquals(withoutTypeNames, RulesFingerprint.of(data));
+    }
+
+    @Test
+    void getFingerprint_beforeInit_throws() {
+        OrganicMapsPoiExtension extension = new OrganicMapsPoiExtension();
+
+        assertThrows(IllegalStateException.class, extension::getFingerprint);
+    }
+
+    @Test
+    void hex_lowercaseTwoDigitsPerByte() {
+        assertEquals("00ff7f80", RulesFingerprint.hex(new byte[]{0, -1, 127, -128}));
     }
 
     @Test

@@ -73,7 +73,7 @@ CREATE TABLE multipolygon(
     h3_3_multi_regions smallint[]
 ) PARTITION BY RANGE (h3_3);
 \i /input/static/multipolygon_tables.sql
-CREATE UNLOGGED TABLE preimport_multipolygon(polygon geometry(MULTIPOLYGON,4326), osm_type text, id bigint, tags hstore);
+CREATE UNLOGGED TABLE preimport_multipolygon(polygon geometry(MULTIPOLYGON,4326), osm_type text, id bigint, tags hstore);${updatable_schema}
 
 
 create table h3_3_bounds_complex(id smallint, h3_0 smallint, h3_1 smallint, h3_2 smallint, bbox geometry(Geometry,4326), bounds geometry(Geometry,4326));

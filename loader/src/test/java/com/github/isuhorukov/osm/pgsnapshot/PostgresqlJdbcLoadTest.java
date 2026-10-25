@@ -159,6 +159,40 @@ class PostgresqlJdbcLoadTest {
     }
 
     @Test
+    void run_updatable_jdbcSameContentAsImportedFilesIncludingVersionsAndImportState() throws Exception {
+        createDatabase("osm_jdbc_updatable");
+        createDatabase("osm_files_updatable");
+        Path jdbcPbf = samplePbf("jdbc_updatable");
+        Path filesPbf = samplePbf("files_updatable");
+        List<String> versionQueries = List.of(
+                "SELECT md5(string_agg(id || ' ' || version, ',' ORDER BY id)) FROM nodes",
+                "SELECT md5(string_agg(id || ' ' || version || ' ' || geom_hash, ',' ORDER BY id)) FROM ways",
+                "SELECT md5(string_agg(id || ' ' || version, ',' ORDER BY id)) FROM relations",
+                "SELECT concat_ws(' ', operation, source_pbf, replication_sequence, replication_timestamp, "
+                        + "replication_url, parameters) FROM osm_import_state",
+                "SELECT string_agg(indexrelid::regclass::text, ',' ORDER BY indexrelid::regclass::text) FROM pg_index "
+                        + "WHERE indexrelid::regclass::text IN ('idx_nodes_id', 'idx_ways_id', 'pk_relations')");
+
+        assertEquals(0, runJdbc(jdbcPbf, "osm_jdbc_updatable", "-updatable", "-test_tag_value", "v"));
+        assertEquals(0, OsmPbfTransformation.run(new String[]{"-source_pbf", filesPbf.toString(), "-osmium_docker", "false",
+                "-worker_threads", "2", "-pg_script_count", "2", "-updatable", "-test_tag_value", "v"}));
+        try (Connection connection = DriverManager.getConnection(url("osm_files_updatable"))) {
+            ResultDirectoryImport.importResultDirectory(connection, filesPbf.resolveSibling("sample_loc_ways").toFile());
+        }
+
+        for (String contentQuery : CONTENT_QUERIES) {
+            assertEquals(query("osm_files_updatable", contentQuery), query("osm_jdbc_updatable", contentQuery), contentQuery);
+        }
+        for (String versionQuery : versionQueries) {
+            assertEquals(query("osm_files_updatable", versionQuery), query("osm_jdbc_updatable", versionQuery), versionQuery);
+        }
+        assertTrue(query("osm_jdbc_updatable", versionQueries.get(3)).startsWith("load sample.osm.pbf {\"extensions\": "
+                + "[{\"name\": \"test\", \"fingerprint\": \"value=v\""), query("osm_jdbc_updatable", versionQueries.get(3)));
+        assertEquals("idx_nodes_id,idx_ways_id,pk_relations", query("osm_jdbc_updatable", versionQueries.get(4)));
+        assertNoLoaderConnections();
+    }
+
+    @Test
     void run_pgJdbcUrl_frozenPartitionsAndDefaultWaysPartition() throws Exception {
         createDatabase("osm_partitions");
 

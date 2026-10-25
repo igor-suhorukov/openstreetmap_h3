@@ -24,6 +24,14 @@ public class PartitioningScriptWriter {
     public static void savePartitioningScripts(File resultDirectory, int scriptCount,
                                                double thresholdPercentFromMaxPartition,
                                                List<BlockStat> blockStatistics, boolean storeColumnar) {
+        savePartitioningScripts(resultDirectory, scriptCount, thresholdPercentFromMaxPartition, blockStatistics,
+                storeColumnar, false);
+    }
+
+    public static void savePartitioningScripts(File resultDirectory, int scriptCount,
+                                               double thresholdPercentFromMaxPartition,
+                                               List<BlockStat> blockStatistics, boolean storeColumnar,
+                                               boolean updatable) {
         List<TableStat> tableStat = blockStatistics.stream().map(statItem -> {
             if (statItem.getRelationCount() > 0) {
                 return null;
@@ -57,14 +65,15 @@ public class PartitioningScriptWriter {
                 thresholdPercentFromMaxPartition);
         List<Partition> partitionsNode = PartitionSplitter.distributeH33ByPartitionsForNodes(
                 partitionsWay,
-                nodesSizeStat.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+                nodesSizeStat.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)),
+                updatable);
         long minWayPartitionSizeMb = partitionsWay.stream().map(Partition::getSerializedSize)
                 .min(Comparator.comparingLong(Long::longValue)).orElseThrow() / 1000000;
         double avgWayPartitionSizeMb = partitionsWay.stream().map(Partition::getSerializedSize)
                 .collect(Collectors.averagingLong(Long::longValue)) / 1000000;
         log.info("{} {} {}", partitionsWay.size(), minWayPartitionSizeMb, avgWayPartitionSizeMb);
-        PartitionSplitter.createNodesScript(resultDirectory, scriptCount, partitionsNode, storeColumnar);
-        PartitionSplitter.createWaysScript(resultDirectory, scriptCount, partitionsWay, storeColumnar);
+        PartitionSplitter.createNodesScript(resultDirectory, scriptCount, partitionsNode, storeColumnar, updatable);
+        PartitionSplitter.createWaysScript(resultDirectory, scriptCount, partitionsWay, storeColumnar, updatable);
         PartitionSplitter.createMultipolygonScript(resultDirectory, partitionsWay, storeColumnar);
     }
 }

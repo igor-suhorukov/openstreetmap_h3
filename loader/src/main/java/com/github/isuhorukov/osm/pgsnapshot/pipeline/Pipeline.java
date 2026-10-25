@@ -8,10 +8,12 @@ import com.github.isuhorukov.osm.pgsnapshot.arrow.NodeWayArrowWriter;
 import com.github.isuhorukov.osm.pgsnapshot.arrow.RelationArrowWriter;
 import com.github.isuhorukov.osm.pgsnapshot.extension.TagExtension;
 import com.github.isuhorukov.osm.pgsnapshot.jdbc.PostgresqlLoader;
+import com.github.isuhorukov.osm.pgsnapshot.jdbc.PostgresqlUpdater;
 import com.github.isuhorukov.osm.pgsnapshot.model.statistics.BlockStat;
 import com.github.isuhorukov.osm.pgsnapshot.model.statistics.MultipolygonTime;
 import com.github.isuhorukov.osm.pgsnapshot.model.statistics.PbfStatistics;
 import com.github.isuhorukov.osm.pgsnapshot.output.*;
+import com.github.isuhorukov.osm.pgsnapshot.pbfextractor.ReplicationHeader;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.uber.h3core.H3Core;
 import org.openstreetmap.osmosis.core.container.v0_6.EntityContainer;
@@ -63,10 +65,39 @@ public class Pipeline {
         log.info("{}", parameters);
         initTagExtensions();
         ExternalProcessing externalProcessing = new ExternalProcessing(parameters.isInvokeDockerCommand());
-        if (parameters.isLoadPostgresqlJdbc()) {
+        if (parameters.isUpdate()) {
+            updatePostgresql(externalProcessing, sourcePbfFile, commandStartTime);
+        } else if (parameters.isLoadPostgresqlJdbc()) {
             loadPostgresql(externalProcessing, sourcePbfFile, commandStartTime);
         } else {
             saveFiles(externalProcessing, sourcePbfFile, commandStartTime);
+        }
+    }
+
+    private void updatePostgresql(ExternalProcessing externalProcessing, File sourcePbfFile, long commandStartTime)
+            throws IOException, InterruptedException {
+        try (PostgresqlUpdater updater = PostgresqlUpdater.start(parameters, sourcePbfFile, tagExtensions,
+                multipolygonTagKeys(), externalProcessing, this::recordFailure)) {
+            if (updater.isUpToDate()) {
+                return;
+            }
+            long processingStartTime = System.currentTimeMillis();
+            ProcessedBlocks processedBlocks = processBlocks(externalProcessing, sourcePbfFile, null,
+                    updater.blockWriter(maxBlocksInFlight(), this::recordFailure), processingStartTime,
+                    updater.getStoredVersions());
+            StatisticsWriter.printProcessingStatistics(processedBlocks.blockStatistics, processedBlocks.blockCount,
+                    System.currentTimeMillis() - processingStartTime, processedBlocks.multipolygonCount());
+            updater.finishDelta();
+            try (MultipolygonExport multipolygonSubset = MultipolygonExport.start(
+                    () -> updater.copyMultipolygonSubset(sourcePbfFile), updater::cancelMultipolygonSubset, true)) {
+                updater.applyRows();
+                multipolygonSubset.await();
+            }
+            updater.applyMultipolygons();
+            updater.vacuum();
+            log.info("update finished in {} ms", System.currentTimeMillis() - commandStartTime);
+        } catch (SQLException e) {
+            throw new IllegalStateException("Updating PostgreSQL failed", e);
         }
     }
 
@@ -74,6 +105,9 @@ public class Pipeline {
             throws IOException, InterruptedException {
         try (PostgresqlLoader loader = PostgresqlLoader.start(parameters, sourcePbfFile, tagExtensions,
                 multipolygonTagKeys(), this::recordFailure)) {
+            if (parameters.isUpdatable()) {
+                loader.addImportState(importState(sourcePbfFile));
+            }
             long processingStartTime = System.currentTimeMillis();
             ProcessedBlocks processedBlocks;
             long dataProcessingTime;
@@ -82,7 +116,8 @@ public class Pipeline {
                     () -> loader.copyMultipolygons(externalProcessing, sourcePbfFile), loader::cancelMultipolygons,
                     parameters.isParallelMultipolygonExport())) {
                 processedBlocks = processBlocks(externalProcessing, sourcePbfFile, null,
-                        loader.blockWriter(maxBlocksInFlight(), this::recordFailure), processingStartTime);
+                        loader.blockWriter(maxBlocksInFlight(), this::recordFailure), processingStartTime,
+                        StoredVersions.NONE);
                 dataProcessingTime = System.currentTimeMillis() - processingStartTime;
                 StatisticsWriter.printProcessingStatistics(processedBlocks.blockStatistics, processedBlocks.blockCount,
                         dataProcessingTime, processedBlocks.multipolygonCount());
@@ -133,7 +168,15 @@ public class Pipeline {
             StatisticsWriter.saveStatistics(resultDirectory, buildStatistics(processedBlocks.blockStatistics,
                     multipolygonCount, dataProcessingTime, processedBlocks.addLocationsToWaysTime, multipolygonTime,
                     System.currentTimeMillis() - commandStartTime));
+            if (saveImportScripts && parameters.isUpdatable()) {
+                ImportState.write(resultDirectory, importState(sourcePbfFile));
+            }
         }
+    }
+
+    private byte[] importState(File sourcePbfFile) throws IOException {
+        return ImportState.tsv(ImportState.LOAD, sourcePbfFile, ReplicationHeader.read(sourcePbfFile),
+                ImportState.parametersJson(parameters, tagExtensions));
     }
 
     private void initTagExtensions() throws IOException {
@@ -150,7 +193,8 @@ public class Pipeline {
 
         ResourceCopier.copyOsmiumSettings(resultDirectory);
         if (parameters.isSavePostgresqlTsv()) {
-            ResourceCopier.copyResources(resultDirectory, parameters.isColumnarStorage(), multipolygonTagKeys());
+            ResourceCopier.copyResources(resultDirectory, parameters.isColumnarStorage(), parameters.isUpdatable(),
+                    multipolygonTagKeys());
             DirectoryPostgresqlResources postgresqlResources = new DirectoryPostgresqlResources(resultDirectory);
             for (TagExtension tagExtension : tagExtensions) {
                 tagExtension.writePostgresqlResources(postgresqlResources);
@@ -177,7 +221,8 @@ public class Pipeline {
         ExecutorService saveExecutorService = getExecutorService(parameters.getWorkers());
         try {
             return processBlocks(externalProcessing, sourcePbfFile, resultDirectory, new TsvBlockWriter(
-                    saveExecutorService, resultDirectory, maxBlocksInFlight(), this::recordFailure), processingStartTime);
+                    saveExecutorService, resultDirectory, maxBlocksInFlight(), this::recordFailure), processingStartTime,
+                    StoredVersions.NONE);
         } finally {
             saveExecutorService.shutdownNow();
         }
@@ -185,11 +230,11 @@ public class Pipeline {
 
     private ProcessedBlocks processBlocks(ExternalProcessing externalProcessing, File sourcePbfFile,
                                           File resultDirectory, OrderedBlockWriter blockWriter,
-                                          long processingStartTime)
+                                          long processingStartTime, StoredVersions storedVersions)
             throws IOException, InterruptedException {
         final H3Core h3Core = H3Core.newInstance();
         ThreadLocal<BlockProcessor> blockProcessors =
-                ThreadLocal.withInitial(() -> new BlockProcessor(parameters, h3Core, tagExtensions));
+                ThreadLocal.withInitial(() -> new BlockProcessor(parameters, h3Core, tagExtensions, storedVersions));
 
         ExecutorService executorService = getExecutorService(parameters.getWorkers());
 
@@ -216,8 +261,9 @@ public class Pipeline {
                                     List<BlockStat> blockStatistics, long multipolygonCount)
             throws IOException, InterruptedException {
         PartitioningScriptWriter.savePartitioningScripts(resultDirectory, parameters.getScriptCount(),
-                parameters.getThresholdPercentFromMaxPartition(), blockStatistics, parameters.isColumnarStorage());
-        ResourceCopier.copyImportScripts(resultDirectory, parameters.isColumnarStorage());
+                parameters.getThresholdPercentFromMaxPartition(), blockStatistics, parameters.isColumnarStorage(),
+                parameters.isUpdatable());
+        ResourceCopier.copyImportScripts(resultDirectory, parameters.isColumnarStorage(), parameters.isUpdatable());
         return externalProcessing.splitMultipolygonsAndWriteScripts(resultDirectory, parameters.getScriptCount(),
                 multipolygonCount);
     }

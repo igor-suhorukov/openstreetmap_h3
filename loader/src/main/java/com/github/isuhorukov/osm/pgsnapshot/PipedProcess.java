@@ -51,9 +51,13 @@ public class PipedProcess implements Closeable {
     }
 
     public void waitForSuccess() throws InterruptedException {
+        waitForSuccessUpTo(0);
+    }
+
+    public void waitForSuccessUpTo(int maxSuccessExitCode) throws InterruptedException {
         int exitCode = process.waitFor();
         stderrLogger.join();
-        if (exitCode != 0) {
+        if (exitCode < 0 || exitCode > maxSuccessExitCode) {
             throw new IllegalStateException("exit code " + exitCode + " command: " + commandDescription);
         }
     }

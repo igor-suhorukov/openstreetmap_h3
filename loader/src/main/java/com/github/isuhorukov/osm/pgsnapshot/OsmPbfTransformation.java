@@ -4,6 +4,7 @@ import com.beust.jcommander.JCommander;
 import com.beust.jcommander.ParameterDescription;
 import com.beust.jcommander.ParameterException;
 import com.github.isuhorukov.osm.pgsnapshot.extension.TagExtension;
+import com.github.isuhorukov.osm.pgsnapshot.jdbc.UpdateRefusedException;
 import com.github.isuhorukov.osm.pgsnapshot.pipeline.Pipeline;
 import com.github.isuhorukov.osm.pgsnapshot.pipeline.TagExtensions;
 import org.slf4j.Logger;
@@ -21,6 +22,7 @@ public class OsmPbfTransformation {
     private static final Logger console = LoggerFactory.getLogger(CONSOLE_LOGGER);
 
     public static final int INVALID_ARGUMENTS_EXIT_CODE = 2;
+    public static final int UPDATE_REFUSED_EXIT_CODE = 3;
 
     public static void main(String[] args) throws IOException, InterruptedException {
         int exitCode = run(args);
@@ -54,8 +56,32 @@ public class OsmPbfTransformation {
         if (parameters.isLoadPostgresqlJdbc() && (parameters.isSaveArrow() || parameters.isCollectOnlyStat())) {
             throw new IllegalArgumentException("pg_jdbc_url can't be combined with arrow_format or collect_only_statistics");
         }
-        new Pipeline(parameters, tagExtensions.getEnabled()).run();
+        String updateOptionsError = updateOptionsError(parameters);
+        if (updateOptionsError != null) {
+            jc.usage();
+            console.error(updateOptionsError);
+            return INVALID_ARGUMENTS_EXIT_CODE;
+        }
+        try {
+            new Pipeline(parameters, tagExtensions.getEnabled()).run();
+        } catch (UpdateRefusedException e) {
+            console.error(e.getMessage());
+            return UPDATE_REFUSED_EXIT_CODE;
+        }
         return 0;
+    }
+
+    static String updateOptionsError(CliParameters parameters) {
+        if (parameters.isUpdatable() && parameters.isColumnarStorage()) {
+            return "-updatable and -update can't be combined with -columnar_storage: columnar tables don't support UPDATE and DELETE";
+        }
+        if (parameters.isUpdate() && !parameters.isLoadPostgresqlJdbc()) {
+            return "-update requires -pg_jdbc_url";
+        }
+        if (parameters.isUpdate() && (parameters.isSaveArrow() || parameters.isCollectOnlyStat())) {
+            return "-update can't be combined with -arrow_format or -collect_only_statistics";
+        }
+        return null;
     }
 
     private static List<String> unknownOptions(JCommander jc, String[] args) {

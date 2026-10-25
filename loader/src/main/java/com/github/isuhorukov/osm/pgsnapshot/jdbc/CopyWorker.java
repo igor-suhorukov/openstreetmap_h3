@@ -95,6 +95,44 @@ abstract class CopyWorker implements Runnable {
         return failure;
     }
 
+    static void finishAll(List<? extends CopyWorker> workers) throws InterruptedException {
+        for (CopyWorker worker : workers) {
+            worker.endOfStream();
+        }
+        for (CopyWorker worker : workers) {
+            worker.join();
+        }
+        IllegalStateException failure = null;
+        for (CopyWorker worker : workers) {
+            if (worker.getFailure() != null) {
+                if (failure == null) {
+                    failure = new IllegalStateException("COPY worker " + worker.getName() + " failed", worker.getFailure());
+                } else {
+                    failure.addSuppressed(worker.getFailure());
+                }
+            }
+        }
+        if (failure != null) {
+            throw failure;
+        }
+    }
+
+    static void abortAll(List<? extends CopyWorker> workers) {
+        for (CopyWorker worker : workers) {
+            worker.abort();
+        }
+    }
+
+    static void joinAborted(List<? extends CopyWorker> workers) {
+        for (CopyWorker worker : workers) {
+            try {
+                worker.join();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+
     @Override
     public void run() {
         try {

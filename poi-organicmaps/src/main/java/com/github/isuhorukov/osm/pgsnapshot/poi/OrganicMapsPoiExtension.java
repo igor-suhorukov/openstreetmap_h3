@@ -20,6 +20,7 @@ public class OrganicMapsPoiExtension implements TagExtension {
     private String poiMappingDir;
 
     private OrganicMapsPoiClassifier classifier;
+    private String fingerprint;
 
     @Override
     public String getName() {
@@ -39,6 +40,7 @@ public class OrganicMapsPoiExtension implements TagExtension {
     @Override
     public void init() throws IOException {
         classifier = OrganicMapsPoiClassifier.load(Paths.get(poiMappingDir));
+        fingerprint = RulesFingerprint.of(Paths.get(poiMappingDir));
     }
 
     @Override
@@ -47,6 +49,14 @@ public class OrganicMapsPoiExtension implements TagExtension {
             throw new IllegalStateException("init() was not called");
         }
         return classifier.poiTags(entity.getTags());
+    }
+
+    @Override
+    public String getFingerprint() {
+        if (fingerprint == null) {
+            throw new IllegalStateException("init() was not called");
+        }
+        return fingerprint;
     }
 
     @Override

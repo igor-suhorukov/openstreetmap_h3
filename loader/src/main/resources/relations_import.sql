@@ -3,9 +3,9 @@ SET application_name = 'psql sql/relations_import.sql';
 
 BEGIN;
 TRUNCATE relations, relation_members;
-COPY relations(id,tags) FROM '/input/relations/00000.tsv' DELIMITER E'\t' ESCAPE '\' NULL '\N' CSV FREEZE;
+COPY relations(id,tags${relation_version_column}) FROM '/input/relations/00000.tsv' DELIMITER E'\t' ESCAPE '\' NULL '\N' CSV FREEZE;
 COPY relation_members(relation_id,member_id,member_type,member_role,sequence_id) FROM '/input/relations/00001.tsv' DELIMITER E'\t' ESCAPE '\' NULL '\N' CSV FREEZE;
-ALTER TABLE ONLY relation_members ADD CONSTRAINT pk_relation_members PRIMARY KEY (relation_id, sequence_id);
+ALTER TABLE ONLY relation_members ADD CONSTRAINT pk_relation_members PRIMARY KEY (relation_id, sequence_id);${relations_primary_key}
 COMMIT;
 ANALYZE relations;
 ANALYZE relation_members;

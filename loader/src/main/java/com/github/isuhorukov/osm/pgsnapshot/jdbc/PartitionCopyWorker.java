@@ -9,6 +9,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.function.Consumer;
 
 final class PartitionCopyWorker extends CopyWorker {
@@ -17,13 +18,21 @@ final class PartitionCopyWorker extends CopyWorker {
 
     private final Map<String, PartitionTable> tables = new HashMap<>();
     private final List<PartitionTable> createdTables = new ArrayList<>();
+    private final boolean createEmptyTables;
 
     PartitionCopyWorker(String name, Connection connection, int queueCapacity, long pendingBytesLimit,
                         Consumer<Throwable> failureListener, Collection<PartitionTable> tables) throws SQLException {
+        this(name, connection, queueCapacity, pendingBytesLimit, failureListener, tables, false);
+    }
+
+    PartitionCopyWorker(String name, Connection connection, int queueCapacity, long pendingBytesLimit,
+                        Consumer<Throwable> failureListener, Collection<PartitionTable> tables,
+                        boolean createEmptyTables) throws SQLException {
         super(name, connection, queueCapacity, pendingBytesLimit, failureListener);
         for (PartitionTable table : tables) {
             this.tables.put(table.getName(), table);
         }
+        this.createEmptyTables = createEmptyTables;
     }
 
     @Override
@@ -37,15 +46,24 @@ final class PartitionCopyWorker extends CopyWorker {
         if (table == null) {
             throw new IllegalArgumentException("Unknown partition table " + target);
         }
+        create(table);
+        return table.getCopySql();
+    }
+
+    private void create(PartitionTable table) throws SQLException {
         if (!createdTables.contains(table)) {
             PsqlRunner.executeSql(getConnection(), table.getCreateSql());
             createdTables.add(table);
         }
-        return table.getCopySql();
     }
 
     @Override
     protected void finish() throws SQLException {
+        if (createEmptyTables) {
+            for (PartitionTable table : new TreeMap<>(tables).values()) {
+                create(table);
+            }
+        }
         for (PartitionTable table : createdTables) {
             PsqlRunner.executeSql(getConnection(), table.getAnalyzeSql());
         }

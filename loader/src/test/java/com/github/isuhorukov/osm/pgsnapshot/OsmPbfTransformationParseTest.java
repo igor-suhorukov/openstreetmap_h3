@@ -1,5 +1,6 @@
 package com.github.isuhorukov.osm.pgsnapshot;
 
+import com.beust.jcommander.JCommander;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -89,6 +90,51 @@ class OsmPbfTransformationParseTest {
                 () -> run(stderr, "-source_pbf", "a.osm.pbf", "-pg_jdbc_url", url, "-arrow_format", "PARQUET"));
         assertThrows(IllegalArgumentException.class,
                 () -> run(stderr, "-source_pbf", "a.osm.pbf", "-pg_jdbc_url", url, "-collect_only_statistics"));
+    }
+
+    @Test
+    void run_incompatibleUpdateOptions_invalidArgumentsExitCode() throws Exception {
+        String url = "jdbc:postgresql://localhost:5432/osmworld";
+        StringBuilder columnar = new StringBuilder();
+        StringBuilder updateWithoutJdbc = new StringBuilder();
+        StringBuilder updateWithArrow = new StringBuilder();
+        StringBuilder updateStatisticsOnly = new StringBuilder();
+
+        assertEquals(OsmPbfTransformation.INVALID_ARGUMENTS_EXIT_CODE,
+                run(columnar, "-source_pbf", "a.osm.pbf", "-updatable", "-columnar_storage"));
+        assertEquals(OsmPbfTransformation.INVALID_ARGUMENTS_EXIT_CODE,
+                run(new StringBuilder(), "-source_pbf", "a.osm.pbf", "-update", "-pg_jdbc_url", url, "-columnar_storage"));
+        assertEquals(OsmPbfTransformation.INVALID_ARGUMENTS_EXIT_CODE,
+                run(updateWithoutJdbc, "-source_pbf", "a.osm.pbf", "-update"));
+        assertEquals(OsmPbfTransformation.INVALID_ARGUMENTS_EXIT_CODE,
+                run(updateWithArrow, "-source_pbf", "a.osm.pbf", "-update", "-result_in_tsv", "false",
+                        "-arrow_format", "PARQUET"));
+        assertEquals(OsmPbfTransformation.INVALID_ARGUMENTS_EXIT_CODE,
+                run(updateStatisticsOnly, "-source_pbf", "a.osm.pbf", "-update", "-collect_only_statistics"));
+
+        assertTrue(columnar.toString().contains("can't be combined with -columnar_storage"), columnar.toString());
+        assertTrue(updateWithoutJdbc.toString().contains("-update requires -pg_jdbc_url"), updateWithoutJdbc.toString());
+        assertTrue(updateWithArrow.toString().contains("-update requires -pg_jdbc_url"), updateWithArrow.toString());
+        assertTrue(updateStatisticsOnly.toString().contains("-update requires -pg_jdbc_url"), updateStatisticsOnly.toString());
+    }
+
+    @Test
+    void updateOptionsError_updateWithJdbcAndArrowOrStatistics_rejected() {
+        CliParameters arrow = new CliParameters();
+        JCommander.newBuilder().addObject(arrow).build().parse("-source_pbf", "a.osm.pbf", "-update",
+                "-pg_jdbc_url", "jdbc:postgresql://localhost/osmworld", "-arrow_format", "PARQUET");
+        CliParameters statistics = new CliParameters();
+        JCommander.newBuilder().addObject(statistics).build().parse("-source_pbf", "a.osm.pbf", "-update",
+                "-pg_jdbc_url", "jdbc:postgresql://localhost/osmworld", "-collect_only_statistics");
+        CliParameters valid = new CliParameters();
+        JCommander.newBuilder().addObject(valid).build().parse("-source_pbf", "a.osm.pbf", "-updatable",
+                "-arrow_format", "PARQUET");
+
+        assertEquals("-update can't be combined with -arrow_format or -collect_only_statistics",
+                OsmPbfTransformation.updateOptionsError(arrow));
+        assertEquals("-update can't be combined with -arrow_format or -collect_only_statistics",
+                OsmPbfTransformation.updateOptionsError(statistics));
+        assertNull(OsmPbfTransformation.updateOptionsError(valid));
     }
 
     @Test

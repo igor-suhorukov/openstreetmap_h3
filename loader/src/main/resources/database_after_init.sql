@@ -72,7 +72,7 @@ ANALYZE osm_file_block_content;
 create table osm_stat_nodes_3_3 as select h33, count(*) count,sum(size) size from osm_file_block_content where object_type='N' group by 1 order by 1;
 ANALYZE osm_stat_nodes_3_3;
 create table osm_stat_ways_3_3 as select h33, count(*) count,sum(size) size from osm_file_block_content where object_type='W' group by 1 order by 1;
-ANALYZE osm_stat_ways_3_3;
+ANALYZE osm_stat_ways_3_3;${osm_import_state}
 
 
 --ALTER TABLE relation_members DISABLE TRIGGER ALL;

@@ -21,16 +21,41 @@ public class PartitionSplitter {
     public static final String WAYS = "ways";
     public static final String NODE_COLUMNS = "h3_3,h3_8,id,geom,tags";
     public static final String WAY_COLUMNS = "h3_3,h3_8,id,closed,building,highway,scale,centre,bbox,linestring,points,h3_8_regions,tags";
+    public static final String RELATION_COLUMNS = "id,tags";
+    public static final String VERSION_COLUMN = ",version";
+    public static final String WAY_VERSION_COLUMNS = ",version,geom_hash";
     public static final String MULTIPOLYGON_TABLES_SQL = "multipolygon_tables.sql";
 
     private PartitionSplitter() {}
 
+    public static String nodeColumns(boolean updatable) {
+        return updatable ? NODE_COLUMNS + VERSION_COLUMN : NODE_COLUMNS;
+    }
+
+    public static String wayColumns(boolean updatable) {
+        return updatable ? WAY_COLUMNS + WAY_VERSION_COLUMNS : WAY_COLUMNS;
+    }
+
+    public static String relationColumns(boolean updatable) {
+        return updatable ? RELATION_COLUMNS + VERSION_COLUMN : RELATION_COLUMNS;
+    }
+
     public static int createNodesScript(File resultDirectory, int scriptCount, List<Partition> partitions, boolean storeColumnar) {
-        return createImportScript(resultDirectory, scriptCount, partitions, storeColumnar, NODES, NODE_COLUMNS);
+        return createNodesScript(resultDirectory, scriptCount, partitions, storeColumnar, false);
+    }
+
+    public static int createNodesScript(File resultDirectory, int scriptCount, List<Partition> partitions,
+                                        boolean storeColumnar, boolean updatable) {
+        return createImportScript(resultDirectory, scriptCount, partitions, storeColumnar, NODES, nodeColumns(updatable));
     }
 
     public static int createWaysScript(File resultDirectory, int scriptCount, List<Partition> partitions, boolean storeColumnar) {
-        return createImportScript(resultDirectory, scriptCount, partitions, storeColumnar, WAYS, WAY_COLUMNS);
+        return createWaysScript(resultDirectory, scriptCount, partitions, storeColumnar, false);
+    }
+
+    public static int createWaysScript(File resultDirectory, int scriptCount, List<Partition> partitions,
+                                       boolean storeColumnar, boolean updatable) {
+        return createImportScript(resultDirectory, scriptCount, partitions, storeColumnar, WAYS, wayColumns(updatable));
     }
 
     private static int createImportScript(File resultDirectory, int scriptCount, List<Partition> partitions,
@@ -213,10 +238,16 @@ public class PartitionSplitter {
     }
 
     public static List<Partition>  distributeH33ByPartitionsForNodes(List<Partition> partitionsWay, Map<Short, Long> nodesSizeStat) {
+        return distributeH33ByPartitionsForNodes(partitionsWay, nodesSizeStat, false);
+    }
+
+    public static List<Partition> distributeH33ByPartitionsForNodes(List<Partition> partitionsWay,
+                                                                    Map<Short, Long> nodesSizeStat,
+                                                                    boolean keepEmptyPartitions) {
         List<Partition> partitionsNode = new ArrayList<>();
         for(Partition partition: partitionsWay){
             List<Map.Entry<Short, Long>> relatedNodes = nodesSizeStat.entrySet().stream().filter(entry -> entry.getKey() >= partition.getMinRange() && entry.getKey() < partition.getMaxRange()).collect(Collectors.toList());
-            if(relatedNodes.isEmpty()){
+            if(relatedNodes.isEmpty() && !keepEmptyPartitions){
                 continue;
             }
             Partition newPartition = new Partition(partition.getId(), partition.getMinRange(), partition.getMaxRange(), relatedNodes.stream().mapToLong(Map.Entry::getValue).sum());

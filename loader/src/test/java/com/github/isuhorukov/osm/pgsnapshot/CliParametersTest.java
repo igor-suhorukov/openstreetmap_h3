@@ -55,6 +55,22 @@ class CliParametersTest {
     }
 
     @Test
+    void parse_updatableAndUpdate_bothEnableVersionColumns() {
+        CliParameters updatable = new CliParameters();
+        JCommander.newBuilder().addObject(updatable).build().parse("-source_pbf", "a.osm.pbf", "-updatable");
+        CliParameters update = new CliParameters();
+        JCommander.newBuilder().addObject(update).build().parse("-source_pbf", "a.osm.pbf", "-update",
+                "-pg_jdbc_url", "jdbc:postgresql://localhost/osmworld");
+
+        assertTrue(updatable.isUpdatable());
+        assertFalse(updatable.isUpdate());
+        assertTrue(update.isUpdatable());
+        assertTrue(update.isUpdate());
+        assertTrue(updatable.toString().contains("\"updatable\":true,\"update\":false"), updatable.toString());
+        assertTrue(update.toString().contains("\"updatable\":false,\"update\":true"), update.toString());
+    }
+
+    @Test
     void maskPassword_caseInsensitiveParameter() {
         assertNull(CliParameters.maskPassword(null));
         assertEquals("jdbc:postgresql://h/db?PASSWORD=***", CliParameters.maskPassword("jdbc:postgresql://h/db?PASSWORD=x"));
@@ -76,5 +92,7 @@ class CliParametersTest {
         assertTrue(parameters.isParallelMultipolygonExport());
         assertFalse(parameters.isLoadPostgresqlJdbc());
         assertNull(parameters.getPostgresqlJdbcUrl());
+        assertFalse(parameters.isUpdatable());
+        assertFalse(parameters.isUpdate());
     }
 }

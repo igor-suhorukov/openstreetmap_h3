@@ -1,10 +1,12 @@
 package com.github.isuhorukov.osm.pgsnapshot.jdbc;
 
+import com.github.isuhorukov.osm.pgsnapshot.PipedProcess;
 import org.postgresql.copy.CopyIn;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Arrays;
 
@@ -28,6 +30,14 @@ final class MultipolygonCopy {
 
     static long copyRelations(InputStream osmiumOutput, CopyIn copyIn) throws IOException, SQLException {
         return new MultipolygonCopy(copyIn).copy(osmiumOutput);
+    }
+
+    static long copyExport(Connection connection, PipedProcess export) throws IOException, SQLException, InterruptedException {
+        CopyIn copyIn = PsqlRunner.copyManager(connection).copyIn(COPY_SQL);
+        long rows = copyRelations(export.getInputStream(), copyIn);
+        export.waitForSuccess();
+        copyIn.endCopy();
+        return rows;
     }
 
     private long copy(InputStream osmiumOutput) throws IOException, SQLException {

@@ -6,6 +6,7 @@ import com.github.isuhorukov.osm.pgsnapshot.model.statistics.Stat;
 import com.github.isuhorukov.osm.pgsnapshot.util.HStoreFormatSerializer;
 import net.postgis.jdbc.geometry.Point;
 import net.postgis.jdbc.geometry.binary.BinaryWriter;
+import org.openstreetmap.osmosis.core.domain.v0_6.Node;
 import org.openstreetmap.osmosis.core.domain.v0_6.Tag;
 
 import java.util.*;
@@ -15,13 +16,24 @@ public class Serializer {
     public static final int SRID = 4326;
 
     private final BinaryWriter binaryWriter = new BinaryWriter();
+    private final boolean versions;
 
-    public void serializeNode(StringBuilder csvString, short h33, int h38,
-                              long id, double latitude, double longitude, Collection<Tag> tags) {
-        csvString.append(h33).append("\t").append(h38).append('\t').append(id).append("\t")
-                .append(binaryWriter.writeHexed(getPoint(latitude, longitude)));
+    public Serializer() {
+        this(false);
+    }
+
+    public Serializer(boolean versions) {
+        this.versions = versions;
+    }
+
+    public void serializeNode(StringBuilder csvString, short h33, int h38, Node node, Collection<Tag> tags) {
+        csvString.append(h33).append("\t").append(h38).append('\t').append(node.getId()).append("\t")
+                .append(binaryWriter.writeHexed(getPoint(node.getLatitude(), node.getLongitude())));
         csvString.append("\t");
         HStoreFormatSerializer.renderTags(tags, csvString);
+        if (versions) {
+            csvString.append('\t').append(node.getVersion());
+        }
         csvString.append("\n");
     }
 
@@ -63,12 +75,22 @@ public class Serializer {
             csvString.append(HStoreFormatSerializer.NULL_STRING).append('\t');
         }
         HStoreFormatSerializer.renderTags(tags, csvString);
+        if (versions) {
+            csvString.append('\t').append(w.getVersion()).append('\t').append(w.getGeomHash());
+        }
         csvString.append("\n");
     }
 
     public void serializeRelation(StringBuilder csvString, long id, Collection<Tag> tags) {
+        serializeRelation(csvString, id, tags, 0);
+    }
+
+    public void serializeRelation(StringBuilder csvString, long id, Collection<Tag> tags, int version) {
         csvString.append(id).append("\t");
         HStoreFormatSerializer.renderTags(tags, csvString);
+        if (versions) {
+            csvString.append('\t').append(version);
+        }
         csvString.append("\n");
     }
 

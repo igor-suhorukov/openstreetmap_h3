@@ -17,6 +17,7 @@ import java.sql.DriverManager;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -26,6 +27,7 @@ import java.util.stream.Collectors;
 public class ExternalProcessing {
     private static final Logger log = LoggerFactory.getLogger(ExternalProcessing.class);
     public static final String MULTIPOLYGON_SOURCE_TSV = "/multipolygon/source.tsv";
+    private static final int GETID_MISSING_OBJECTS_EXIT_CODE = 1;
     private static final long DUCKDB_DEFAULT_MAX_LINE_SIZE = 2_000_000;
     private static final long DUCKDB_DEFAULT_BUFFER_SIZE = 32_000_000;
 
@@ -162,16 +164,40 @@ public class ExternalProcessing {
         return command;
     }
 
-    private List<String> osmiumCommand(File sourcePbfFile, boolean standardInput) {
-        String basePath = sourcePbfFile.getParent();
+    public void extractRelations(File sourcePbfFile, Collection<Long> relationIds, File outputPbfFile)
+            throws IOException, InterruptedException {
+        StringBuilder ids = new StringBuilder();
+        for (long relationId : relationIds) {
+            ids.append('r').append(relationId).append('\n');
+        }
+        try (PipedProcess getid = PipedProcess.start(extractRelationsCommand(sourcePbfFile, outputPbfFile),
+                new File(sourcePbfFile.getParent()), ids.toString().getBytes(StandardCharsets.US_ASCII))) {
+            getid.waitForSuccessUpTo(GETID_MISSING_OBJECTS_EXIT_CODE);
+        }
+    }
+
+    List<String> extractRelationsCommand(File sourcePbfFile, File outputPbfFile) {
+        List<String> command = osmiumCommand(sourcePbfFile, true, outputPbfFile.getAbsoluteFile().getParent());
+        Collections.addAll(command, "getid", "-r", "--overwrite", "-i", "-", "-v", "-f", "pbf",
+                sourcePbfFile.getAbsolutePath(), "-o", outputPbfFile.getAbsolutePath());
+        return command;
+    }
+
+    private List<String> osmiumCommand(File sourcePbfFile, boolean standardInput, String... extraMounts) {
+        String basePath = sourcePbfFile.getAbsoluteFile().getParent();
         List<String> command = new ArrayList<>();
         if (invokeDockerCommand) {
             Collections.addAll(command, "docker", "run");
             if (standardInput) {
                 command.add("-i");
             }
-            Collections.addAll(command, "--rm", "--log-driver", "none",
-                    "-w", basePath, "-v", basePath + ":" + basePath, "mschilde/osmium-tool");
+            Collections.addAll(command, "--rm", "--log-driver", "none", "-w", basePath, "-v", basePath + ":" + basePath);
+            for (String mount : extraMounts) {
+                if (!mount.equals(basePath)) {
+                    Collections.addAll(command, "-v", mount + ":" + mount);
+                }
+            }
+            command.add("mschilde/osmium-tool");
         }
         command.add("/usr/bin/osmium");
         return command;

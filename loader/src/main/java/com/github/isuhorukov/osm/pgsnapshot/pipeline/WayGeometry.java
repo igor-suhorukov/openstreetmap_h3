@@ -3,6 +3,8 @@ package com.github.isuhorukov.osm.pgsnapshot.pipeline;
 import com.github.isuhorukov.osm.pgsnapshot.Serializer;
 import com.github.isuhorukov.osm.pgsnapshot.util.CompactH3;
 import com.github.isuhorukov.osm.pgsnapshot.util.MinimumEnclosingCircle;
+import com.google.common.hash.HashFunction;
+import com.google.common.hash.Hashing;
 import com.uber.h3core.H3Core;
 import com.uber.h3core.util.LatLng;
 import net.postgis.jdbc.geometry.LinearRing;
@@ -17,6 +19,8 @@ import org.opengis.referencing.crs.CoordinateReferenceSystem;
 import org.opengis.referencing.operation.TransformException;
 import org.openstreetmap.osmosis.core.domain.v0_6.WayNode;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -27,6 +31,9 @@ import java.util.stream.Collectors;
 import static java.util.stream.Collectors.toList;
 
 public class WayGeometry {
+
+    private static final HashFunction GEOM_HASH_FUNCTION = Hashing.farmHashFingerprint64();
+    private static final double FIXED_POINT_SCALE = 1e7;
 
     private final net.postgis.jdbc.geometry.LineString lineString;
     private final BoundingBox boundingBox;
@@ -229,6 +236,19 @@ public class WayGeometry {
                 .wayIntersectionH38Indexes(wayIntersectionH38Indexes)
                 .lineStringWkb(wkbWriter.write(currentWayGeometry))
                 .build();
+    }
+
+    public static long geomHash(List<WayNode> wayNodes) {
+        ByteBuffer coordinates = ByteBuffer.allocate(wayNodes.size() * 2 * Integer.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        for (WayNode wayNode : wayNodes) {
+            coordinates.putInt(fixedPoint(wayNode.getLatitude()));
+            coordinates.putInt(fixedPoint(wayNode.getLongitude()));
+        }
+        return GEOM_HASH_FUNCTION.hashBytes(coordinates.array()).asLong();
+    }
+
+    static int fixedPoint(double degrees) {
+        return (int) Math.round(degrees * FIXED_POINT_SCALE);
     }
 
     private static CentreData computeCentreAndScale(Geometry wayGeometry, Coordinate[] coordinates,

@@ -27,6 +27,10 @@ public interface TagExtension {
         return Collections.emptySet();
     }
 
+    default String getFingerprint() {
+        return "";
+    }
+
     default void writePostgresqlResources(PostgresqlResources resources) throws IOException {
     }
 }

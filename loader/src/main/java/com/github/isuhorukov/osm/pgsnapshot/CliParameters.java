@@ -41,6 +41,10 @@ public class CliParameters {
     private double thresholdPercentFromMaxPartition = 0.48;
     @Parameter(names = {"-parallel_multipolygon_export"}, arity = 1, description = "Run osmium multipolygon export concurrently with data processing. Use 'false' when memory is not enough for the second osmium node location index")
     private boolean parallelMultipolygonExport = true;
+    @Parameter(names = {"-updatable"}, description = "Store object versions, line geometry hashes, id indexes and the import journal, so the database can be updated later with -update")
+    private boolean updatable = false;
+    @Parameter(names = {"-update"}, description = "Update a database loaded with -updatable from a newer PBF: only new, changed and deleted objects are written. Requires -pg_jdbc_url")
+    private boolean update = false;
     @Parameter(names = {"-help", "--help"}, help = true, description = "Information about command line parameters")
     private boolean help;
 
@@ -59,6 +63,7 @@ public class CliParameters {
     public double getThresholdPercentFromMaxPartition() { return thresholdPercentFromMaxPartition; }
     public boolean isParallelMultipolygonExport() { return parallelMultipolygonExport; }
     public String getPostgresqlJdbcUrl() { return postgresqlJdbcUrl; }
+    public boolean isUpdate() { return update; }
     public boolean isHelp() { return help; }
 
     public boolean isSaveArrow() {
@@ -67,6 +72,10 @@ public class CliParameters {
 
     public boolean isLoadPostgresqlJdbc() {
         return postgresqlJdbcUrl != null;
+    }
+
+    public boolean isUpdatable() {
+        return updatable || update;
     }
 
     public static String maskPassword(String jdbcUrl) {
@@ -91,6 +100,8 @@ public class CliParameters {
                 .append("thresholdPercentFromMaxPartition", thresholdPercentFromMaxPartition)
                 .append("parallelMultipolygonExport", parallelMultipolygonExport)
                 .append("postgresqlJdbcUrl", maskPassword(postgresqlJdbcUrl))
+                .append("updatable", updatable)
+                .append("update", update)
                 .toString();
     }
 }

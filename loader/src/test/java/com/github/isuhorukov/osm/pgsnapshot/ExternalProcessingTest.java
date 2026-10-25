@@ -8,6 +8,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -17,6 +18,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class ExternalProcessingTest {
 
@@ -137,6 +139,56 @@ class ExternalProcessingTest {
         assertEquals(List.of("docker", "run", "-i", "--rm", "--log-driver", "none", "-w", basePath,
                 "-v", basePath + ":" + basePath, "mschilde/osmium-tool", "/usr/bin/osmium", "export"),
                 command.subList(0, 13));
+    }
+
+    @Test
+    void extractRelationsCommand_localOsmium_idsFromStdinWithReferencedObjects() {
+        File sourcePbf = new File(tempDir.toFile(), "test.osm.pbf");
+        File output = new File(tempDir.toFile(), "subset/relations.osm.pbf");
+
+        List<String> command = new ExternalProcessing(false).extractRelationsCommand(sourcePbf, output);
+
+        assertEquals(List.of("/usr/bin/osmium", "getid", "-r", "--overwrite", "-i", "-", "-v", "-f", "pbf",
+                sourcePbf.getAbsolutePath(), "-o", output.getAbsolutePath()), command);
+    }
+
+    @Test
+    void extractRelationsCommand_docker_mountsOutputDirectory() {
+        File sourcePbf = new File(tempDir.toFile(), "test.osm.pbf");
+        File output = new File(tempDir.toFile(), "subset/relations.osm.pbf");
+        String basePath = tempDir.toFile().getAbsolutePath();
+        String outputPath = output.getParentFile().getAbsolutePath();
+
+        List<String> command = new ExternalProcessing(true).extractRelationsCommand(sourcePbf, output);
+
+        assertEquals(List.of("docker", "run", "-i", "--rm", "--log-driver", "none", "-w", basePath,
+                "-v", basePath + ":" + basePath, "-v", outputPath + ":" + outputPath, "mschilde/osmium-tool",
+                "/usr/bin/osmium", "getid"), command.subList(0, 15));
+    }
+
+    @Test
+    void extractRelationsCommand_dockerOutputInSourceDirectory_mountedOnce() {
+        File sourcePbf = new File(tempDir.toFile(), "test.osm.pbf");
+        File output = new File(tempDir.toFile(), "relations.osm.pbf");
+
+        List<String> command = new ExternalProcessing(true).extractRelationsCommand(sourcePbf, output);
+
+        String mount = tempDir.toFile().getAbsolutePath() + ":" + tempDir.toFile().getAbsolutePath();
+        assertEquals(1, command.stream().filter(mount::equals).count());
+    }
+
+    @Test
+    void extractRelations_missingRelationsOfExtract_acceptedLikeOsmiumExitCodeOne() throws Exception {
+        assumeTrue(Files.isExecutable(Paths.get("/usr/bin/osmium")), "/usr/bin/osmium is required");
+        File sourceOsm = new File(tempDir.toFile(), "sample.osm");
+        try (java.io.InputStream sample = getClass().getResourceAsStream("/pipeline/sample.osm")) {
+            Files.copy(java.util.Objects.requireNonNull(sample), sourceOsm.toPath());
+        }
+        File output = new File(tempDir.toFile(), "relations.osm.pbf");
+
+        new ExternalProcessing(false).extractRelations(sourceOsm, List.of(201L, 999L), output);
+
+        assertTrue(output.length() > 0);
     }
 
     @Test

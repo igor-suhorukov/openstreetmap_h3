@@ -6,12 +6,12 @@ import com.github.isuhorukov.osm.pgsnapshot.PipedProcess;
 import com.github.isuhorukov.osm.pgsnapshot.extension.TagExtension;
 import com.github.isuhorukov.osm.pgsnapshot.model.Partition;
 import com.github.isuhorukov.osm.pgsnapshot.model.statistics.PbfStatistics;
+import com.github.isuhorukov.osm.pgsnapshot.output.ImportState;
 import com.github.isuhorukov.osm.pgsnapshot.output.OrderedBlockWriter;
 import com.github.isuhorukov.osm.pgsnapshot.output.ResourceCopier;
 import com.github.isuhorukov.osm.pgsnapshot.output.ResultLayout;
 import com.github.isuhorukov.osm.pgsnapshot.output.StatisticsWriter;
 import com.github.isuhorukov.osm.pgsnapshot.util.PartitionSplitter;
-import org.postgresql.copy.CopyIn;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,37 +20,32 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.FutureTask;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 public final class PostgresqlLoader implements AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(PostgresqlLoader.class);
-    private static final String STATIC_DIRECTORY = ResultLayout.STATIC_DIR + "/";
-    private static final int QUEUED_CHUNKS_PER_WORKER_THREAD = 16;
+    static final String STATIC_DIRECTORY = ResultLayout.STATIC_DIR + "/";
+    static final String IMPORT_STATE_PATH = ResultLayout.IMPORT_RELATED_METADATA_DIR + '/' + ImportState.OSM_IMPORT_STATE_TSV;
+    static final int QUEUED_CHUNKS_PER_WORKER_THREAD = 16;
     private static final long MIN_PENDING_BYTES_PER_WORKER = 1L << 20;
     private static final long MAX_PENDING_BYTES_PER_WORKER = 128L << 20;
-    private static final List<String> FINALIZE_SCRIPTS = List.of(ResourceCopier.MULTIPOLYGON_IMPORT_SQL,
-            ResourceCopier.WAYS_DEFAULT_PARTITION_SQL, ResourceCopier.NODES_ANALYZE_SQL);
 
     private final CliParameters parameters;
-    private final PostgresqlConnections connections;
+    private final OpenedConnections connections;
     private final InputFiles inputFiles = new InputFiles();
-    private final List<Connection> openedConnections = new CopyOnWriteArrayList<>();
     private final List<CopyWorker> workers = new ArrayList<>();
     private final CopyTargets targets = new CopyTargets();
     private final AtomicReference<PipedProcess> multipolygonExport = new AtomicReference<>();
     private volatile boolean multipolygonExportCancelled;
     private boolean completed;
 
-    private PostgresqlLoader(CliParameters parameters, PostgresqlConnections connections) {
+    private PostgresqlLoader(CliParameters parameters, OpenedConnections connections) {
         this.parameters = parameters;
         this.connections = connections;
     }
@@ -58,7 +53,8 @@ public final class PostgresqlLoader implements AutoCloseable {
     public static PostgresqlLoader start(CliParameters parameters, File sourcePbfFile, List<TagExtension> tagExtensions,
                                          Set<String> multipolygonTagKeys, Consumer<Throwable> failureListener)
             throws IOException, SQLException {
-        PostgresqlConnections connections = new PostgresqlConnections(parameters.getPostgresqlJdbcUrl(), System.getenv());
+        OpenedConnections connections = new OpenedConnections(
+                new PostgresqlConnections(parameters.getPostgresqlJdbcUrl(), System.getenv()));
         List<Partition> partitions = PartitionEstimator.estimatePartitions(sourcePbfFile,
                 parameters.getThresholdPercentFromMaxPartition());
         PostgresqlLoader loader = new PostgresqlLoader(parameters, connections);
@@ -83,11 +79,12 @@ public final class PostgresqlLoader implements AutoCloseable {
         inputFiles.add(STATIC_DIRECTORY + PartitionSplitter.MULTIPOLYGON_TABLES_SQL,
                 PartitionSplitter.multipolygonTablesSql(partitions, columnarStorage));
         inputFiles.addResource(STATIC_DIRECTORY + ResourceCopier.H3_POLY_TSV_GZ, "/" + ResourceCopier.H3_POLY_TSV_GZ);
-        inputFiles.add(STATIC_DIRECTORY + ResourceCopier.MULTIPOLYGON_SQL,
-                ResourceCopier.multipolygonScript(columnarStorage, multipolygonTagKeys));
-        try (Connection connection = open("init")) {
+        inputFiles.add(STATIC_DIRECTORY + ResourceCopier.MULTIPOLYGON_SQL, ResourceCopier.multipolygonScript(columnarStorage));
+        inputFiles.add(STATIC_DIRECTORY + ResourceCopier.MULTIPOLYGON_INSERT_SQL,
+                ResourceCopier.multipolygonInsertScript(multipolygonTagKeys));
+        try (Connection connection = connections.open("init")) {
             PsqlRunner runner = new PsqlRunner(inputFiles);
-            runner.run(connection, ResourceCopier.databaseInitScript(columnarStorage));
+            runner.run(connection, ResourceCopier.databaseInitScript(columnarStorage, parameters.isUpdatable()));
             JdbcPostgresqlResources extensionResources = new JdbcPostgresqlResources(inputFiles);
             for (TagExtension tagExtension : tagExtensions) {
                 tagExtension.writePostgresqlResources(extensionResources);
@@ -100,31 +97,38 @@ public final class PostgresqlLoader implements AutoCloseable {
     }
 
     private void startWorkers(List<Partition> partitions, Consumer<Throwable> failureListener) throws IOException, SQLException {
-        int queueCapacity = Math.max(1, parameters.getWorkers()) * QUEUED_CHUNKS_PER_WORKER_THREAD;
+        int queueCapacity = queueCapacity(parameters);
         boolean columnarStorage = parameters.isColumnarStorage();
+        boolean updatable = parameters.isUpdatable();
         List<List<Partition>> partitionsByWorker = PartitionSplitter.balanceBySize(partitions, parameters.getScriptCount());
         long pendingBytesLimit = pendingBytesLimit(partitionsByWorker.size() + 2, Runtime.getRuntime().maxMemory());
         for (int workerIndex = 0; workerIndex < partitionsByWorker.size(); workerIndex++) {
             List<PartitionTable> tables = new ArrayList<>();
             for (Partition partition : partitionsByWorker.get(workerIndex)) {
-                tables.add(new PartitionTable(PartitionSplitter.NODES, PartitionSplitter.NODE_COLUMNS, partition, columnarStorage));
-                tables.add(new PartitionTable(PartitionSplitter.WAYS, PartitionSplitter.WAY_COLUMNS, partition, columnarStorage));
+                tables.add(new PartitionTable(PartitionSplitter.NODES, PartitionSplitter.nodeColumns(updatable),
+                        partition, columnarStorage));
+                tables.add(new PartitionTable(PartitionSplitter.WAYS, PartitionSplitter.wayColumns(updatable),
+                        partition, columnarStorage));
             }
             String name = "copy-partitions-" + workerIndex;
-            PartitionCopyWorker worker = new PartitionCopyWorker(name, open(name), queueCapacity, pendingBytesLimit,
-                    failureListener, tables);
+            PartitionCopyWorker worker = new PartitionCopyWorker(name, connections.open(name), queueCapacity,
+                    pendingBytesLimit, failureListener, tables, updatable);
             for (Partition partition : partitionsByWorker.get(workerIndex)) {
                 targets.addPartition(partition, worker);
             }
             workers.add(worker);
         }
-        addScriptWorker("copy-relations", ResourceCopier.resource("/" + ResourceCopier.RELATIONS_IMPORT_SQL),
+        addScriptWorker("copy-relations", ResourceCopier.relationsImportScript(updatable),
                 queueCapacity, pendingBytesLimit, failureListener);
-        addScriptWorker("copy-ways-32767", ResourceCopier.ways32767ImportScript(columnarStorage),
+        addScriptWorker("copy-ways-32767", ResourceCopier.ways32767ImportScript(columnarStorage, updatable),
                 queueCapacity, pendingBytesLimit, failureListener);
         for (CopyWorker worker : workers) {
             worker.start();
         }
+    }
+
+    static int queueCapacity(CliParameters parameters) {
+        return Math.max(1, parameters.getWorkers()) * QUEUED_CHUNKS_PER_WORKER_THREAD;
     }
 
     static long pendingBytesLimit(int workerCount, long maxMemory) {
@@ -135,7 +139,7 @@ public final class PostgresqlLoader implements AutoCloseable {
     private void addScriptWorker(String name, String script, int queueCapacity, long pendingBytesLimit,
                                  Consumer<Throwable> failureListener) throws SQLException {
         StreamedScript streamedScript = StreamedScript.of(script);
-        ScriptCopyWorker worker = new ScriptCopyWorker(name, open(name), queueCapacity, pendingBytesLimit,
+        ScriptCopyWorker worker = new ScriptCopyWorker(name, connections.open(name), queueCapacity, pendingBytesLimit,
                 failureListener, streamedScript, new PsqlRunner(inputFiles));
         for (String inputPath : streamedScript.getCopySqlByInputPath().keySet()) {
             targets.addInput(inputPath, worker);
@@ -150,16 +154,13 @@ public final class PostgresqlLoader implements AutoCloseable {
     public long copyMultipolygons(ExternalProcessing externalProcessing, File sourcePbfFile)
             throws IOException, InterruptedException {
         long start = System.currentTimeMillis();
-        try (Connection connection = open("copy-multipolygons");
+        try (Connection connection = connections.open("copy-multipolygons");
              PipedProcess export = externalProcessing.startMultipolygonExport(sourcePbfFile)) {
             multipolygonExport.set(export);
             if (multipolygonExportCancelled) {
                 throw new InterruptedException("multipolygon export cancelled");
             }
-            CopyIn copyIn = PsqlRunner.copyManager(connection).copyIn(MultipolygonCopy.COPY_SQL);
-            long rows = MultipolygonCopy.copyRelations(export.getInputStream(), copyIn);
-            export.waitForSuccess();
-            copyIn.endCopy();
+            long rows = MultipolygonCopy.copyExport(connection, export);
             log.info("{} multipolygon relations copied in {} ms", rows, System.currentTimeMillis() - start);
         } catch (SQLException e) {
             throw new IllegalStateException("multipolygon COPY failed", e);
@@ -179,72 +180,39 @@ public final class PostgresqlLoader implements AutoCloseable {
 
     public void finishBlocks() throws InterruptedException {
         long start = System.currentTimeMillis();
-        for (CopyWorker worker : workers) {
-            worker.endOfStream();
-        }
-        for (CopyWorker worker : workers) {
-            worker.join();
-        }
-        IllegalStateException failure = null;
-        for (CopyWorker worker : workers) {
-            if (worker.getFailure() != null) {
-                if (failure == null) {
-                    failure = new IllegalStateException("COPY worker " + worker.getName() + " failed", worker.getFailure());
-                } else {
-                    failure.addSuppressed(worker.getFailure());
-                }
-            }
-        }
-        if (failure != null) {
-            throw failure;
-        }
+        CopyWorker.finishAll(workers);
         log.info("COPY workers committed in {} ms", System.currentTimeMillis() - start);
     }
 
     public void finishImport() throws IOException, InterruptedException, SQLException {
         long start = System.currentTimeMillis();
-        List<Future<Void>> scripts = new ArrayList<>();
-        for (String scriptName : FINALIZE_SCRIPTS) {
-            String script = ResourceCopier.resource("/" + scriptName);
-            FutureTask<Void> scriptTask = new FutureTask<>(() -> {
-                try (Connection connection = open("finalize " + scriptName)) {
-                    new PsqlRunner(inputFiles).run(connection, script);
+        boolean updatable = parameters.isUpdatable();
+        Map<String, String> scripts = new LinkedHashMap<>();
+        scripts.put(ResourceCopier.MULTIPOLYGON_IMPORT_SQL, ResourceCopier.resource("/" + ResourceCopier.MULTIPOLYGON_IMPORT_SQL));
+        scripts.put(ResourceCopier.WAYS_DEFAULT_PARTITION_SQL, ResourceCopier.waysDefaultPartitionScript(updatable));
+        scripts.put(ResourceCopier.NODES_ANALYZE_SQL, ResourceCopier.nodesAnalyzeScript(updatable));
+        Map<String, ParallelTasks.Task> tasks = new LinkedHashMap<>();
+        for (Map.Entry<String, String> script : scripts.entrySet()) {
+            tasks.put("finalize-" + script.getKey(), () -> {
+                try (Connection connection = connections.open("finalize " + script.getKey())) {
+                    new PsqlRunner(inputFiles).run(connection, script.getValue());
                 }
-                return null;
             });
-            new Thread(scriptTask, "finalize-" + scriptName).start();
-            scripts.add(scriptTask);
         }
-        for (Future<Void> script : scripts) {
-            awaitScript(script);
-        }
+        ParallelTasks.run(tasks);
         log.info("import finalized in {} ms", System.currentTimeMillis() - start);
     }
 
-    private static void awaitScript(Future<Void> script) throws IOException, InterruptedException, SQLException {
-        try {
-            script.get();
-        } catch (ExecutionException e) {
-            Throwable cause = e.getCause();
-            if (cause instanceof SQLException) {
-                throw (SQLException) cause;
-            }
-            if (cause instanceof IOException) {
-                throw (IOException) cause;
-            }
-            if (cause instanceof RuntimeException) {
-                throw (RuntimeException) cause;
-            }
-            throw new IllegalStateException(cause);
-        }
+    public void addImportState(byte[] importState) {
+        inputFiles.add(IMPORT_STATE_PATH, importState);
     }
 
     public void saveStatistics(PbfStatistics statistics) throws IOException, SQLException {
         for (Map.Entry<String, byte[]> statisticsFile : StatisticsWriter.statisticsFiles(statistics).entrySet()) {
             inputFiles.add(ResultLayout.IMPORT_RELATED_METADATA_DIR + "/" + statisticsFile.getKey(), statisticsFile.getValue());
         }
-        try (Connection connection = open("statistics")) {
-            new PsqlRunner(inputFiles).run(connection, ResourceCopier.resource("/" + ResourceCopier.DATABASE_AFTER_INIT_SQL));
+        try (Connection connection = connections.open("statistics")) {
+            new PsqlRunner(inputFiles).run(connection, ResourceCopier.databaseAfterInitScript(parameters.isUpdatable()));
         }
         completed = true;
     }
@@ -252,44 +220,12 @@ public final class PostgresqlLoader implements AutoCloseable {
     @Override
     public void close() {
         if (!completed) {
-            for (CopyWorker worker : workers) {
-                worker.abort();
-            }
+            CopyWorker.abortAll(workers);
             cancelMultipolygons();
         }
-        for (Connection connection : openedConnections) {
-            closeConnection(connection, !completed);
-        }
+        connections.closeAll(!completed);
         if (!completed) {
-            for (CopyWorker worker : workers) {
-                joinAborted(worker);
-            }
-        }
-    }
-
-    private Connection open(String purpose) throws SQLException {
-        Connection connection = connections.open(purpose);
-        openedConnections.add(connection);
-        return connection;
-    }
-
-    private static void closeConnection(Connection connection, boolean abort) {
-        try {
-            if (abort) {
-                connection.abort(Runnable::run);
-            } else {
-                connection.close();
-            }
-        } catch (SQLException e) {
-            log.warn("Failed to close PostgreSQL connection", e);
-        }
-    }
-
-    private static void joinAborted(CopyWorker worker) {
-        try {
-            worker.join();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+            CopyWorker.joinAborted(workers);
         }
     }
 }

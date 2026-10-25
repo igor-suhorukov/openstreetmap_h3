@@ -164,4 +164,29 @@ class PartitioningScriptWriterTest {
         assertDoesNotThrow(() -> PartitioningScriptWriter.savePartitioningScripts(
                 resultDir, 1, 0.48, List.of(wayBlock), true));
     }
+
+    @Test
+    void savePartitioningScripts_updatable_nodePartitionForEveryWayPartition() throws Exception {
+        File plainDir = new File(tempDir.toFile(), "plain");
+        File updatableDir = new File(tempDir.toFile(), "updatable");
+        ResultLayout.prepareResultDirectories(plainDir, true, false);
+        ResultLayout.prepareResultDirectories(updatableDir, true, false);
+        Map<Short, Stat> wayStat = new HashMap<>();
+        wayStat.put((short) -31635, singleStat((short) -31635));
+        wayStat.put((short) 24898, singleStat((short) 24898));
+        List<BlockStat> blocks = List.of(blockWithWays(0L, wayStat),
+                blockWithNodes(1L, Collections.singletonMap((short) 24898, singleStat((short) 24898))));
+
+        PartitioningScriptWriter.savePartitioningScripts(plainDir, 1, 0.48, blocks, false);
+        PartitioningScriptWriter.savePartitioningScripts(updatableDir, 1, 0.48, blocks, false, true);
+
+        String plainNodes = java.nio.file.Files.readString(new File(plainDir, "sql/nodes_import_000.sql").toPath());
+        String updatableNodes = java.nio.file.Files.readString(new File(updatableDir, "sql/nodes_import_000.sql").toPath());
+        String updatableWays = java.nio.file.Files.readString(new File(updatableDir, "sql/ways_import_000.sql").toPath());
+        assertEquals(1, plainNodes.split("CREATE TABLE", -1).length - 1, plainNodes);
+        assertEquals(2, updatableNodes.split("CREATE TABLE", -1).length - 1, updatableNodes);
+        assertEquals(2, updatableWays.split("CREATE TABLE", -1).length - 1, updatableWays);
+        assertEquals(1, updatableNodes.split("COPY", -1).length - 1, updatableNodes);
+        assertTrue(updatableNodes.contains("(h3_3,h3_8,id,geom,tags,version)"), updatableNodes);
+    }
 }

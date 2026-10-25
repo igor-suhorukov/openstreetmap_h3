@@ -21,6 +21,8 @@ public final class WaySerializeData {
     private final Polygon bboxGeometry;
     private final LineString lineString;
     private final Collection<Tag> tags;
+    private final int version;
+    private final long geomHash;
 
     private WaySerializeData(Builder b) {
         this.h33 = b.h33;
@@ -35,6 +37,8 @@ public final class WaySerializeData {
         this.bboxGeometry = b.bboxGeometry;
         this.lineString = b.lineString;
         this.tags = b.tags;
+        this.version = b.version;
+        this.geomHash = b.geomHash;
     }
 
     public static final class Builder {
@@ -50,6 +54,8 @@ public final class WaySerializeData {
         private Polygon bboxGeometry;
         private LineString lineString;
         private Collection<Tag> tags;
+        private int version;
+        private long geomHash;
 
         public Builder h33(short v)                              { h33 = v; return this; }
         public Builder id(long v)                                { id = v; return this; }
@@ -63,6 +69,8 @@ public final class WaySerializeData {
         public Builder bboxGeometry(Polygon v)                   { bboxGeometry = v; return this; }
         public Builder lineString(LineString v)                  { lineString = v; return this; }
         public Builder tags(Collection<Tag> v)                   { tags = v; return this; }
+        public Builder version(int v)                            { version = v; return this; }
+        public Builder geomHash(long v)                          { geomHash = v; return this; }
 
         public WaySerializeData build()                          { return new WaySerializeData(this); }
     }
@@ -79,4 +87,6 @@ public final class WaySerializeData {
     public Polygon getBboxGeometry()                    { return bboxGeometry; }
     public LineString getLineString()                   { return lineString; }
     public Collection<Tag> getTags()                    { return tags; }
+    public int getVersion()                             { return version; }
+    public long getGeomHash()                           { return geomHash; }
 }
