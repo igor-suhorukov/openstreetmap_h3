@@ -51,6 +51,9 @@ public class OsmPbfTransformation {
         if (!parameters.isSaveArrow() && !parameters.isSavePostgresqlTsv()) {
             throw new IllegalArgumentException("result_in_tsv or/and arrow_format parameters should be specified");
         }
+        if (parameters.isLoadPostgresqlJdbc() && (parameters.isSaveArrow() || parameters.isCollectOnlyStat())) {
+            throw new IllegalArgumentException("pg_jdbc_url can't be combined with arrow_format or collect_only_statistics");
+        }
         new Pipeline(parameters, tagExtensions.getEnabled()).run();
         return 0;
     }

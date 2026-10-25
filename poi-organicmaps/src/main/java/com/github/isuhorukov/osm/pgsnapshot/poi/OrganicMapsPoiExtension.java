@@ -1,11 +1,11 @@
 package com.github.isuhorukov.osm.pgsnapshot.poi;
 
 import com.beust.jcommander.Parameter;
+import com.github.isuhorukov.osm.pgsnapshot.extension.PostgresqlResources;
 import com.github.isuhorukov.osm.pgsnapshot.extension.TagExtension;
 import org.openstreetmap.osmosis.core.domain.v0_6.Entity;
 import org.openstreetmap.osmosis.core.domain.v0_6.Tag;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.List;
@@ -55,7 +55,7 @@ public class OrganicMapsPoiExtension implements TagExtension {
     }
 
     @Override
-    public void writePostgresqlResources(File staticDirectory, File sqlDirectory) throws IOException {
-        PoiTypeCatalogWriter.write(staticDirectory, sqlDirectory, classifier.getPoiTypes());
+    public void writePostgresqlResources(PostgresqlResources resources) throws IOException {
+        PoiTypeCatalogWriter.write(resources, classifier.getPoiTypes());
     }
 }

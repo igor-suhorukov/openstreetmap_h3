@@ -35,6 +35,15 @@ class PipedProcessTest {
     }
 
     @Test
+    void start_standardInput_writtenAndClosed() throws Exception {
+        try (PipedProcess process = PipedProcess.start(List.of("cat"), tempDir.toFile(),
+                "{\"linear_tags\": false}".getBytes(StandardCharsets.UTF_8))) {
+            assertEquals("{\"linear_tags\": false}", IOUtils.toString(process.getInputStream(), StandardCharsets.UTF_8));
+            assertDoesNotThrow(process::waitForSuccess);
+        }
+    }
+
+    @Test
     void close_outputNotConsumed_stopsProcess() throws Exception {
         PipedProcess process = PipedProcess.start(List.of("sleep", "60"), tempDir.toFile());
 

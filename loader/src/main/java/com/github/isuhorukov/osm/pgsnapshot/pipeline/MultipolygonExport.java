@@ -11,18 +11,26 @@ final class MultipolygonExport implements AutoCloseable {
         long run() throws IOException, InterruptedException;
     }
 
+    private static final Runnable NO_CANCEL_ACTION = () -> { };
+
     private final Export export;
+    private final Runnable cancelAction;
     private final FutureTask<Long> task;
     private final Thread thread;
 
-    private MultipolygonExport(Export export, boolean parallel) {
+    private MultipolygonExport(Export export, Runnable cancelAction, boolean parallel) {
         this.export = export;
+        this.cancelAction = cancelAction;
         this.task = parallel ? new FutureTask<>(export::run) : null;
         this.thread = parallel ? new Thread(task, "multipolygon-export") : null;
     }
 
     static MultipolygonExport start(Export export, boolean parallel) {
-        MultipolygonExport multipolygonExport = new MultipolygonExport(export, parallel);
+        return start(export, NO_CANCEL_ACTION, parallel);
+    }
+
+    static MultipolygonExport start(Export export, Runnable cancelAction, boolean parallel) {
+        MultipolygonExport multipolygonExport = new MultipolygonExport(export, cancelAction, parallel);
         if (multipolygonExport.thread != null) {
             multipolygonExport.thread.start();
         }
@@ -52,7 +60,9 @@ final class MultipolygonExport implements AutoCloseable {
         if (thread == null) {
             return;
         }
-        task.cancel(true);
+        if (task.cancel(true)) {
+            cancelAction.run();
+        }
         try {
             thread.join();
         } catch (InterruptedException e) {

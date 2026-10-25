@@ -1,5 +1,6 @@
 package com.github.isuhorukov.osm.pgsnapshot;
 
+import com.github.isuhorukov.osm.pgsnapshot.output.ResourceCopier;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -140,16 +141,39 @@ public class ExternalProcessing {
     }
 
     List<String> addLocationsToWaysCommand(File sourcePbfFile, boolean preserveAllNodes) {
-        String basePath = sourcePbfFile.getParent();
-        List<String> command = new ArrayList<>();
-        if (invokeDockerCommand) {
-            Collections.addAll(command, "docker", "run", "--rm", "--log-driver", "none",
-                    "-w", basePath, "-v", basePath + ":" + basePath, "mschilde/osmium-tool");
-        }
-        Collections.addAll(command, "/usr/bin/osmium", "add-locations-to-ways", sourcePbfFile.getName(), "-v",
+        List<String> command = osmiumCommand(sourcePbfFile, false);
+        Collections.addAll(command, "add-locations-to-ways", sourcePbfFile.getName(), "-v",
                 "--output-format", "pbf,pbf_compression=none",
                 preserveAllNodes ? "--keep-untagged-nodes" : "--keep-member-nodes",
                 "-i", getIndexType(sourcePbfFile), "-o", "-");
+        return command;
+    }
+
+    public PipedProcess startMultipolygonExport(File sourcePbfFile) throws IOException {
+        return PipedProcess.start(multipolygonExportCommand(sourcePbfFile), new File(sourcePbfFile.getParent()),
+                ResourceCopier.resourceBytes("/" + ResourceCopier.OSMIUM_EXPORT_JSON));
+    }
+
+    List<String> multipolygonExportCommand(File sourcePbfFile) {
+        List<String> command = osmiumCommand(sourcePbfFile, true);
+        Collections.addAll(command, "export", "-e", "--config=/dev/stdin", "-i", getIndexType(sourcePbfFile),
+                "--geometry-types", "polygon", "-v", "-f", "pg", "-x", "tags_type=hstore",
+                sourcePbfFile.getName(), "-o", "-");
+        return command;
+    }
+
+    private List<String> osmiumCommand(File sourcePbfFile, boolean standardInput) {
+        String basePath = sourcePbfFile.getParent();
+        List<String> command = new ArrayList<>();
+        if (invokeDockerCommand) {
+            Collections.addAll(command, "docker", "run");
+            if (standardInput) {
+                command.add("-i");
+            }
+            Collections.addAll(command, "--rm", "--log-driver", "none",
+                    "-w", basePath, "-v", basePath + ":" + basePath, "mschilde/osmium-tool");
+        }
+        command.add("/usr/bin/osmium");
         return command;
     }
 

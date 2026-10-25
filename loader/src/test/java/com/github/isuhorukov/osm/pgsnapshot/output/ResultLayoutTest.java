@@ -15,34 +15,6 @@ class ResultLayoutTest {
     Path tempDir;
 
     @Test
-    void blockResultDirectory_nodes() {
-        File dir = tempDir.toFile();
-        File result = ResultLayout.blockResultDirectory(1, 0, 0, dir);
-        assertEquals(new File(dir, "nodes"), result);
-    }
-
-    @Test
-    void blockResultDirectory_ways() {
-        File dir = tempDir.toFile();
-        File result = ResultLayout.blockResultDirectory(0, 5, 0, dir);
-        assertEquals(new File(dir, "ways"), result);
-    }
-
-    @Test
-    void blockResultDirectory_relations() {
-        File dir = tempDir.toFile();
-        File result = ResultLayout.blockResultDirectory(0, 0, 3, dir);
-        assertEquals(new File(dir, "relations"), result);
-    }
-
-    @Test
-    void blockResultDirectory_allZero_throws() {
-        File dir = tempDir.toFile();
-        assertThrows(IllegalArgumentException.class,
-                () -> ResultLayout.blockResultDirectory(0, 0, 0, dir));
-    }
-
-    @Test
     void prepareResultDirectories_noTsvNoArrow_createsBaseAndMetaAndStatic() {
         File resultDir = new File(tempDir.toFile(), "out");
         ResultLayout.prepareResultDirectories(resultDir, false, false);

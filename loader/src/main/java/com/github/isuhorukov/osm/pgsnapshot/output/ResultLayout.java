@@ -64,18 +64,4 @@ public class ResultLayout {
         multipolygonDir.mkdirs();
         return multipolygonDir;
     }
-
-    public static File blockResultDirectory(long nodeRecords, long wayRecords, long relationCount, File resultDir) {
-        String typeDir;
-        if (nodeRecords > 0) {
-            typeDir = NODES_DIR;
-        } else if (wayRecords > 0) {
-            typeDir = WAYS_DIR;
-        } else if (relationCount > 0) {
-            typeDir = RELATIONS_DIR;
-        } else {
-            throw new IllegalArgumentException("unknown block type");
-        }
-        return new File(resultDir, typeDir);
-    }
 }

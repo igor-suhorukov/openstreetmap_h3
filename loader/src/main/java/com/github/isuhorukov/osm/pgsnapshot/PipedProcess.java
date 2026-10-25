@@ -9,6 +9,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
@@ -31,6 +32,18 @@ public class PipedProcess implements Closeable {
         String commandDescription = String.join(" ", command);
         log.info(commandDescription);
         return new PipedProcess(new ProcessBuilder(command).directory(workingDirectory).start(), commandDescription);
+    }
+
+    public static PipedProcess start(List<String> command, File workingDirectory, byte[] standardInput)
+            throws IOException {
+        PipedProcess pipedProcess = start(command, workingDirectory);
+        try (OutputStream processInput = pipedProcess.process.getOutputStream()) {
+            processInput.write(standardInput);
+        } catch (IOException e) {
+            pipedProcess.close();
+            throw e;
+        }
+        return pipedProcess;
     }
 
     public InputStream getInputStream() {

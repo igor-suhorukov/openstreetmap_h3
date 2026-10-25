@@ -1,11 +1,10 @@
 package com.github.isuhorukov.osm.pgsnapshot.poi;
 
-import java.io.File;
+import com.github.isuhorukov.osm.pgsnapshot.extension.PostgresqlResources;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
 import java.util.List;
 
 final class PoiTypeCatalogWriter {
@@ -18,7 +17,7 @@ final class PoiTypeCatalogWriter {
     private PoiTypeCatalogWriter() {
     }
 
-    static void write(File staticDirectory, File sqlDirectory, List<PoiType> poiTypes) throws IOException {
+    static void write(PostgresqlResources resources, List<PoiType> poiTypes) throws IOException {
         StringBuilder tsv = new StringBuilder();
         for (PoiType poiType : poiTypes) {
             appendCsvValue(tsv, poiType.getType());
@@ -31,12 +30,12 @@ final class PoiTypeCatalogWriter {
             }
             tsv.append('\n');
         }
-        Files.write(new File(staticDirectory, CATALOG_FILE).toPath(), tsv.toString().getBytes(StandardCharsets.UTF_8));
+        resources.addStaticFile(CATALOG_FILE, tsv.toString().getBytes(StandardCharsets.UTF_8));
         try (InputStream script = PoiTypeCatalogWriter.class.getResourceAsStream(CATALOG_SCRIPT)) {
             if (script == null) {
                 throw new IllegalStateException("Resource not found: " + CATALOG_SCRIPT);
             }
-            Files.copy(script, new File(sqlDirectory, CATALOG_SCRIPT).toPath(), StandardCopyOption.REPLACE_EXISTING);
+            resources.addImportScript(CATALOG_SCRIPT, new String(script.readAllBytes(), StandardCharsets.UTF_8));
         }
     }
 

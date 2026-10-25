@@ -81,6 +81,17 @@ class OsmPbfTransformationParseTest {
     }
 
     @Test
+    void run_pgJdbcUrlWithArrowOrStatisticsOnly_throwsIllegalArgument() {
+        StringBuilder stderr = new StringBuilder();
+        String url = "jdbc:postgresql://localhost:5432/osmworld";
+
+        assertThrows(IllegalArgumentException.class,
+                () -> run(stderr, "-source_pbf", "a.osm.pbf", "-pg_jdbc_url", url, "-arrow_format", "PARQUET"));
+        assertThrows(IllegalArgumentException.class,
+                () -> run(stderr, "-source_pbf", "a.osm.pbf", "-pg_jdbc_url", url, "-collect_only_statistics"));
+    }
+
+    @Test
     void main_nonExistentSourcePbf_throwsIllegalArgument() {
         File nonExistent = new File(tempDir.toFile(), "missing.osm.pbf");
         String[] args = {"-source_pbf", nonExistent.getAbsolutePath(), "-result_in_tsv", "true"};

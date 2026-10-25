@@ -3,8 +3,14 @@ package com.github.isuhorukov.osm.pgsnapshot;
 import com.beust.jcommander.Parameter;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
+import org.postgresql.PGProperty;
+
+import java.util.regex.Pattern;
 
 public class CliParameters {
+    private static final Pattern JDBC_URL_SECRET = Pattern.compile(
+            "(?i)([?&]" + Pattern.quote(PGProperty.PASSWORD.getName()) + "=)[^&]*");
+
     @Parameter(names = { "-source_pbf" }, required = true,order = 1,description = "Source path for OpenStreetMap data in PBF format")
     private String sourceFilePath;
     @Parameter(names = {"-scale_approx_calc"}, description = "Approximate scale calculation. Value 'false' - distance in meter")
@@ -27,8 +33,10 @@ public class CliParameters {
     private boolean invokeDockerCommand = true;
     @Parameter(names = {"-worker_threads"}, description = "Worker threads count for data processing")
     private int workers=4;
-    @Parameter(names = {"-pg_script_count"}, description = "Script count for PostgreSQL parallel COPY")
+    @Parameter(names = {"-pg_script_count"}, description = "Script count for PostgreSQL parallel COPY, or COPY connection count with -pg_jdbc_url")
     private int scriptCount  = 4;
+    @Parameter(names = {"-pg_jdbc_url"}, description = "Load data straight into PostgreSQL by JDBC COPY streams without TSV files and import scripts, e.g. jdbc:postgresql://localhost:5432/osmworld?user=postgres. The database must exist. The password is taken from the URL, ~/.pgpass or the PGPASSWORD environment variable")
+    private String postgresqlJdbcUrl;
     @Parameter(names = {"-data_partition_ratio"}, description = "Filling ratio from maximum size of partition. This parameter change PostgreSQL partitions count")
     private double thresholdPercentFromMaxPartition = 0.48;
     @Parameter(names = {"-parallel_multipolygon_export"}, arity = 1, description = "Run osmium multipolygon export concurrently with data processing. Use 'false' when memory is not enough for the second osmium node location index")
@@ -43,17 +51,26 @@ public class CliParameters {
     public boolean isSkipHighway() { return skipHighway; }
     public boolean isPreserveAllNodes() { return preserveAllNodes; }
     public ArrowFormat getArrowFormat() { return arrowFormat; }
-    public boolean isSavePostgresqlTsv() { return savePostgresqlTsv; }
+    public boolean isSavePostgresqlTsv() { return savePostgresqlTsv || isLoadPostgresqlJdbc(); }
     public boolean isColumnarStorage() { return columnarStorage; }
     public boolean isInvokeDockerCommand() { return invokeDockerCommand; }
     public int getWorkers() { return workers; }
     public int getScriptCount() { return scriptCount; }
     public double getThresholdPercentFromMaxPartition() { return thresholdPercentFromMaxPartition; }
     public boolean isParallelMultipolygonExport() { return parallelMultipolygonExport; }
+    public String getPostgresqlJdbcUrl() { return postgresqlJdbcUrl; }
     public boolean isHelp() { return help; }
 
     public boolean isSaveArrow() {
         return arrowFormat != null;
+    }
+
+    public boolean isLoadPostgresqlJdbc() {
+        return postgresqlJdbcUrl != null;
+    }
+
+    public static String maskPassword(String jdbcUrl) {
+        return jdbcUrl == null ? null : JDBC_URL_SECRET.matcher(jdbcUrl).replaceAll("$1***");
     }
 
     @Override
@@ -73,6 +90,7 @@ public class CliParameters {
                 .append("scriptCount", scriptCount)
                 .append("thresholdPercentFromMaxPartition", thresholdPercentFromMaxPartition)
                 .append("parallelMultipolygonExport", parallelMultipolygonExport)
+                .append("postgresqlJdbcUrl", maskPassword(postgresqlJdbcUrl))
                 .toString();
     }
 }

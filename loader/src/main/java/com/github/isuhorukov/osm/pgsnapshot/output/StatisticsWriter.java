@@ -3,7 +3,6 @@ package com.github.isuhorukov.osm.pgsnapshot.output;
 import com.github.isuhorukov.osm.pgsnapshot.Serializer;
 import com.github.isuhorukov.osm.pgsnapshot.model.statistics.BlockStat;
 import com.github.isuhorukov.osm.pgsnapshot.model.statistics.PbfStatistics;
-import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -13,11 +12,17 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public class StatisticsWriter {
 
     private static final Logger log = LoggerFactory.getLogger(StatisticsWriter.class);
+
+    public static final String OSM_FILE_STATISTICS_TSV = "osm_file_statistics.tsv";
+    public static final String OSM_FILE_BLOCK_TSV = "osm_file_block.tsv";
+    public static final String OSM_FILE_BLOCK_CONTENT_TSV = "osm_file_block_content.tsv";
 
     private StatisticsWriter() {
     }
@@ -41,39 +46,36 @@ public class StatisticsWriter {
 
     public static void saveStatistics(File resultDirectory, PbfStatistics statistics) {
         File currentBlockTypeDir = new File(resultDirectory, ResultLayout.IMPORT_RELATED_METADATA_DIR);
-        savePbfStatistics(statistics, currentBlockTypeDir);
-        savePbfBlockStatistic(statistics, currentBlockTypeDir);
-        savePbfBlockDataByHashStatistics(statistics, currentBlockTypeDir);
-    }
-
-    private static void savePbfBlockDataByHashStatistics(PbfStatistics pbfStatistics, File currentBlockTypeDir) {
-        Serializer serializer = new Serializer();
-        StringBuilder csvString = new StringBuilder();
-        for (BlockStat blockStatistics : pbfStatistics.getBlockStatistics()) {
-            serializer.serializeBlockContent(csvString, blockStatistics);
-            if (csvString.length() > 0) {
-                writeStatFile(currentBlockTypeDir, csvString, "osm_file_block_content.tsv");
-            }
-            csvString.setLength(0);
+        for (Map.Entry<String, byte[]> statisticsFile : statisticsFiles(statistics).entrySet()) {
+            writeStatFile(currentBlockTypeDir, statisticsFile.getValue(), statisticsFile.getKey());
         }
     }
 
-    private static void savePbfBlockStatistic(PbfStatistics pbfStatistics, File currentBlockTypeDir) {
+    public static Map<String, byte[]> statisticsFiles(PbfStatistics statistics) {
+        Map<String, byte[]> statisticsFiles = new LinkedHashMap<>();
+        Serializer serializer = new Serializer();
         StringBuilder csvString = new StringBuilder();
-        new Serializer().serializeBlockStat(csvString, pbfStatistics.getBlockStatistics());
-        writeStatFile(currentBlockTypeDir, csvString, "osm_file_block.tsv");
+        serializer.serializePbfStat(csvString, statistics);
+        statisticsFiles.put(OSM_FILE_STATISTICS_TSV, utf8(csvString));
+        csvString.setLength(0);
+        serializer.serializeBlockStat(csvString, statistics.getBlockStatistics());
+        statisticsFiles.put(OSM_FILE_BLOCK_TSV, utf8(csvString));
+        csvString.setLength(0);
+        for (BlockStat blockStatistics : statistics.getBlockStatistics()) {
+            serializer.serializeBlockContent(csvString, blockStatistics);
+        }
+        statisticsFiles.put(OSM_FILE_BLOCK_CONTENT_TSV, utf8(csvString));
+        return statisticsFiles;
     }
 
-    private static void savePbfStatistics(PbfStatistics pbfStatistics, File currentBlockTypeDir) {
-        StringBuilder csvString = new StringBuilder();
-        new Serializer().serializePbfStat(csvString, pbfStatistics);
-        writeStatFile(currentBlockTypeDir, csvString, "osm_file_statistics.tsv");
+    private static byte[] utf8(StringBuilder csvString) {
+        return csvString.toString().getBytes(StandardCharsets.UTF_8);
     }
 
-    private static void writeStatFile(File currentBlockTypeDir, StringBuilder csvString, String statName) {
+    private static void writeStatFile(File currentBlockTypeDir, byte[] content, String statName) {
         try (OutputStream dataExport =
                      new FileOutputStream(new File(currentBlockTypeDir, statName), true)) {
-            IOUtils.write(csvString, dataExport, StandardCharsets.UTF_8);
+            dataExport.write(content);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

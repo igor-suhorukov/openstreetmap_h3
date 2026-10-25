@@ -17,23 +17,25 @@ public class PartitionSplitter {
     public static final int LOWER_H3_3_BOUND = -32768;
     public static final int HIGH_H3_3_BOUND = 32695;
     public static final String USING_COLUMNAR = "USING COLUMNAR";
+    public static final String NODES = "nodes";
+    public static final String WAYS = "ways";
+    public static final String NODE_COLUMNS = "h3_3,h3_8,id,geom,tags";
+    public static final String WAY_COLUMNS = "h3_3,h3_8,id,closed,building,highway,scale,centre,bbox,linestring,points,h3_8_regions,tags";
+    public static final String MULTIPOLYGON_TABLES_SQL = "multipolygon_tables.sql";
 
     private PartitionSplitter() {}
 
     public static int createNodesScript(File resultDirectory, int scriptCount, List<Partition> partitions, boolean storeColumnar) {
-        return createImportScript(resultDirectory, scriptCount, partitions, storeColumnar,
-                "nodes", "h3_3,h3_8,id,geom,tags");
+        return createImportScript(resultDirectory, scriptCount, partitions, storeColumnar, NODES, NODE_COLUMNS);
     }
 
     public static int createWaysScript(File resultDirectory, int scriptCount, List<Partition> partitions, boolean storeColumnar) {
-        return createImportScript(resultDirectory, scriptCount, partitions, storeColumnar,
-                "ways", "h3_3,h3_8,id,closed,building,highway,scale,centre,bbox,linestring,points,h3_8_regions,tags");
+        return createImportScript(resultDirectory, scriptCount, partitions, storeColumnar, WAYS, WAY_COLUMNS);
     }
 
     private static int createImportScript(File resultDirectory, int scriptCount, List<Partition> partitions,
                                           boolean storeColumnar, String entityName, String copyColumns) {
         final List<List<Partition>> partition = balanceBySize(partitions, scriptCount);
-        String copyFreeze = storeColumnar ? "" : " FREEZE";
         for (int partIdx = 0; partIdx < partition.size(); partIdx++) {
             List<Partition> part = partition.get(partIdx);
             String scriptName = String.format("sql/%s_import_%03d.sql", entityName, partIdx);
@@ -41,22 +43,17 @@ public class PartitionSplitter {
                 appendScriptHead(scriptName, scriptOs);
                 scriptOs.write("BEGIN;\n".getBytes(StandardCharsets.UTF_8));
                 for (Partition currentPart : part) {
-                    scriptOs.write(String.format("CREATE TABLE \"%s_%03d\" (like %s) %s;%n",
-                            entityName, currentPart.getId(), entityName,
-                            getColumnarString(storeColumnar)).getBytes(StandardCharsets.UTF_8));
+                    writeLine(scriptOs, createPartitionTableSql(entityName, currentPart.getId(), storeColumnar));
                     List<Short> h33RegionsInside = currentPart.getH33RegionsInside();
                     Collections.sort(h33RegionsInside);
                     for (Short h33Region : h33RegionsInside) {
-                        scriptOs.write(String.format("COPY \"%s_%03d\"(%s) FROM '/input/%s/%05d.tsv' DELIMITER E'\\t' ESCAPE '\\' NULL '\\N' CSV%s;%n",
-                                entityName, currentPart.getId(), copyColumns, entityName, h33Region, copyFreeze).getBytes(StandardCharsets.UTF_8));
+                        writeLine(scriptOs, copyPartitionSql(entityName, currentPart.getId(), copyColumns,
+                                String.format("'/input/%s/%05d.tsv'", entityName, h33Region), storeColumnar));
                     }
-                    scriptOs.write(String.format("ANALYZE \"%s_%03d\";%n", entityName, currentPart.getId())
-                            .getBytes(StandardCharsets.UTF_8));
+                    writeLine(scriptOs, analyzePartitionSql(entityName, currentPart.getId()));
                 }
                 for (Partition currentPart : part) {
-                    scriptOs.write(String.format("ALTER TABLE  %s ATTACH PARTITION  \"%s_%03d\" FOR VALUES FROM (%s) TO (%s);%n",
-                            entityName, entityName, currentPart.getId(),
-                            currentPart.getMinRange(), currentPart.getMaxRange()).getBytes(StandardCharsets.UTF_8));
+                    writeLine(scriptOs, attachPartitionSql(entityName, currentPart));
                 }
                 scriptOs.write("COMMIT;".getBytes(StandardCharsets.UTF_8));
             } catch (IOException e) {
@@ -66,7 +63,36 @@ public class PartitionSplitter {
         return partition.size();
     }
 
-    static List<List<Partition>> balanceBySize(List<Partition> partitions, int scriptCount) {
+    private static void writeLine(FileOutputStream scriptOs, String sql) throws IOException {
+        scriptOs.write(String.format("%s%n", sql).getBytes(StandardCharsets.UTF_8));
+    }
+
+    public static String partitionTableName(String entityName, int partitionId) {
+        return String.format("%s_%03d", entityName, partitionId);
+    }
+
+    public static String createPartitionTableSql(String entityName, int partitionId, boolean storeColumnar) {
+        return String.format("CREATE TABLE \"%s\" (like %s) %s;", partitionTableName(entityName, partitionId),
+                entityName, getColumnarString(storeColumnar));
+    }
+
+    public static String copyPartitionSql(String entityName, int partitionId, String copyColumns, String source,
+                                          boolean storeColumnar) {
+        return String.format("COPY \"%s\"(%s) FROM %s DELIMITER E'\\t' ESCAPE '\\' NULL '\\N' CSV%s;",
+                partitionTableName(entityName, partitionId), copyColumns, source, storeColumnar ? "" : " FREEZE");
+    }
+
+    public static String analyzePartitionSql(String entityName, int partitionId) {
+        return String.format("ANALYZE \"%s\";", partitionTableName(entityName, partitionId));
+    }
+
+    public static String attachPartitionSql(String entityName, Partition partition) {
+        return String.format("ALTER TABLE  %s ATTACH PARTITION  \"%s\" FOR VALUES FROM (%s) TO (%s);",
+                entityName, partitionTableName(entityName, partition.getId()),
+                partition.getMinRange(), partition.getMaxRange());
+    }
+
+    public static List<List<Partition>> balanceBySize(List<Partition> partitions, int scriptCount) {
         int binCount = Math.min(Math.max(scriptCount, 1), partitions.size());
         List<List<Partition>> bins = new ArrayList<>(binCount);
         long[] binSizes = new long[binCount];
@@ -101,16 +127,21 @@ public class PartitionSplitter {
     }
 
     public static void createMultipolygonScript(File resultDirectory, List<Partition> partitions, boolean storeColumnar) {
-        try (FileOutputStream waysScriptOs = new FileOutputStream(new File(resultDirectory, "static/multipolygon_tables.sql"))) {
-            for (Partition currentPart : partitions) {
-                waysScriptOs.write(String.format("CREATE TABLE  \"multipolygon_%03d\" PARTITION OF multipolygon FOR VALUES FROM (%s) TO (%s) %s;%n",
-                        currentPart.getId(),currentPart.getMinRange(),currentPart.getMaxRange(),
-                        getColumnarString(storeColumnar)).getBytes(StandardCharsets.UTF_8)
-                );
-            }
+        try (FileOutputStream waysScriptOs = new FileOutputStream(new File(resultDirectory, "static/" + MULTIPOLYGON_TABLES_SQL))) {
+            waysScriptOs.write(multipolygonTablesSql(partitions, storeColumnar).getBytes(StandardCharsets.UTF_8));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    public static String multipolygonTablesSql(List<Partition> partitions, boolean storeColumnar) {
+        StringBuilder sql = new StringBuilder();
+        for (Partition currentPart : partitions) {
+            sql.append(String.format("CREATE TABLE  \"multipolygon_%03d\" PARTITION OF multipolygon FOR VALUES FROM (%s) TO (%s) %s;%n",
+                    currentPart.getId(), currentPart.getMinRange(), currentPart.getMaxRange(),
+                    getColumnarString(storeColumnar)));
+        }
+        return sql.toString();
     }
 
     public static List<Partition> distributeH33ByPartitionsForWays(Map<Short, Long> waysSizeStat, double thresholdPercentFromMaxPartition){

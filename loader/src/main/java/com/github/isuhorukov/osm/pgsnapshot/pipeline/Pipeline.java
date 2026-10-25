@@ -7,6 +7,7 @@ import com.github.isuhorukov.osm.pgsnapshot.Splitter;
 import com.github.isuhorukov.osm.pgsnapshot.arrow.NodeWayArrowWriter;
 import com.github.isuhorukov.osm.pgsnapshot.arrow.RelationArrowWriter;
 import com.github.isuhorukov.osm.pgsnapshot.extension.TagExtension;
+import com.github.isuhorukov.osm.pgsnapshot.jdbc.PostgresqlLoader;
 import com.github.isuhorukov.osm.pgsnapshot.model.statistics.BlockStat;
 import com.github.isuhorukov.osm.pgsnapshot.model.statistics.MultipolygonTime;
 import com.github.isuhorukov.osm.pgsnapshot.model.statistics.PbfStatistics;
@@ -23,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -61,6 +63,43 @@ public class Pipeline {
         log.info("{}", parameters);
         initTagExtensions();
         ExternalProcessing externalProcessing = new ExternalProcessing(parameters.isInvokeDockerCommand());
+        if (parameters.isLoadPostgresqlJdbc()) {
+            loadPostgresql(externalProcessing, sourcePbfFile, commandStartTime);
+        } else {
+            saveFiles(externalProcessing, sourcePbfFile, commandStartTime);
+        }
+    }
+
+    private void loadPostgresql(ExternalProcessing externalProcessing, File sourcePbfFile, long commandStartTime)
+            throws IOException, InterruptedException {
+        try (PostgresqlLoader loader = PostgresqlLoader.start(parameters, sourcePbfFile, tagExtensions,
+                multipolygonTagKeys(), this::recordFailure)) {
+            long processingStartTime = System.currentTimeMillis();
+            ProcessedBlocks processedBlocks;
+            long dataProcessingTime;
+            MultipolygonTime multipolygonTime = new MultipolygonTime();
+            try (MultipolygonExport multipolygonExport = MultipolygonExport.start(
+                    () -> loader.copyMultipolygons(externalProcessing, sourcePbfFile), loader::cancelMultipolygons,
+                    parameters.isParallelMultipolygonExport())) {
+                processedBlocks = processBlocks(externalProcessing, sourcePbfFile, null,
+                        loader.blockWriter(maxBlocksInFlight(), this::recordFailure), processingStartTime);
+                dataProcessingTime = System.currentTimeMillis() - processingStartTime;
+                StatisticsWriter.printProcessingStatistics(processedBlocks.blockStatistics, processedBlocks.blockCount,
+                        dataProcessingTime, processedBlocks.multipolygonCount());
+                loader.finishBlocks();
+                multipolygonTime.setMultipolygonExportTime(multipolygonExport.await());
+            }
+            loader.finishImport();
+            loader.saveStatistics(buildStatistics(processedBlocks.blockStatistics, processedBlocks.multipolygonCount(),
+                    dataProcessingTime, processedBlocks.addLocationsToWaysTime, multipolygonTime,
+                    System.currentTimeMillis() - commandStartTime));
+        } catch (SQLException e) {
+            throw new IllegalStateException("Loading into PostgreSQL failed", e);
+        }
+    }
+
+    private void saveFiles(ExternalProcessing externalProcessing, File sourcePbfFile, long commandStartTime)
+            throws IOException, InterruptedException {
         File resultDirectory = prepareResultDirectory(sourcePbfFile);
 
         boolean saveImportScripts = !parameters.isCollectOnlyStat() && parameters.isSavePostgresqlTsv();
@@ -73,7 +112,7 @@ public class Pipeline {
         try (MultipolygonExport multipolygonExport = MultipolygonExport.start(
                 () -> externalProcessing.exportMultipolygons(sourcePbfFile, resultDirectory, parameters.isSaveArrow()),
                 exportMultipolygons && parameters.isParallelMultipolygonExport())) {
-            ProcessedBlocks processedBlocks = processBlocks(externalProcessing, sourcePbfFile, resultDirectory,
+            ProcessedBlocks processedBlocks = processBlocksToFiles(externalProcessing, sourcePbfFile, resultDirectory,
                     processingStartTime);
             long multipolygonCount = processedBlocks.multipolygonCount();
             long dataProcessingTime = System.currentTimeMillis() - processingStartTime;
@@ -111,31 +150,48 @@ public class Pipeline {
 
         ResourceCopier.copyOsmiumSettings(resultDirectory);
         if (parameters.isSavePostgresqlTsv()) {
-            Set<String> multipolygonTagKeys = new TreeSet<>();
+            ResourceCopier.copyResources(resultDirectory, parameters.isColumnarStorage(), multipolygonTagKeys());
+            DirectoryPostgresqlResources postgresqlResources = new DirectoryPostgresqlResources(resultDirectory);
             for (TagExtension tagExtension : tagExtensions) {
-                multipolygonTagKeys.addAll(tagExtension.multipolygonTagKeys());
-            }
-            ResourceCopier.copyResources(resultDirectory, parameters.isColumnarStorage(), multipolygonTagKeys);
-            File staticDirectory = new File(resultDirectory, ResultLayout.STATIC_DIR);
-            File sqlDirectory = new File(resultDirectory, ResultLayout.SQL_DIR);
-            for (TagExtension tagExtension : tagExtensions) {
-                tagExtension.writePostgresqlResources(staticDirectory, sqlDirectory);
+                tagExtension.writePostgresqlResources(postgresqlResources);
             }
         }
         return resultDirectory;
     }
 
+    private Set<String> multipolygonTagKeys() {
+        Set<String> multipolygonTagKeys = new TreeSet<>();
+        for (TagExtension tagExtension : tagExtensions) {
+            multipolygonTagKeys.addAll(tagExtension.multipolygonTagKeys());
+        }
+        return multipolygonTagKeys;
+    }
+
+    private int maxBlocksInFlight() {
+        return Math.max(1, parameters.getWorkers()) * BLOCKS_IN_FLIGHT_PER_WORKER;
+    }
+
+    private ProcessedBlocks processBlocksToFiles(ExternalProcessing externalProcessing, File sourcePbfFile,
+                                                 File resultDirectory, long processingStartTime)
+            throws IOException, InterruptedException {
+        ExecutorService saveExecutorService = getExecutorService(parameters.getWorkers());
+        try {
+            return processBlocks(externalProcessing, sourcePbfFile, resultDirectory, new TsvBlockWriter(
+                    saveExecutorService, resultDirectory, maxBlocksInFlight(), this::recordFailure), processingStartTime);
+        } finally {
+            saveExecutorService.shutdownNow();
+        }
+    }
+
     private ProcessedBlocks processBlocks(ExternalProcessing externalProcessing, File sourcePbfFile,
-                                          File resultDirectory, long processingStartTime)
+                                          File resultDirectory, OrderedBlockWriter blockWriter,
+                                          long processingStartTime)
             throws IOException, InterruptedException {
         final H3Core h3Core = H3Core.newInstance();
         ThreadLocal<BlockProcessor> blockProcessors =
                 ThreadLocal.withInitial(() -> new BlockProcessor(parameters, h3Core, tagExtensions));
 
-        ExecutorService saveExecutorService = getExecutorService(parameters.getWorkers());
         ExecutorService executorService = getExecutorService(parameters.getWorkers());
-        TsvBlockWriter tsvBlockWriter = new TsvBlockWriter(saveExecutorService,
-                Math.max(1, parameters.getWorkers()) * BLOCKS_IN_FLIGHT_PER_WORKER, this::recordFailure);
 
         Map<Long, BlockStat> blockStat = new ConcurrentHashMap<>();
         int blockCount;
@@ -143,15 +199,14 @@ public class Pipeline {
         try (PipedProcess addLocationsToWays = externalProcessing.startAddLocationsToWays(sourcePbfFile,
                 parameters.isPreserveAllNodes())) {
             blockCount = Splitter.splitPbfByBlocks(addLocationsToWays.getInputStream(), (rawBlob, blockNumber) ->
-                    submitBlock(executorService, tsvBlockWriter, blockNumber, () -> processBlock(rawBlob,
-                            blockNumber, blockProcessors, resultDirectory, blockStat, tsvBlockWriter)));
+                    submitBlock(executorService, blockWriter, blockNumber, () -> processBlock(rawBlob,
+                            blockNumber, blockProcessors, resultDirectory, blockStat, blockWriter)));
             addLocationsToWays.waitForSuccess();
             addLocationsToWaysTime = System.currentTimeMillis() - processingStartTime;
             executorService.shutdown();
             executorService.awaitTermination(2, TimeUnit.DAYS);
         } finally {
             executorService.shutdownNow();
-            saveExecutorService.shutdownNow();
         }
         throwIfFailed();
         return new ProcessedBlocks(new ArrayList<>(blockStat.values()), blockCount, addLocationsToWaysTime);
@@ -181,11 +236,11 @@ public class Pipeline {
         return statistics;
     }
 
-    private void submitBlock(ExecutorService executorService, TsvBlockWriter tsvBlockWriter, long blockNumber,
+    private void submitBlock(ExecutorService executorService, OrderedBlockWriter blockWriter, long blockNumber,
                              Runnable block) {
         throwIfFailed();
         try {
-            tsvBlockWriter.reserve();
+            blockWriter.reserve();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("interrupted while waiting for a free block slot", e);
@@ -201,7 +256,7 @@ public class Pipeline {
     }
 
     private void processBlock(RawBlob rawBlob, long blockNumber, ThreadLocal<BlockProcessor> blockProcessors,
-                              File resultDirectory, Map<Long, BlockStat> blockStat, TsvBlockWriter tsvBlockWriter) {
+                              File resultDirectory, Map<Long, BlockStat> blockStat, OrderedBlockWriter blockWriter) {
         long threadStart = System.currentTimeMillis();
         if (blockNumber % 1000 == 0) {
             log.info("{}", blockNumber);
@@ -215,7 +270,7 @@ public class Pipeline {
             }
             result.getBlockStat().setThreadTime(System.currentTimeMillis() - threadStart);
         } finally {
-            tsvBlockWriter.complete(blockNumber, encodedBlock);
+            blockWriter.complete(blockNumber, encodedBlock);
         }
     }
 
@@ -243,9 +298,8 @@ public class Pipeline {
             return EncodedBlock.EMPTY;
         }
         long startEncodeTime = System.currentTimeMillis();
-        File blockDirectory = ResultLayout.blockResultDirectory(result.getNodeCount(), result.getWayCount(),
-                result.getRelationCount(), resultDirectory);
-        EncodedBlock encodedBlock = EncodedBlock.encode(blockDirectory, result.getCsvResultPerH33(), blockStatistic);
+        BlockType blockType = BlockType.of(result.getNodeCount(), result.getWayCount(), result.getRelationCount());
+        EncodedBlock encodedBlock = EncodedBlock.encode(blockType, result.getCsvResultPerH33(), blockStatistic);
         blockStatistic.setSaveTime(blockStatistic.getSaveTime() + (System.currentTimeMillis() - startEncodeTime));
         return encodedBlock;
     }

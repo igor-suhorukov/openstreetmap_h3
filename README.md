@@ -92,8 +92,15 @@ Usage: <main class> [options]
       'false' when memory is not enough for the second osmium node location 
       index
       Default: true
+    -pg_jdbc_url
+      Load data straight into PostgreSQL by JDBC COPY streams without TSV 
+      files and import scripts, e.g. 
+      jdbc:postgresql://localhost:5432/osmworld?user=postgres. The database 
+      must exist. The password is taken from the URL, ~/.pgpass or the 
+      PGPASSWORD environment variable
     -pg_script_count
-      Script count for PostgreSQL parallel COPY
+      Script count for PostgreSQL parallel COPY, or COPY connection count with 
+      -pg_jdbc_url
       Default: 4
     -preserve_all_nodes
       Preserve all nodes information in case of 'true' or only nodes with tags 
@@ -673,6 +680,30 @@ osmworld=# select h3_3, count(*) from ways group by 1 order by 2 desc limit 20;
  25880 |  56838
 (20 rows)
 ```
+
+## Load directly into PostgreSQL over JDBC:
+With `-pg_jdbc_url` the loader streams rows into PostgreSQL with `COPY ... FROM STDIN` and writes no TSV files, import
+scripts or multipolygon dumps: osmium sends the enriched blocks and the multipolygons through pipes, and gets its export
+settings from standard input. The database must exist, and the user must be able to create the `postgis`, `hstore` and
+`h3` extensions, as in the `postgis/postgis` image. The loader runs the same SQL resources as the `postgis_docker-master`
+image except the part of `database_init.sql` before `\c osmworld` (`ALTER SYSTEM` settings and `CREATE DATABASE`): tune
+the server with `-c` options instead. `-pg_script_count` sets the number of COPY connections for nodes and ways
+partitions, relations and ways crossing H3 cells get one more connection each, multipolygons one more. `-arrow_format`
+and `-collect_only_statistics` can't be combined with `-pg_jdbc_url`.
+
+Partitions must exist before the first row, so their boundaries come from the node density of a sample of PBF blocks
+(at most 2048 blocks) and the same `-data_partition_ratio` rule; they can differ from the file mode by an H3 cell of
+resolution 2. Each partition is created and loaded in one transaction of its connection, so `COPY ... FREEZE` and the
+WAL skip with `wal_level=minimal` work as in the file mode. The schema is committed before the data: a failed run rolls
+back the loaded partitions and relations but leaves the empty schema, so recreate the database before the next run.
+``` bash
+docker run --name postgis19-cyprus --shm-size=1g -e POSTGRES_PASSWORD=osmworld -d -p 5432:5432 postgis/postgis:19rc1-master -c shared_buffers='4096 MB' -c max_wal_size='32768 MB' -c min_wal_size='16384 MB'
+docker exec postgis19-cyprus createdb -U postgres osmworld
+PGPASSWORD=osmworld java -jar loader/target/osm-to-pgsnapshot-schema-ng-1.0-SNAPSHOT.jar -source_pbf cyprus-latest.osm.pbf -pg_jdbc_url "jdbc:postgresql://localhost:5432/osmworld?user=postgres" -worker_threads 16 -pg_script_count 8
+```
+The loader image needs network access to the database, e.g. `docker run --network host ... openstreetmap_h3:latest
+-source_pbf ... -pg_jdbc_url ...`. Thailand (16 worker threads, 8 COPY connections) loads in about 19 s instead of
+29 s for the loader and the import of the file mode, without 3.9 GB of TSV files and with the same table content.
 
 ## Apache Parquet export
 

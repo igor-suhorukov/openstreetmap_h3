@@ -6,7 +6,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.openstreetmap.osmosis.core.domain.v0_6.*;
 
-import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.*;
@@ -83,12 +82,11 @@ class OrganicMapsPoiExtensionTest {
 
     @Test
     void writePostgresqlResources_catalogAndScript() throws Exception {
-        Path staticDirectory = Files.createDirectory(tempDir.resolve("static"));
-        Path sqlDirectory = Files.createDirectory(tempDir.resolve("sql"));
+        RecordingPostgresqlResources resources = new RecordingPostgresqlResources();
 
-        initializedExtension().writePostgresqlResources(staticDirectory.toFile(), sqlDirectory.toFile());
+        initializedExtension().writePostgresqlResources(resources);
 
-        assertTrue(Files.size(staticDirectory.resolve(PoiTypeCatalogWriter.CATALOG_FILE)) > 0);
-        assertTrue(Files.exists(sqlDirectory.resolve(PoiTypeCatalogWriter.CATALOG_SCRIPT)));
+        assertTrue(resources.staticFiles.get(PoiTypeCatalogWriter.CATALOG_FILE).length > 0);
+        assertTrue(resources.importScripts.containsKey(PoiTypeCatalogWriter.CATALOG_SCRIPT));
     }
 }

@@ -114,4 +114,31 @@ class MultipolygonExportTest {
         assertTrue(interrupted.get());
         assertTrue(finished.get());
     }
+
+    @Test
+    void close_exportBlockedInProcessRead_cancelActionUnblocksIt() throws Exception {
+        Process process = new ProcessBuilder("sleep", "60").start();
+        CountDownLatch started = new CountDownLatch(1);
+
+        MultipolygonExport export = MultipolygonExport.start(() -> {
+            started.countDown();
+            return process.getInputStream().read();
+        }, process::destroy, true);
+        assertTrue(started.await(10, TimeUnit.SECONDS));
+
+        assertTimeoutPreemptively(Duration.ofSeconds(10), export::close);
+
+        assertTrue(process.waitFor(10, TimeUnit.SECONDS));
+    }
+
+    @Test
+    void close_completedExport_cancelActionNotCalled() throws Exception {
+        AtomicInteger cancelCalls = new AtomicInteger();
+
+        try (MultipolygonExport export = MultipolygonExport.start(() -> 3, cancelCalls::incrementAndGet, true)) {
+            assertEquals(3, export.await());
+        }
+
+        assertEquals(0, cancelCalls.get());
+    }
 }

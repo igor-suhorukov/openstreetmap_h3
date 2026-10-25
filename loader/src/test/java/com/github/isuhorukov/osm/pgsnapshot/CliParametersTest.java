@@ -40,6 +40,28 @@ class CliParametersTest {
     }
 
     @Test
+    void parse_pgJdbcUrl_postgresqlRowsWithoutTsvFilesAndMaskedPassword() {
+        CliParameters parameters = new CliParameters();
+        JCommander.newBuilder().addObject(parameters).build().parse("-source_pbf", "a.osm.pbf", "-result_in_tsv", "false",
+                "-pg_jdbc_url", "jdbc:postgresql://localhost:5432/osmworld?user=postgres&password=secret&ssl=false");
+
+        assertTrue(parameters.isLoadPostgresqlJdbc());
+        assertTrue(parameters.isSavePostgresqlTsv());
+        assertEquals("jdbc:postgresql://localhost:5432/osmworld?user=postgres&password=secret&ssl=false",
+                parameters.getPostgresqlJdbcUrl());
+        String text = parameters.toString();
+        assertTrue(text.contains("password=***&ssl=false"), text);
+        assertFalse(text.contains("secret"), text);
+    }
+
+    @Test
+    void maskPassword_caseInsensitiveParameter() {
+        assertNull(CliParameters.maskPassword(null));
+        assertEquals("jdbc:postgresql://h/db?PASSWORD=***", CliParameters.maskPassword("jdbc:postgresql://h/db?PASSWORD=x"));
+        assertEquals("jdbc:postgresql://h/db?user=u", CliParameters.maskPassword("jdbc:postgresql://h/db?user=u"));
+    }
+
+    @Test
     void parse_defaults() {
         CliParameters parameters = new CliParameters();
         JCommander.newBuilder().addObject(parameters).build().parse("-source_pbf", "a.osm.pbf");
@@ -52,5 +74,7 @@ class CliParametersTest {
         assertEquals(4, parameters.getScriptCount());
         assertEquals(0.48, parameters.getThresholdPercentFromMaxPartition());
         assertTrue(parameters.isParallelMultipolygonExport());
+        assertFalse(parameters.isLoadPostgresqlJdbc());
+        assertNull(parameters.getPostgresqlJdbcUrl());
     }
 }

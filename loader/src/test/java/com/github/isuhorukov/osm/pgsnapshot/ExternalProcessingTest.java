@@ -117,6 +117,29 @@ class ExternalProcessingTest {
     }
 
     @Test
+    void multipolygonExportCommand_localOsmium_configFromStdinPolygonsToStdout() {
+        File sourcePbf = new File(tempDir.toFile(), "test.osm.pbf");
+
+        List<String> command = new ExternalProcessing(false).multipolygonExportCommand(sourcePbf);
+
+        assertEquals(List.of("/usr/bin/osmium", "export", "-e", "--config=/dev/stdin", "-i", "sparse_mem_array",
+                "--geometry-types", "polygon", "-v", "-f", "pg", "-x", "tags_type=hstore", "test.osm.pbf",
+                "-o", "-"), command);
+    }
+
+    @Test
+    void multipolygonExportCommand_docker_interactiveForConfigOnStdin() {
+        File sourcePbf = new File(tempDir.toFile(), "test.osm.pbf");
+        String basePath = tempDir.toFile().getPath();
+
+        List<String> command = new ExternalProcessing(true).multipolygonExportCommand(sourcePbf);
+
+        assertEquals(List.of("docker", "run", "-i", "--rm", "--log-driver", "none", "-w", basePath,
+                "-v", basePath + ":" + basePath, "mschilde/osmium-tool", "/usr/bin/osmium", "export"),
+                command.subList(0, 13));
+    }
+
+    @Test
     void generateMultipolygonCopyScripts_createsOneSqlFilePerPart() throws IOException {
         File resultDir = tempDir.toFile();
         File multipolygonDir = new File(resultDir, "multipolygon");

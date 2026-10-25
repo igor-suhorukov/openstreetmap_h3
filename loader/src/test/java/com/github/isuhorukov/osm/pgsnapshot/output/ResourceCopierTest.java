@@ -164,4 +164,50 @@ class ResourceCopierTest {
         assertTrue(h3Poly.exists());
         assertTrue(h3Poly.length() > 0);
     }
+
+    @Test
+    void copiedScripts_sameBytesAsBefore() throws Exception {
+        File resultDir = prepareImportDirs();
+
+        ResourceCopier.copyOsmiumSettings(resultDir);
+        ResourceCopier.copyResources(resultDir, false);
+        ResourceCopier.copyImportScripts(resultDir, false);
+
+        assertEquals("c130cbc588a91ee414184f966eb77726", md5(resultDir, "static/osmium_export.json"));
+        assertEquals("7b176ddc00a0f7ce7683df246042a30b", md5(resultDir, "static/multipolygon.sql"));
+        assertEquals("680d35581dc024ff1006b22067a96c89", md5(resultDir, "static/h3_poly.tsv.gz"));
+        assertEquals("9fedc037e007e62e3d4f9808963904ec", md5(resultDir, "static/database_init.sql"));
+        assertEquals("5f2ffc1ccbdd46fe8869b4012a5828a9", md5(resultDir, "static/database_after_init.sql"));
+        assertEquals("fb2373ad05648aba31611f0ddeea25e7", md5(resultDir, "sql/ways_32767_import.sql"));
+        assertEquals("b01daaf3a801bd3e7fb1dac67c3a4294", md5(resultDir, "sql/relations_import.sql"));
+        assertEquals("c0d1759b0e0de9b05a297abb339472a0", md5(resultDir, "sql_finalize/ways_default_partition.sql"));
+        assertEquals("3ac6bb43232fa700f6a9c016c632a34c", md5(resultDir, "sql_finalize/nodes_analyze.sql"));
+        assertEquals("2b81dceb7d17a0156a1f6a0539b9a90f", md5(resultDir, "sql_finalize/multipolygon_import.sql"));
+    }
+
+    @Test
+    void scripts_sameTextAsCopiedFiles() throws Exception {
+        File resultDir = prepareImportDirs();
+        Set<String> tagKeys = Set.of("is.poi");
+
+        ResourceCopier.copyOsmiumSettings(resultDir);
+        ResourceCopier.copyResources(resultDir, true, tagKeys);
+        ResourceCopier.copyImportScripts(resultDir, true);
+
+        Path result = resultDir.toPath();
+        assertEquals(ResourceCopier.databaseInitScript(true), Files.readString(result.resolve("static/database_init.sql")));
+        assertEquals(ResourceCopier.multipolygonScript(true, tagKeys), Files.readString(result.resolve("static/multipolygon.sql")));
+        assertEquals(ResourceCopier.ways32767ImportScript(true), Files.readString(result.resolve("sql/ways_32767_import.sql")));
+        assertEquals(ResourceCopier.resource("/relations_import.sql"), Files.readString(result.resolve("sql/relations_import.sql")));
+        assertArrayEquals(ResourceCopier.resourceBytes("/osmium_export.json"), Files.readAllBytes(result.resolve("static/osmium_export.json")));
+    }
+
+    private static String md5(File resultDir, String path) throws Exception {
+        byte[] hash = java.security.MessageDigest.getInstance("MD5").digest(Files.readAllBytes(resultDir.toPath().resolve(path)));
+        StringBuilder hex = new StringBuilder();
+        for (byte b : hash) {
+            hex.append(String.format("%02x", b));
+        }
+        return hex.toString();
+    }
 }
