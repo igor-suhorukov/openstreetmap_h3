@@ -178,6 +178,25 @@ class PostgresqlUpdateTest {
     }
 
     @Test
+    void update_objectsMovedToH3CellEdge_cellsOfNodesAndGeodesicCellBounds() throws Exception {
+        assertEquals(0, load(pbf("edge_old", sample("/pipeline/h3_cell_edge_v1.osm"), 1, "2025-01-01T00:00:00Z"),
+                "osm_edge_update", "-updatable"));
+        assertEquals(0, load(pbf("edge_full", sample("/pipeline/h3_cell_edge.osm"), 2, "2025-02-01T00:00:00Z"),
+                "osm_edge_full", "-updatable"));
+
+        assertEquals(0, run(pbf("edge_new", sample("/pipeline/h3_cell_edge.osm"), 2, "2025-02-01T00:00:00Z"),
+                "osm_edge_update", "-update"));
+
+        assertEquals(content("osm_edge_full"), content("osm_edge_update"));
+        assertEquals("M401C R401C W301U", lastChangeLog("osm_edge_update"));
+        assertEquals("301 true {4481,4522},302 false null,311 false null", query("osm_edge_update",
+                "SELECT string_agg(id || ' ' || (tableoid = 'ways_32767'::regclass) || ' ' "
+                        + "|| coalesce(h3_3_multi_regions::text, 'null'), ',' ORDER BY id) FROM ways"));
+        assertEquals("401 4481 null", query("osm_edge_update", "SELECT string_agg(id || ' ' || h3_3 || ' ' "
+                + "|| coalesce(h3_3_multi_regions::text, 'null'), ',' ORDER BY id) FROM multipolygon"));
+    }
+
+    @Test
     void updatableLoad_versionColumnsIdIndexesAndPartitionsForAllRanges() throws Exception {
         assertEquals(0, load(version1("schema"), "osm_schema", "-updatable"));
 

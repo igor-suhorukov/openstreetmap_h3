@@ -312,6 +312,36 @@ class BlockProcessorTest {
     }
 
     @Test
+    void process_wayAcrossH3CellEdge_tsvRowHasDistinctSortedNodeCells() {
+        when(parameters.isSavePostgresqlTsv()).thenReturn(true);
+        WayNode inner = new WayNode(1L, 55.5111276, 37.5002127);
+        WayNode nearEdge = new WayNode(2L, 55.5086224, 37.5019616);
+        WayNode innerNext = new WayNode(3L, 55.512, 37.501);
+        Way crossing = createWay(1L, List.of(new Tag("highway", "primary")), List.of(inner, nearEdge, innerNext));
+        Way single = createWay(2L, List.of(new Tag("highway", "primary")), List.of(inner, innerNext));
+
+        BlockResult result = blockProcessor.process(List.of(new WayContainer(crossing), new WayContainer(single)),
+                1L, System.currentTimeMillis());
+
+        String[] crossingRow = result.getCsvResultPerH33().get(Short.MAX_VALUE).toString().split("\t", -1);
+        String[] singleRow = result.getCsvResultPerH33().get((short) 4522).toString().split("\t", -1);
+        assertEquals("1", crossingRow[2]);
+        assertEquals("{4481,4522}", crossingRow[12]);
+        assertEquals("2", singleRow[2]);
+        assertEquals("\\N", singleRow[12]);
+        assertEquals(14, crossingRow.length);
+    }
+
+    @Test
+    void distinctSorted_signedCells_sortedWithoutDuplicatesSourceUnchanged() {
+        short[] cells = {4522, -32001, 4481, 4522, -32001};
+
+        assertArrayEquals(new short[]{-32001, 4481, 4522}, BlockProcessor.distinctSorted(cells));
+        assertArrayEquals(new short[]{4522, -32001, 4481, 4522, -32001}, cells);
+        assertArrayEquals(new short[]{7}, BlockProcessor.distinctSorted(new short[]{7, 7}));
+    }
+
+    @Test
     void process_relation_collectOnlyStat_countedNotSerialized() {
         when(parameters.isCollectOnlyStat()).thenReturn(true);
 
@@ -447,7 +477,7 @@ class BlockProcessorTest {
         assertTrue(nodeCsv.endsWith("\\N\t3\n"), nodeCsv);
         assertEquals(6, nodeCsv.split("\t", -1).length, nodeCsv);
         assertTrue(wayCsv.endsWith("\\N\t1\t" + WayGeometry.geomHash(wayNodes) + "\n"), wayCsv);
-        assertEquals(15, wayCsv.split("\t", -1).length, wayCsv);
+        assertEquals(16, wayCsv.split("\t", -1).length, wayCsv);
         assertTrue(relationResult.getCsvResultPerH33().get((short) 0).toString()
                 .endsWith("\t1\n"), relationResult.getCsvResultPerH33().toString());
         assertEquals("3\t2\tW\t\"outer\"\t0\n", relationResult.getCsvResultPerH33().get((short) 1).toString());

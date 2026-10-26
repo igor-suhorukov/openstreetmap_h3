@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6" generator="openstreetmap_h3 test">
+  <node id="1" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test" lat="55.5111276" lon="37.5002127"/>
+  <node id="2" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test" lat="55.5086224" lon="37.5019616"/>
+  <node id="3" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test" lat="55.5120000" lon="37.5010000"/>
+  <node id="4" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test" lat="55.5130000" lon="37.5030000">
+    <tag k="amenity" v="bench"/>
+  </node>
+  <node id="11" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test" lat="55.5085200" lon="37.5017600"/>
+  <node id="12" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test" lat="55.5085200" lon="37.5021600"/>
+  <node id="13" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test" lat="55.5087200" lon="37.5021600"/>
+  <node id="14" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test" lat="55.5087200" lon="37.5017600"/>
+  <way id="301" version="2" timestamp="2025-02-01T00:00:00Z" changeset="2" uid="1" user="test">
+    <nd ref="1"/>
+    <nd ref="2"/>
+    <tag k="highway" v="primary"/>
+  </way>
+  <way id="302" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test">
+    <nd ref="3"/>
+    <nd ref="4"/>
+    <tag k="highway" v="service"/>
+  </way>
+  <way id="311" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test">
+    <nd ref="11"/>
+    <nd ref="12"/>
+    <nd ref="13"/>
+    <nd ref="14"/>
+    <nd ref="11"/>
+  </way>
+  <relation id="401" version="1" timestamp="2025-02-01T00:00:00Z" changeset="2" uid="1" user="test">
+    <member type="way" ref="311" role="outer"/>
+    <tag k="type" v="multipolygon"/>
+    <tag k="landuse" v="grass"/>
+  </relation>
+</osm>

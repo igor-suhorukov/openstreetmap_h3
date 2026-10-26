@@ -125,9 +125,15 @@ class PsqlScriptTest {
                 || statement.startsWith("create database")), sql.toString());
         assertTrue(commands.stream().anyMatch(command -> command.isMeta() && "i".equals(command.getMetaCommand())
                 && "/input/static/multipolygon_tables.sql".equals(command.getArgument())));
-        assertTrue(sql.stream().anyMatch(statement -> statement.startsWith("copy h3_3_bounds_complex")
+        assertTrue(sql.stream().anyMatch(statement -> statement.startsWith("copy h3_3_bounds_straight")
                 && statement.contains("PROGRAM $$ zcat /input/static/h3_poly.tsv.gz$$")));
-        assertEquals(5, sql.stream().filter(statement -> statement.startsWith("CREATE FUNCTION to_")).count());
+        assertTrue(sql.stream().anyMatch(statement -> statement.startsWith("CREATE FUNCTION pg_temp.h3_geodesic_bounds")
+                && statement.contains("ST_Segmentize(straight::geography, 5000)") && statement.contains("LANGUAGE plpgsql")
+                && statement.endsWith("RETURNS NULL ON NULL INPUT")), sql.toString());
+        assertTrue(sql.stream().anyMatch(statement -> statement.startsWith("insert into h3_3_bounds_complex")
+                && statement.contains("with geodesic as materialized (select id, h3_0, h3_1, h3_2, "
+                + "pg_temp.h3_geodesic_bounds(bounds) bounds from h3_3_bounds_straight)")), sql.toString());
+        assertEquals(5,sql.stream().filter(statement -> statement.startsWith("CREATE FUNCTION to_")).count());
         assertTrue(sql.stream().anyMatch(statement -> statement.startsWith("DO $$") && statement.endsWith("$$")));
         assertEquals("COMMIT", sql.get(sql.size() - 1));
     }

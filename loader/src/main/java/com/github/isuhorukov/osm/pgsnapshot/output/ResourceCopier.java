@@ -123,6 +123,7 @@ public class ResourceCopier {
     public static String ways32767ImportScript(boolean columnarStorage, boolean updatable) throws IOException {
         Map<String, String> substitutes = new LinkedHashMap<>();
         substitutes.put(SUBSTITUTE, columnarStorage ? "SELECT alter_table_set_access_method('ways_32767', 'columnar');" : "");
+        substitutes.put("${way_columns}", PartitionSplitter.wayColumns(updatable));
         substitutes.put("${way_version_columns}", updatable ? PartitionSplitter.WAY_VERSION_COLUMNS : "");
         substitutes.put("${way_version_not_null}", updatable
                 ? "\nalter table ways_32767 alter COLUMN version set NOT NULL;"

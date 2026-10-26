@@ -100,7 +100,7 @@ class PartitionSplitterTest {
         assertEquals(PartitionSplitter.NODE_COLUMNS, PartitionSplitter.nodeColumns(false));
         assertEquals("h3_3,h3_8,id,geom,tags,version", PartitionSplitter.nodeColumns(true));
         assertEquals(PartitionSplitter.WAY_COLUMNS, PartitionSplitter.wayColumns(false));
-        assertTrue(PartitionSplitter.wayColumns(true).endsWith(",h3_8_regions,tags,version,geom_hash"));
+        assertTrue(PartitionSplitter.wayColumns(true).endsWith(",h3_8_regions,h3_3_multi_regions,tags,version,geom_hash"));
         assertEquals("id,tags", PartitionSplitter.relationColumns(false));
         assertEquals("id,tags,version", PartitionSplitter.relationColumns(true));
     }
@@ -116,7 +116,7 @@ class PartitionSplitterTest {
         assertTrue(Files.readString(new File(resultDir, "sql/nodes_import_000.sql").toPath())
                 .contains("COPY \"nodes_000\"(h3_3,h3_8,id,geom,tags,version) FROM '/input/nodes/00001.tsv'"));
         assertTrue(Files.readString(new File(resultDir, "sql/ways_import_000.sql").toPath())
-                .contains("h3_8_regions,tags,version,geom_hash) FROM '/input/ways/00001.tsv'"));
+                .contains("h3_8_regions,h3_3_multi_regions,tags,version,geom_hash) FROM '/input/ways/00001.tsv'"));
     }
 
     @Test

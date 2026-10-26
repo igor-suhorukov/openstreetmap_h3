@@ -16,6 +16,7 @@ public final class WaySerializeData {
     private final int h38;
     private final long[] pointsIdx;
     private final Set<Integer> wayIntersectionH38Indexes;
+    private final short[] h33Regions;
     private final Point centre;
     private final float scaleDim;
     private final Polygon bboxGeometry;
@@ -32,6 +33,7 @@ public final class WaySerializeData {
         this.h38 = b.h38;
         this.pointsIdx = b.pointsIdx;
         this.wayIntersectionH38Indexes = b.wayIntersectionH38Indexes;
+        this.h33Regions = b.h33Regions;
         this.centre = b.centre;
         this.scaleDim = b.scaleDim;
         this.bboxGeometry = b.bboxGeometry;
@@ -49,6 +51,7 @@ public final class WaySerializeData {
         private int h38;
         private long[] pointsIdx;
         private Set<Integer> wayIntersectionH38Indexes;
+        private short[] h33Regions;
         private Point centre;
         private float scaleDim;
         private Polygon bboxGeometry;
@@ -64,6 +67,7 @@ public final class WaySerializeData {
         public Builder h38(int v)                                { h38 = v; return this; }
         public Builder pointsIdx(long[] v)                       { pointsIdx = v; return this; }
         public Builder wayIntersectionH38Indexes(Set<Integer> v) { wayIntersectionH38Indexes = v; return this; }
+        public Builder h33Regions(short[] v)                     { h33Regions = v; return this; }
         public Builder centre(Point v)                           { centre = v; return this; }
         public Builder scaleDim(float v)                         { scaleDim = v; return this; }
         public Builder bboxGeometry(Polygon v)                   { bboxGeometry = v; return this; }
@@ -82,6 +86,7 @@ public final class WaySerializeData {
     public int getH38()                                 { return h38; }
     public long[] getPointsIdx()                        { return pointsIdx; }
     public Set<Integer> getWayIntersectionH38Indexes()  { return wayIntersectionH38Indexes; }
+    public short[] getH33Regions()                      { return h33Regions; }
     public Point getCentre()                            { return centre; }
     public float getScaleDim()                          { return scaleDim; }
     public Polygon getBboxGeometry()                    { return bboxGeometry; }

@@ -14,17 +14,15 @@ DELETE FROM nodes n USING osm_delta_changes c WHERE c.object_type = 'N' AND c.op
 INSERT INTO nodes(${node_columns}) SELECT ${node_columns} FROM osm_delta_nodes;
 
 DELETE FROM ways w USING osm_delta_changes c WHERE c.object_type = 'W' AND c.operation <> 'C' AND w.id = c.id;
-INSERT INTO ways(${way_columns}) SELECT ${way_columns} FROM osm_delta_ways WHERE h3_3 <> 32767;
-CREATE TEMP TABLE osm_delta_ways_h3_3 ON COMMIT DROP AS
-SELECT id, array_agg(h3_3 ORDER BY h3_3) h3_3_multi_regions
-FROM (SELECT DISTINCT w.id, b.id h3_3 FROM osm_delta_ways w JOIN h3_3_bounds_complex b ON ST_Intersects(w.linestring, b.bounds)
-      WHERE w.h3_3 = 32767) a
-GROUP BY id;
-INSERT INTO ways(${way_columns},h3_3_multi_regions)
-SELECT ${way_columns}, CASE WHEN cardinality(h.h3_3_multi_regions) > 1 THEN h.h3_3_multi_regions
-    ELSE ARRAY(SELECT DISTINCT unnest((tags -> 'is.h33idxs')::smallint[]) ORDER BY 1)::smallint[] END
-FROM osm_delta_ways p JOIN osm_delta_ways_h3_3 h USING (id)
-WHERE p.h3_3 = 32767;
+UPDATE osm_delta_ways p SET h3_3_multi_regions = h.h3_3_multi_regions
+FROM (SELECT id, array_agg(h3_3 ORDER BY h3_3) h3_3_multi_regions
+      FROM (SELECT w.id, b.id h3_3 FROM osm_delta_ways w JOIN h3_3_bounds_complex b ON ST_Intersects(w.linestring, b.bounds)
+            WHERE w.h3_3 = 32767
+            UNION
+            SELECT w.id, unnest(w.h3_3_multi_regions) FROM osm_delta_ways w WHERE w.h3_3 = 32767) a
+      GROUP BY id) h
+WHERE p.id = h.id;
+INSERT INTO ways(${way_columns}) SELECT ${way_columns} FROM osm_delta_ways;
 
 DELETE FROM relation_members m USING osm_delta_changes c
 WHERE c.object_type = 'R' AND c.operation <> 'C' AND m.relation_id = c.id;

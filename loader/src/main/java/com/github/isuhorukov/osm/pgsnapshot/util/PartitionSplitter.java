@@ -20,7 +20,7 @@ public class PartitionSplitter {
     public static final String NODES = "nodes";
     public static final String WAYS = "ways";
     public static final String NODE_COLUMNS = "h3_3,h3_8,id,geom,tags";
-    public static final String WAY_COLUMNS = "h3_3,h3_8,id,closed,building,highway,scale,centre,bbox,linestring,points,h3_8_regions,tags";
+    public static final String WAY_COLUMNS = "h3_3,h3_8,id,closed,building,highway,scale,centre,bbox,linestring,points,h3_8_regions,h3_3_multi_regions,tags";
     public static final String RELATION_COLUMNS = "id,tags";
     public static final String VERSION_COLUMN = ",version";
     public static final String WAY_VERSION_COLUMNS = ",version,geom_hash";

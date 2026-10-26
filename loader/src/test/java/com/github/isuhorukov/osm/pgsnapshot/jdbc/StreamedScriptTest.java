@@ -34,7 +34,7 @@ class StreamedScriptTest {
 
         assertEquals("CREATE TABLE \"preimport_ways_32767\"  (like ways)", sql(script.getPrefix()).get(2));
         assertTrue(script.getCopySqlByInputPath().get("/input/ways/32767.tsv")
-                .startsWith("COPY \"preimport_ways_32767\"(h3_3,h3_8, id,closed,building,highway,scale,centre,bbox,linestring,points,h3_8_regions,tags) FROM STDIN"));
+                .startsWith("COPY \"preimport_ways_32767\"(h3_3,h3_8,id,closed,building,highway,scale,centre,bbox,linestring,points,h3_8_regions,h3_3_multi_regions,tags) FROM STDIN"));
         List<String> suffix = sql(script.getSuffix());
         assertTrue(suffix.get(0).startsWith("create table preimport_ways_large_h3_3"), suffix.get(0));
         assertEquals(List.of("drop table preimport_ways_32767", "COMMIT", "ANALYZE ways_32767"),
@@ -63,7 +63,7 @@ class StreamedScriptTest {
         StreamedScript script = StreamedScript.of(ResourceCopier.ways32767ImportScript(false, true));
 
         assertTrue(script.getCopySqlByInputPath().get("/input/ways/32767.tsv")
-                .contains("h3_8_regions,tags,version,geom_hash) FROM STDIN"));
+                .contains("h3_8_regions,h3_3_multi_regions,tags,version,geom_hash) FROM STDIN"));
         List<String> suffix = sql(script.getSuffix());
         assertTrue(suffix.contains("alter table ways_32767 alter COLUMN version set NOT NULL"), suffix.toString());
         assertTrue(suffix.contains("alter table ways_32767 alter COLUMN geom_hash set NOT NULL"), suffix.toString());

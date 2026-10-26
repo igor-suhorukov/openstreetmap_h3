@@ -99,9 +99,13 @@ class PostgresqlJdbcLoadTest {
     }
 
     private Path samplePbf(String directory) throws IOException, InterruptedException {
+        return pbf(directory, "/pipeline/sample.osm");
+    }
+
+    private Path pbf(String directory, String resource) throws IOException, InterruptedException {
         Path dir = Files.createDirectory(tempDir.resolve(directory));
         Path osm = dir.resolve("sample.osm");
-        try (InputStream sample = getClass().getResourceAsStream("/pipeline/sample.osm")) {
+        try (InputStream sample = getClass().getResourceAsStream(resource)) {
             Files.copy(Objects.requireNonNull(sample), osm);
         }
         Path pbf = dir.resolve("sample.osm.pbf");
@@ -189,6 +193,34 @@ class PostgresqlJdbcLoadTest {
         assertTrue(query("osm_jdbc_updatable", versionQueries.get(3)).startsWith("load sample.osm.pbf {\"extensions\": "
                 + "[{\"name\": \"test\", \"fingerprint\": \"value=v\""), query("osm_jdbc_updatable", versionQueries.get(3)));
         assertEquals("idx_nodes_id,idx_ways_id,pk_relations", query("osm_jdbc_updatable", versionQueries.get(4)));
+        assertNoLoaderConnections();
+    }
+
+    @Test
+    void run_objectsAtH3CellEdge_cellsOfNodesAndGeodesicCellBoundsInJdbcAndFileImport() throws Exception {
+        createDatabase("osm_edge_jdbc");
+        createDatabase("osm_edge_files");
+        Path jdbcPbf = pbf("edge_jdbc", "/pipeline/h3_cell_edge.osm");
+        Path filesPbf = pbf("edge_files", "/pipeline/h3_cell_edge.osm");
+
+        assertEquals(0, runJdbc(jdbcPbf, "osm_edge_jdbc"));
+        assertEquals(0, OsmPbfTransformation.run(new String[]{"-source_pbf", filesPbf.toString(), "-osmium_docker", "false",
+                "-worker_threads", "2", "-pg_script_count", "2"}));
+        try (Connection connection = DriverManager.getConnection(url("osm_edge_files"))) {
+            ResultDirectoryImport.importResultDirectory(connection, filesPbf.resolveSibling("sample_loc_ways").toFile());
+        }
+
+        for (String database : List.of("osm_edge_jdbc", "osm_edge_files")) {
+            assertEquals("301 true {4481,4522},302 false null,311 false null", query(database,
+                    "SELECT string_agg(id || ' ' || (tableoid = 'ways_32767'::regclass) || ' ' "
+                            + "|| coalesce(h3_3_multi_regions::text, 'null'), ',' ORDER BY id) FROM ways"), database);
+            assertEquals("401 4481 null", query(database, "SELECT string_agg(id || ' ' || h3_3 || ' ' "
+                    + "|| coalesce(h3_3_multi_regions::text, 'null'), ',' ORDER BY id) FROM multipolygon"), database);
+        }
+        assertEquals("4481", query("osm_edge_jdbc", "SELECT string_agg(id::text, ',') FROM h3_3_bounds_complex "
+                + "WHERE ST_Covers(bounds, ST_SetSRID(ST_MakePoint(37.5019616, 55.5086224), 4326))"));
+        assertEquals("0 0", query("osm_edge_jdbc", "SELECT count(*) FILTER (WHERE NOT ST_IsValid(bounds)) || ' ' "
+                + "|| count(*) FILTER (WHERE NOT ST_Covers(ST_MakePolygon(bbox), bounds)) FROM h3_3_bounds_complex"));
         assertNoLoaderConnections();
     }
 

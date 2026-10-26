@@ -178,9 +178,9 @@ class ResourceCopierTest {
         assertEquals("335ffb32390e0ac33d53874265bce6a7", md5(resultDir, "static/multipolygon.sql"));
         assertEquals("34ede1e42a6ff8efe6a05a8108c3a3ff", md5(resultDir, "static/multipolygon_insert.sql"));
         assertEquals("680d35581dc024ff1006b22067a96c89", md5(resultDir, "static/h3_poly.tsv.gz"));
-        assertEquals("9fedc037e007e62e3d4f9808963904ec", md5(resultDir, "static/database_init.sql"));
+        assertEquals("b64984f6c5d15c4fcc180faa03e08d44", md5(resultDir, "static/database_init.sql"));
         assertEquals("5f2ffc1ccbdd46fe8869b4012a5828a9", md5(resultDir, "static/database_after_init.sql"));
-        assertEquals("d7abff564b0fa593a0580fe2109c0af4", md5(resultDir, "sql/ways_32767_import.sql"));
+        assertEquals("70453ad3f7f0a5c34b5b628a8ce4509d", md5(resultDir, "sql/ways_32767_import.sql"));
         assertEquals("b01daaf3a801bd3e7fb1dac67c3a4294", md5(resultDir, "sql/relations_import.sql"));
         assertEquals("c0d1759b0e0de9b05a297abb339472a0", md5(resultDir, "sql_finalize/ways_default_partition.sql"));
         assertEquals("3ac6bb43232fa700f6a9c016c632a34c", md5(resultDir, "sql_finalize/nodes_analyze.sql"));
@@ -249,11 +249,13 @@ class ResourceCopierTest {
         assertTrue(relations.contains("PRIMARY KEY (relation_id, sequence_id);\n"
                 + "ALTER TABLE ONLY relations ADD CONSTRAINT pk_relations PRIMARY KEY (id) INCLUDE (version);\nCOMMIT;"), relations);
         String ways32767 = Files.readString(new File(sqlDir, "ways_32767_import.sql").toPath());
-        assertTrue(ways32767.contains("h3_8_regions,tags,version,geom_hash) FROM '/input/ways/32767.tsv'"));
-        assertTrue(ways32767.contains("END h3_3_multi_regions,version,geom_hash  from preimport_ways_32767 p"));
+        assertTrue(ways32767.contains("h3_8_regions,h3_3_multi_regions,tags,version,geom_hash) FROM '/input/ways/32767.tsv'"));
+        assertTrue(ways32767.contains("h3.h3_3_multi_regions,version,geom_hash  from preimport_ways_32767 p"));
         assertTrue(ways32767.contains("alter table ways_32767 alter COLUMN version set NOT NULL;\n"
                 + "alter table ways_32767 alter COLUMN geom_hash set NOT NULL;\n"));
         assertTrue(ways32767.contains("array_agg(h3_3 ORDER BY h3_3) h3_3_multi_regions"));
+        assertTrue(ways32767.contains("union select wl.id, unnest(wl.h3_3_multi_regions) from \"preimport_ways_32767\" wl"), ways32767);
+        assertFalse(ways32767.contains("is.h33idxs"), ways32767);
         File sqlFinalizeDir = new File(resultDir, ResultLayout.SQL_FINALIZE_DIR);
         String waysDefault = Files.readString(new File(sqlFinalizeDir, "ways_default_partition.sql").toPath());
         assertTrue(waysDefault.contains("DEFAULT;\nCREATE INDEX idx_ways_id ON ways (id) INCLUDE (version, geom_hash);\n"), waysDefault);
@@ -276,11 +278,16 @@ class ResourceCopierTest {
         String delta = ResourceCopier.updateScript(ResourceCopier.UPDATE_DELTA_SQL);
         assertTrue(delta.contains("COPY osm_delta_nodes(h3_3,h3_8,id,geom,tags,version) FROM '/input/delta/nodes.tsv'"));
         assertTrue(delta.contains("COPY osm_delta_ways(h3_3,h3_8,id,closed,building,highway,scale,centre,bbox,linestring,"
-                + "points,h3_8_regions,tags,version,geom_hash) FROM '/input/delta/ways.tsv'"));
+                + "points,h3_8_regions,h3_3_multi_regions,tags,version,geom_hash) FROM '/input/delta/ways.tsv'"));
         assertTrue(delta.contains("COPY osm_delta_relations(id,tags,version) FROM '/input/delta/relations.tsv'"));
         String apply = ResourceCopier.updateScript(ResourceCopier.UPDATE_APPLY_SQL);
         assertTrue(apply.startsWith("BEGIN;\n\nCOPY osm_import_state("), apply);
         assertFalse(apply.contains("\nCOMMIT;"));
+        assertTrue(apply.contains("SELECT w.id, unnest(w.h3_3_multi_regions) FROM osm_delta_ways w WHERE w.h3_3 = 32767"), apply);
+        assertTrue(apply.contains("INSERT INTO ways(h3_3,h3_8,id,closed,building,highway,scale,centre,bbox,linestring,points,"
+                + "h3_8_regions,h3_3_multi_regions,tags,version,geom_hash) SELECT h3_3,h3_8,id,closed,building,highway,scale,"
+                + "centre,bbox,linestring,points,h3_8_regions,h3_3_multi_regions,tags,version,geom_hash FROM osm_delta_ways;\n"), apply);
+        assertFalse(apply.contains("is.h33idxs"), apply);
         assertTrue(ResourceCopier.updateScript(ResourceCopier.UPDATE_MULTIPOLYGON_SQL).endsWith("COMMIT;\n"));
     }
 

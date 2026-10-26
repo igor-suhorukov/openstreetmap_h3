@@ -165,6 +165,7 @@ public class BlockProcessor {
         }
         boolean isInOneH33 = isInSingleH3Segment(h3Idxs);
         short h33 = isInOneH33 ? h3Idxs[0] : Short.MAX_VALUE;
+        short[] h33Regions = isInOneH33 ? null : distinctSorted(h3Idxs);
 
         Stat stat = wayStat.computeIfAbsent(h33, Stat::new);
         stat.incrementCount();
@@ -204,6 +205,7 @@ public class BlockProcessor {
                         .closed(geom.isClosed()).nonValid(geom.isNonValid()).h38(geom.getH38())
                         .pointsIdx(geom.getPointIdxs())
                         .wayIntersectionH38Indexes(geom.getWayIntersectionH38Indexes())
+                        .h33Regions(h33Regions)
                         .centre(geom.getCentre()).scaleDim(geom.getScaleDim())
                         .bboxGeometry(geom.getBboxGeometry()).lineString(geom.getLineString())
                         .tags(tags)
@@ -291,6 +293,18 @@ public class BlockProcessor {
                 .filter(RelationContainer.class::isInstance)
                 .map(ec -> ((RelationContainer) ec).getEntity())
                 .mapToLong(v -> v.getMembers().size()).sum();
+    }
+
+    static short[] distinctSorted(short[] values) {
+        short[] sorted = values.clone();
+        Arrays.sort(sorted);
+        int count = 0;
+        for (int i = 0; i < sorted.length; i++) {
+            if (i == 0 || sorted[i] != sorted[count - 1]) {
+                sorted[count++] = sorted[i];
+            }
+        }
+        return Arrays.copyOf(sorted, count);
     }
 
     private static boolean isInSingleH3Segment(short[] h3Idxs) {

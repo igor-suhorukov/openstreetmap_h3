@@ -74,11 +74,27 @@ public class Serializer {
         } else {
             csvString.append(HStoreFormatSerializer.NULL_STRING).append('\t');
         }
+        appendSmallintArray(csvString, w.getH33Regions());
         HStoreFormatSerializer.renderTags(tags, csvString);
         if (versions) {
             csvString.append('\t').append(w.getVersion()).append('\t').append(w.getGeomHash());
         }
         csvString.append("\n");
+    }
+
+    private static void appendSmallintArray(StringBuilder csvString, short[] values) {
+        if (values == null || values.length == 0) {
+            csvString.append(HStoreFormatSerializer.NULL_STRING).append('\t');
+            return;
+        }
+        csvString.append('{');
+        for (int i = 0; i < values.length; i++) {
+            if (i > 0) {
+                csvString.append(',');
+            }
+            csvString.append(values[i]);
+        }
+        csvString.append('}').append('\t');
     }
 
     public void serializeRelation(StringBuilder csvString, long id, Collection<Tag> tags) {

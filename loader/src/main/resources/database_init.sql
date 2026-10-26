@@ -77,7 +77,36 @@ CREATE UNLOGGED TABLE preimport_multipolygon(polygon geometry(MULTIPOLYGON,4326)
 
 
 create table h3_3_bounds_complex(id smallint, h3_0 smallint, h3_1 smallint, h3_2 smallint, bbox geometry(Geometry,4326), bounds geometry(Geometry,4326));
-copy h3_3_bounds_complex(id,h3_0,h3_1,h3_2,bbox,bounds) from PROGRAM $$ zcat /input/static/h3_poly.tsv.gz$$ DELIMITER E'\t' ESCAPE '\' NULL '\N' CSV;
+create temp table h3_3_bounds_straight(id smallint, h3_0 smallint, h3_1 smallint, h3_2 smallint, bbox geometry(Geometry,4326), bounds geometry(Geometry,4326)) on commit drop;
+copy h3_3_bounds_straight(id,h3_0,h3_1,h3_2,bbox,bounds) from PROGRAM $$ zcat /input/static/h3_poly.tsv.gz$$ DELIMITER E'\t' ESCAPE '\' NULL '\N' CSV;
+CREATE FUNCTION pg_temp.h3_geodesic_bounds(straight geometry) RETURNS geometry
+    AS $$
+DECLARE
+    geodesic geometry;
+BEGIN
+    IF ST_XMax(straight) - ST_XMin(straight) > 180 THEN
+        RETURN straight;
+    END IF;
+    geodesic := ST_Segmentize(straight::geography, 5000)::geometry;
+    IF ST_XMax(straight) >= 180 THEN
+        geodesic := ST_ShiftLongitude(geodesic);
+    ELSIF ST_XMin(straight) <= -180 THEN
+        geodesic := ST_Translate(ST_ShiftLongitude(geodesic), -360, 0);
+    END IF;
+    RETURN CASE WHEN ST_IsValid(geodesic) THEN geodesic ELSE straight END;
+END;
+$$
+    LANGUAGE plpgsql
+    IMMUTABLE
+    RETURNS NULL ON NULL INPUT;
+insert into h3_3_bounds_complex(id,h3_0,h3_1,h3_2,bbox,bounds)
+with geodesic as materialized (select id, h3_0, h3_1, h3_2, pg_temp.h3_geodesic_bounds(bounds) bounds from h3_3_bounds_straight)
+select id, h3_0, h3_1, h3_2,
+       ST_SetSRID(ST_MakeLine(ARRAY[ST_MakePoint(ST_XMin(bounds), ST_YMax(bounds)), ST_MakePoint(ST_XMax(bounds), ST_YMax(bounds)),
+                                    ST_MakePoint(ST_XMax(bounds), ST_YMin(bounds)), ST_MakePoint(ST_XMin(bounds), ST_YMin(bounds)),
+                                    ST_MakePoint(ST_XMin(bounds), ST_YMax(bounds))]), 4326),
+       bounds
+from geodesic;
 CREATE INDEX h3_3_bounds_bbox_complex_idx ON h3_3_bounds_complex USING gist (bbox);
 CREATE INDEX h3_3_bounds_bbox_complex_bounds_idx ON h3_3_bounds_complex USING gist (bounds);
 
