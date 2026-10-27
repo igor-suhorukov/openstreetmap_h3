@@ -507,6 +507,12 @@ then all `sql_finalize/*.sql` scripts in parallel (multipolygons, the default wa
 `static/database_after_init.sql`. Partitions are loaded with `COPY ... FREEZE`, so a fresh database needs no vacuum to
 freeze or mark pages all-visible. Rebuild the image after updating the loader. For a one-time import
 `-c wal_level=minimal -c max_wal_senders=0` lets `COPY` skip WAL for the tables created in the same transaction.
+
+Every load (here and with `-pg_jdbc_url`) creates the unique indexes `idx_nodes_id (id, h3_3)`,
+`idx_ways_id (id, h3_3)` and `idx_multipolygon_id_h3_3 (id, h3_3)`. A unique index of a partitioned table must contain
+the partition key, so PostgreSQL can't create `UNIQUE (id)`; a foreign key of another table references `(id, h3_3)`:
+`FOREIGN KEY (way_id, way_h3_3) REFERENCES ways (id, h3_3)`. The loader writes each object once, so `id` alone is
+unique as well.
 ```
 docker run --name postgis14-thailand --memory=12g --memory-swap=12g --memory-swappiness 0 --shm-size=1g -v /home/acc/dev/map/database/thailand:/var/lib/postgresql/data -v /home/acc/dev/map/thailand/thailand-latest_loc_ways:/input -e POSTGRES_PASSWORD=osmworld -e LD_LIBRARY_PATH=/usr/lib/jvm/java-11-openjdk-amd64/lib/server/ -d -p 5432:5432 -p 5005:5005 5d411c3be57f -c checkpoint_timeout='15 min' -c checkpoint_completion_target=0.9 -c shared_buffers='4096 MB' -c wal_buffers=-1 -c bgwriter_delay=200ms -c bgwriter_lru_maxpages=100 -c bgwriter_lru_multiplier=2.0 -c bgwriter_flush_after=0 -c max_wal_size='32768 MB' -c min_wal_size='16384 MB'
 
@@ -726,8 +732,8 @@ PGPASSWORD=osmworld java -jar loader/target/osm-to-pgsnapshot-schema-ng-1.0-SNAP
   `farmhash::Fingerprint64` (Guava `Hashing.farmHashFingerprint64()`) of the way node coordinates as PBF integers in
   1e-7 degree units: int32 latitude, int32 longitude, little-endian, in way order. It finds ways whose nodes moved
   without a new way version;
-- the covering indexes `idx_nodes_id (id) INCLUDE (version)`, `idx_ways_id (id) INCLUDE (version, geom_hash)` and the
-  primary key `pk_relations (id) INCLUDE (version)`;
+- `INCLUDE (version)` in the unique index `idx_nodes_id (id, h3_3)`, `INCLUDE (version, geom_hash)` in
+  `idx_ways_id (id, h3_3)`, and the primary key `pk_relations (id) INCLUDE (version)`;
 - empty `nodes` and `ways` partitions for every H3 range, so new objects anywhere in the region find their partition;
 - `osm_import_state`: one row per load or update with the source PBF name, the `osmosis_replication_*` fields of its
   header and the loader parameters that define the table content (`-scale_approx_calc`, `-skip_buildings`,
@@ -743,6 +749,10 @@ How `-update` works:
    when the database was loaded without `-updatable`, when the content parameters or the extension rules (for
    `poi-organicmaps` the SHA-256 of its rule files) differ from the stored ones, and when the PBF is older than the
    database by its replication sequence (or timestamp). The same PBF exits immediately without changes.
+   Foreign keys of other tables that reference `nodes`, `ways`, `relations`, `relation_members` or `multipolygon`
+   refuse the update before any work, with their list: the update deletes and inserts the changed rows, so a
+   referenced object that is deleted or moves to another H3 cell would fail its commit. Drop them before `-update`
+   and add them again after it.
 2. The ids, versions and line hashes of the database are read by binary `COPY` over the id indexes into sorted arrays
    (about 110 MB of heap for this PBF).
 3. The usual pass over `osmium add-locations-to-ways` skips unchanged objects before any geometry work and streams

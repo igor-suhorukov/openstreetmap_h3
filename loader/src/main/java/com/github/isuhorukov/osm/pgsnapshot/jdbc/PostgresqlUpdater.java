@@ -13,12 +13,14 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.sql.Array;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -41,6 +43,12 @@ public final class PostgresqlUpdater implements AutoCloseable {
     private static final String ESTIMATED_ROWS_SQL = "SELECT coalesce((SELECT sum(greatest(c.reltuples, 0)) FROM pg_inherits i "
             + "JOIN pg_class c ON c.oid = i.inhrelid WHERE i.inhparent = ?::regclass), "
             + "(SELECT greatest(reltuples, 0) FROM pg_class WHERE oid = ?::regclass))::bigint";
+    private static final String DEPENDENT_FOREIGN_KEYS_SQL = "WITH maintained AS (SELECT t.relid FROM unnest(?::text[]) n "
+            + "CROSS JOIN LATERAL pg_partition_tree(n::regclass) t UNION SELECT n::regclass FROM unnest(?::text[]) n) "
+            + "SELECT c.conrelid::regclass::text || ' (' || c.conname || ') -> ' || c.confrelid::regclass::text "
+            + "FROM pg_constraint c WHERE c.contype = 'f' AND c.conparentid = 0 "
+            + "AND c.confrelid IN (SELECT relid FROM maintained) AND c.conrelid NOT IN (SELECT relid FROM maintained) "
+            + "ORDER BY 1";
     private static final String RELATIONS = "relations";
     private static final List<MaintainedTable> MAINTAINED_TABLES = List.of(new MaintainedTable("nodes", 'N', "nodes"),
             new MaintainedTable("ways", 'W', "ways"), new MaintainedTable(RELATIONS, 'R', RELATIONS),
@@ -97,6 +105,7 @@ public final class PostgresqlUpdater implements AutoCloseable {
             upToDate = true;
             return;
         }
+        refuseIfDependentForeignKeys();
         inputFiles.add(PostgresqlLoader.IMPORT_STATE_PATH,
                 ImportState.tsv(ImportState.UPDATE, sourcePbfFile, replication, parametersJson));
         inputFiles.add(PostgresqlLoader.STATIC_DIRECTORY + ResourceCopier.MULTIPOLYGON_INSERT_SQL,
@@ -142,6 +151,26 @@ public final class PostgresqlUpdater implements AutoCloseable {
                 return new StoredState(new ReplicationHeader(timestamp != null ? timestamp.toInstant() : null,
                         storedSequence, resultSet.getString(3)), resultSet.getString(4));
             }
+        }
+    }
+
+    private void refuseIfDependentForeignKeys() throws SQLException {
+        String[] tables = MAINTAINED_TABLES.stream().map(table -> table.name).distinct().toArray(String[]::new);
+        List<String> foreignKeys = new ArrayList<>();
+        try (PreparedStatement statement = updateConnection.prepareStatement(DEPENDENT_FOREIGN_KEYS_SQL)) {
+            Array names = updateConnection.createArrayOf("text", tables);
+            statement.setArray(1, names);
+            statement.setArray(2, names);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    foreignKeys.add(resultSet.getString(1));
+                }
+            }
+        }
+        if (!foreignKeys.isEmpty()) {
+            throw new UpdateRefusedException("Foreign keys of other tables reference tables whose rows -update deletes "
+                    + "and inserts again: " + String.join(", ", foreignKeys)
+                    + ". Drop them, run -update, and add them again");
         }
     }
 

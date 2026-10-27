@@ -144,8 +144,17 @@ class PsqlScriptTest {
 
         assertEquals(List.of("SET application_name = 'psql sql_finalize/ways_default_partition.sql'", "\\timing on",
                 "ALTER TABLE  ways ATTACH PARTITION  \"ways_32767\" DEFAULT",
+                "CREATE UNIQUE INDEX idx_ways_id ON ways (id, h3_3)",
                 "GSET SELECT current_setting('server_version_num')::int >= 180000 AS analyze_only",
                 "\\if :analyze_only", "ANALYZE ONLY ways", "\\else", "ANALYZE ways", "\\endif"), commands);
+    }
+
+    @Test
+    void parse_nodesAnalyzeScript_uniqueIdIndexBeforeAnalyze() throws Exception {
+        List<String> commands = commands(ResourceCopier.nodesAnalyzeScript(false));
+
+        assertEquals("CREATE UNIQUE INDEX idx_nodes_id ON nodes (id, h3_3)", commands.get(2));
+        assertEquals("ANALYZE ONLY nodes", commands.get(5));
     }
 
     @Test
@@ -153,9 +162,9 @@ class PsqlScriptTest {
         List<String> ways = commands(ResourceCopier.waysDefaultPartitionScript(true));
         List<String> nodes = commands(ResourceCopier.nodesAnalyzeScript(true));
 
-        assertEquals("CREATE INDEX idx_ways_id ON ways (id) INCLUDE (version, geom_hash)", ways.get(3));
+        assertEquals("CREATE UNIQUE INDEX idx_ways_id ON ways (id, h3_3) INCLUDE (version, geom_hash)", ways.get(3));
         assertEquals("ALTER TABLE  ways ATTACH PARTITION  \"ways_32767\" DEFAULT", ways.get(2));
-        assertEquals("CREATE INDEX idx_nodes_id ON nodes (id) INCLUDE (version)", nodes.get(2));
+        assertEquals("CREATE UNIQUE INDEX idx_nodes_id ON nodes (id, h3_3) INCLUDE (version)", nodes.get(2));
         assertEquals("ANALYZE ONLY nodes", nodes.get(5));
     }
 

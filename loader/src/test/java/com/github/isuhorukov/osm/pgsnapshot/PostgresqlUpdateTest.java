@@ -1,9 +1,13 @@
 package com.github.isuhorukov.osm.pgsnapshot;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.slf4j.LoggerFactory;
 import org.testcontainers.DockerClientFactory;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
@@ -24,6 +28,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -206,6 +211,11 @@ class PostgresqlUpdateTest {
         assertEquals("idx_nodes_id,idx_ways_id,pk_relations", query("osm_schema",
                 "SELECT string_agg(relname, ',' ORDER BY relname) FROM pg_class "
                         + "WHERE relname IN ('idx_nodes_id', 'idx_ways_id', 'pk_relations')"));
+        assertEquals("CREATE UNIQUE INDEX idx_multipolygon_id_h3_3 ON ONLY public.multipolygon USING btree (id, h3_3) | "
+                        + "CREATE UNIQUE INDEX idx_nodes_id ON ONLY public.nodes USING btree (id, h3_3) INCLUDE (version) | "
+                        + "CREATE UNIQUE INDEX idx_ways_id ON ONLY public.ways USING btree (id, h3_3) INCLUDE (version, geom_hash)",
+                query("osm_schema", "SELECT string_agg(pg_get_indexdef(indexrelid), ' | ' ORDER BY indexrelid::regclass::text) "
+                        + "FROM pg_index WHERE indexrelid::regclass::text IN ('idx_multipolygon_id_h3_3', 'idx_nodes_id', 'idx_ways_id')"));
         String partitionCounts = "SELECT count(*) FILTER (WHERE inhparent = 'nodes'::regclass) || ' ' "
                 + "|| count(*) FILTER (WHERE inhparent = 'ways'::regclass AND inhrelid <> 'ways_32767'::regclass) || ' ' "
                 + "|| count(*) FILTER (WHERE inhparent = 'multipolygon'::regclass "
@@ -253,6 +263,39 @@ class PostgresqlUpdateTest {
 
         assertEquals(content, content("osm_refused"));
         assertEquals("1", query("osm_refused", "SELECT count(*)::text FROM osm_import_state"));
+    }
+
+    @Test
+    void update_foreignKeysToUpdatedTables_refusedWithTheirListBeforeApplying() throws Exception {
+        assertEquals(0, load(version2("fk_new"), "osm_fk", "-updatable"));
+        List<String> content = content("osm_fk");
+        execute("osm_fk", "CREATE TABLE reach_origin (origin_id int PRIMARY KEY, way_id bigint, osm_h3_3 smallint, "
+                + "CONSTRAINT origin_way_fk FOREIGN KEY (way_id, osm_h3_3) REFERENCES ways (id, h3_3) DEFERRABLE INITIALLY DEFERRED)");
+        execute("osm_fk", "INSERT INTO reach_origin SELECT row_number() OVER (ORDER BY id), id, h3_3 FROM ways");
+        execute("osm_fk", "CREATE TABLE reach_target (target_id int PRIMARY KEY, node_id bigint, osm_h3_3 smallint, "
+                + "CONSTRAINT target_node_fk FOREIGN KEY (node_id, osm_h3_3) REFERENCES nodes (id, h3_3))");
+        Path version3 = version3("fk_v3");
+        Logger console = (Logger) LoggerFactory.getLogger("com.github.isuhorukov.osm.pgsnapshot.console");
+        ListAppender<ILoggingEvent> messages = new ListAppender<>();
+        messages.start();
+        console.addAppender(messages);
+        try {
+            assertEquals(OsmPbfTransformation.UPDATE_REFUSED_EXIT_CODE, run(version3, "osm_fk", "-update"));
+        } finally {
+            console.detachAppender(messages);
+        }
+
+        String printed = messages.list.stream().map(ILoggingEvent::getFormattedMessage).collect(Collectors.joining("\n"));
+        assertTrue(printed.contains("reach_origin (origin_way_fk) -> ways, reach_target (target_node_fk) -> nodes"), printed);
+        assertEquals(content, content("osm_fk"));
+        assertEquals("1", query("osm_fk", "SELECT count(*)::text FROM osm_import_state"));
+        assertEquals("false", query("osm_fk", "SELECT (to_regclass('osm_delta_ways') IS NOT NULL)::text"));
+
+        execute("osm_fk", "DROP TABLE reach_origin, reach_target");
+        assertEquals(0, run(version3, "osm_fk", "-update"));
+
+        assertEquals("N11U", lastChangeLog("osm_fk"));
+        assertEquals("load,update", query("osm_fk", "SELECT string_agg(operation, ',' ORDER BY id) FROM osm_import_state"));
     }
 
     @Test

@@ -157,6 +157,12 @@ class PostgresqlJdbcLoadTest {
         for (String contentQuery : CONTENT_QUERIES) {
             assertEquals(query("osm_files", contentQuery), query("osm_jdbc", contentQuery), contentQuery);
         }
+        String uniqueIndexes = "SELECT string_agg(pg_get_indexdef(indexrelid), ' | ' ORDER BY indexrelid::regclass::text) "
+                + "FROM pg_index WHERE indexrelid::regclass::text IN ('idx_multipolygon_id_h3_3', 'idx_nodes_id', 'idx_ways_id')";
+        assertEquals("CREATE UNIQUE INDEX idx_multipolygon_id_h3_3 ON ONLY public.multipolygon USING btree (id, h3_3) | "
+                + "CREATE UNIQUE INDEX idx_nodes_id ON ONLY public.nodes USING btree (id, h3_3) | "
+                + "CREATE UNIQUE INDEX idx_ways_id ON ONLY public.ways USING btree (id, h3_3)", query("osm_jdbc", uniqueIndexes));
+        assertEquals(query("osm_jdbc", uniqueIndexes), query("osm_files", uniqueIndexes));
         assertNotEquals("0", query("osm_jdbc", "SELECT count(*)::text FROM nodes WHERE tags ? 'is.test'"));
         assertNotEquals("0", query("osm_jdbc", "SELECT count(*)::text FROM multipolygon WHERE tags ? 'is.test'"));
         assertNoLoaderConnections();

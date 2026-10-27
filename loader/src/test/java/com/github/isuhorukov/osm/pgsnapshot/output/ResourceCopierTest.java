@@ -59,6 +59,8 @@ class ResourceCopierTest {
         String multipolygon = Files.readString(new File(staticDir, "multipolygon.sql").toPath());
         assertFalse(multipolygon.contains("USING COLUMNAR"));
         assertFalse(multipolygon.contains("${substitute}"));
+        assertTrue(multipolygon.contains("\nCREATE UNIQUE INDEX idx_multipolygon_id_h3_3 ON multipolygon using btree(id,h3_3);\n"),
+                multipolygon);
 
         String afterInit = Files.readString(new File(staticDir, "database_after_init.sql").toPath());
         assertFalse(afterInit.contains("columnar"));
@@ -137,9 +139,12 @@ class ResourceCopierTest {
 
         File sqlFinalizeDir = new File(resultDir, ResultLayout.SQL_FINALIZE_DIR);
         String waysDefault = Files.readString(new File(sqlFinalizeDir, "ways_default_partition.sql").toPath());
-        assertTrue(waysDefault.contains("ALTER TABLE  ways ATTACH PARTITION  \"ways_32767\" DEFAULT;"));
+        assertTrue(waysDefault.contains("ALTER TABLE  ways ATTACH PARTITION  \"ways_32767\" DEFAULT;\n"
+                + "CREATE UNIQUE INDEX idx_ways_id ON ways (id, h3_3);\n"), waysDefault);
         assertTrue(waysDefault.contains("ANALYZE ONLY ways;"));
-        assertTrue(Files.readString(new File(sqlFinalizeDir, "nodes_analyze.sql").toPath()).contains("ANALYZE ONLY nodes;"));
+        String nodesAnalyze = Files.readString(new File(sqlFinalizeDir, "nodes_analyze.sql").toPath());
+        int nodesIndex = nodesAnalyze.indexOf("CREATE UNIQUE INDEX idx_nodes_id ON nodes (id, h3_3);");
+        assertTrue(nodesIndex >= 0 && nodesIndex < nodesAnalyze.indexOf("ANALYZE ONLY nodes;"), nodesAnalyze);
         assertTrue(Files.readString(new File(sqlFinalizeDir, "multipolygon_import.sql").toPath())
                 .contains("\\i /input/static/multipolygon.sql\nANALYZE multipolygon;"));
     }
@@ -175,15 +180,15 @@ class ResourceCopierTest {
         ResourceCopier.copyImportScripts(resultDir, false);
 
         assertEquals("c130cbc588a91ee414184f966eb77726", md5(resultDir, "static/osmium_export.json"));
-        assertEquals("335ffb32390e0ac33d53874265bce6a7", md5(resultDir, "static/multipolygon.sql"));
+        assertEquals("4c88c2c2f57396ccf0609e3eefb59708", md5(resultDir, "static/multipolygon.sql"));
         assertEquals("34ede1e42a6ff8efe6a05a8108c3a3ff", md5(resultDir, "static/multipolygon_insert.sql"));
         assertEquals("680d35581dc024ff1006b22067a96c89", md5(resultDir, "static/h3_poly.tsv.gz"));
         assertEquals("b64984f6c5d15c4fcc180faa03e08d44", md5(resultDir, "static/database_init.sql"));
         assertEquals("5f2ffc1ccbdd46fe8869b4012a5828a9", md5(resultDir, "static/database_after_init.sql"));
         assertEquals("70453ad3f7f0a5c34b5b628a8ce4509d", md5(resultDir, "sql/ways_32767_import.sql"));
         assertEquals("b01daaf3a801bd3e7fb1dac67c3a4294", md5(resultDir, "sql/relations_import.sql"));
-        assertEquals("c0d1759b0e0de9b05a297abb339472a0", md5(resultDir, "sql_finalize/ways_default_partition.sql"));
-        assertEquals("3ac6bb43232fa700f6a9c016c632a34c", md5(resultDir, "sql_finalize/nodes_analyze.sql"));
+        assertEquals("092c85628d8ca4beea6adce393bf7ba8", md5(resultDir, "sql_finalize/ways_default_partition.sql"));
+        assertEquals("127293d7bee38258b8d04a4d83b17365", md5(resultDir, "sql_finalize/nodes_analyze.sql"));
         assertEquals("2b81dceb7d17a0156a1f6a0539b9a90f", md5(resultDir, "sql_finalize/multipolygon_import.sql"));
     }
 
@@ -258,10 +263,11 @@ class ResourceCopierTest {
         assertFalse(ways32767.contains("is.h33idxs"), ways32767);
         File sqlFinalizeDir = new File(resultDir, ResultLayout.SQL_FINALIZE_DIR);
         String waysDefault = Files.readString(new File(sqlFinalizeDir, "ways_default_partition.sql").toPath());
-        assertTrue(waysDefault.contains("DEFAULT;\nCREATE INDEX idx_ways_id ON ways (id) INCLUDE (version, geom_hash);\n"), waysDefault);
+        assertTrue(waysDefault.contains("DEFAULT;\nCREATE UNIQUE INDEX idx_ways_id ON ways (id, h3_3) INCLUDE (version, geom_hash);\n"),
+                waysDefault);
         String nodesAnalyze = Files.readString(new File(sqlFinalizeDir, "nodes_analyze.sql").toPath());
-        assertTrue(nodesAnalyze.indexOf("CREATE INDEX idx_nodes_id ON nodes (id) INCLUDE (version);")
-                < nodesAnalyze.indexOf("ANALYZE ONLY nodes;"), nodesAnalyze);
+        int nodesIndex = nodesAnalyze.indexOf("CREATE UNIQUE INDEX idx_nodes_id ON nodes (id, h3_3) INCLUDE (version);");
+        assertTrue(nodesIndex >= 0 && nodesIndex < nodesAnalyze.indexOf("ANALYZE ONLY nodes;"), nodesAnalyze);
         for (File script : List.of(new File(sqlDir, "relations_import.sql"), new File(sqlDir, "ways_32767_import.sql"),
                 new File(sqlFinalizeDir, "ways_default_partition.sql"), new File(sqlFinalizeDir, "nodes_analyze.sql"))) {
             assertFalse(Files.readString(script.toPath()).contains("${"), script.getName());

@@ -320,7 +320,7 @@ public class OsmPbfTransformationTest {
         assertEquals("osmium_export.json 134\n" +
                         "multipolygon_tables.sql 385\n" +
                         "multipolygon_insert.sql 2059\n" +
-                        "multipolygon.sql 449\n" +
+                        "multipolygon.sql 456\n" +
                         "h3_poly.tsv.gz 3315290\n" +
                         "database_init.sql 12199\n" +
                         "database_after_init.sql 4876",
@@ -333,7 +333,7 @@ public class OsmPbfTransformationTest {
         assertEquals("osmium_export.json c130cbc588a91ee414184f966eb77726\n" +
                         "multipolygon_tables.sql 8dbbadafcf974eb26456198d118ba3c3\n" +
                         "multipolygon_insert.sql 34ede1e42a6ff8efe6a05a8108c3a3ff\n" +
-                        "multipolygon.sql 335ffb32390e0ac33d53874265bce6a7\n" +
+                        "multipolygon.sql 4c88c2c2f57396ccf0609e3eefb59708\n" +
                         "h3_poly.tsv.gz 680d35581dc024ff1006b22067a96c89\n" +
                         "database_init.sql b64984f6c5d15c4fcc180faa03e08d44\n" +
                         "database_after_init.sql 5f2ffc1ccbdd46fe8869b4012a5828a9",
@@ -364,8 +364,8 @@ public class OsmPbfTransformationTest {
                         map(file -> file.getName() + " " + fileMd5(file)).
                         sorted(Comparator.reverseOrder()).
                         collect(Collectors.joining("\n")));
-        assertEquals("ways_default_partition.sql c0d1759b0e0de9b05a297abb339472a0\n" +
-                        "nodes_analyze.sql 3ac6bb43232fa700f6a9c016c632a34c\n" +
+        assertEquals("ways_default_partition.sql 092c85628d8ca4beea6adce393bf7ba8\n" +
+                        "nodes_analyze.sql 127293d7bee38258b8d04a4d83b17365\n" +
                         "multipolygon_import.sql 2b81dceb7d17a0156a1f6a0539b9a90f",
                 Arrays.stream(Objects.requireNonNull(
                                 Arrays.stream(files).filter(file -> "sql_finalize".equals(file.getName())).

@@ -133,12 +133,13 @@ public class ResourceCopier {
 
     public static String waysDefaultPartitionScript(boolean updatable) throws IOException {
         return resourceWithSubstitutes("/" + WAYS_DEFAULT_PARTITION_SQL, Collections.singletonMap("${ways_id_index}",
-                updatable ? "\nCREATE INDEX idx_ways_id ON ways (id) INCLUDE (version, geom_hash);" : ""));
+                "\nCREATE UNIQUE INDEX idx_ways_id ON ways (id, h3_3)"
+                        + (updatable ? " INCLUDE (version, geom_hash)" : "") + ";"));
     }
 
     public static String nodesAnalyzeScript(boolean updatable) throws IOException {
         return resourceWithSubstitutes("/" + NODES_ANALYZE_SQL, Collections.singletonMap("${nodes_id_index}",
-                updatable ? "\nCREATE INDEX idx_nodes_id ON nodes (id) INCLUDE (version);" : ""));
+                "\nCREATE UNIQUE INDEX idx_nodes_id ON nodes (id, h3_3)" + (updatable ? " INCLUDE (version)" : "") + ";"));
     }
 
     public static String updateScript(String name) throws IOException {
