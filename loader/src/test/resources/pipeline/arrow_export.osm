@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6" generator="openstreetmap_h3 test">
+  <node id="1" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test" lat="4.1750" lon="73.5090"/>
+  <node id="2" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test" lat="4.1750" lon="73.5095"/>
+  <node id="3" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test" lat="4.1755" lon="73.5095"/>
+  <node id="4" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test" lat="4.1755" lon="73.5090"/>
+  <node id="5" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test" lat="4.1760" lon="73.5100"/>
+  <node id="6" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test" lat="4.1770" lon="73.5110"/>
+  <node id="7" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test" lat="4.1700" lon="73.5000"/>
+  <node id="8" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test" lat="4.1700" lon="73.5020"/>
+  <node id="9" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test" lat="4.1720" lon="73.5020"/>
+  <node id="10" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test" lat="4.1720" lon="73.5000"/>
+  <node id="11" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test" lat="4.1752" lon="73.5092">
+    <tag k="amenity" v="cafe"/>
+    <tag k="name" v="Cafe &quot;Reef&quot;"/>
+    <tag k="name:ru" v="Кафе Риф"/>
+    <tag k="note" v="a\b"/>
+    <tag k="description" v="x=>y, z"/>
+    <tag k="fixme" v=" "/>
+    <tag k="empty" v=""/>
+  </node>
+  <node id="12" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test" lat="4.1765" lon="73.5105">
+    <tag k="shop" v="supermarket"/>
+  </node>
+  <node id="13" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test" lat="4.1800" lon="73.5200"/>
+  <node id="14" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test" lat="10.0000" lon="80.0000"/>
+  <node id="15" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test" lat="4.1730" lon="73.5050"/>
+  <node id="16" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test" lat="4.1762" lon="73.5103"/>
+  <node id="17" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test" lat="4.1790" lon="73.5150"/>
+  <node id="18" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test" lat="55.5130000" lon="37.5030000">
+    <tag k="amenity" v="bench"/>
+  </node>
+  <node id="19" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test" lat="4.1650" lon="73.5000"/>
+  <node id="20" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test" lat="4.1650" lon="73.5120"/>
+  <node id="21" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test" lat="55.5111276" lon="37.5002127"/>
+  <node id="22" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test" lat="55.5086224" lon="37.5019616"/>
+  <way id="101" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test">
+    <nd ref="1"/>
+    <nd ref="2"/>
+    <nd ref="3"/>
+    <nd ref="4"/>
+    <nd ref="1"/>
+    <tag k="building" v="yes"/>
+  </way>
+  <way id="102" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test">
+    <nd ref="5"/>
+    <nd ref="6"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="Majeedhee Magu"/>
+    <tag k="name:ru" v="Маджидии Магу"/>
+  </way>
+  <way id="103" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test">
+    <nd ref="7"/>
+    <nd ref="8"/>
+    <nd ref="9"/>
+    <nd ref="10"/>
+    <nd ref="7"/>
+  </way>
+  <way id="104" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test">
+    <nd ref="13"/>
+    <nd ref="14"/>
+    <tag k="highway" v="primary"/>
+  </way>
+  <way id="105" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test">
+    <nd ref="15"/>
+    <tag k="Building" v="yes"/>
+  </way>
+  <way id="106" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test">
+    <nd ref="19"/>
+    <nd ref="20"/>
+    <tag k="highway" v="footway"/>
+  </way>
+  <way id="107" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test">
+    <nd ref="21"/>
+    <nd ref="22"/>
+    <tag k="highway" v="service"/>
+  </way>
+  <relation id="201" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test">
+    <member type="way" ref="103" role="outer"/>
+    <tag k="type" v="multipolygon"/>
+    <tag k="landuse" v="residential"/>
+    <tag k="amenity" v="school"/>
+    <tag k="name" v="School &quot;No 1&quot; \ back"/>
+    <tag k="name:ru" v="Школа"/>
+  </relation>
+  <relation id="202" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test">
+    <member type="node" ref="16" role="stop"/>
+    <member type="way" ref="102" role=""/>
+    <member type="relation" ref="201" role="sub"/>
+    <tag k="type" v="route"/>
+    <tag k="route" v="bus"/>
+  </relation>
+  <relation id="203" version="1" timestamp="2025-01-01T00:00:00Z" changeset="1" uid="1" user="test">
+    <tag k="type" v="site"/>
+    <tag k="name" v="Empty"/>
+  </relation>
+</osm>
