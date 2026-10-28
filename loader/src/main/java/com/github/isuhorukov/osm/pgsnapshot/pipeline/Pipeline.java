@@ -1,10 +1,13 @@
 package com.github.isuhorukov.osm.pgsnapshot.pipeline;
 
+import com.github.isuhorukov.osm.pgsnapshot.ArrowFormat;
 import com.github.isuhorukov.osm.pgsnapshot.CliParameters;
 import com.github.isuhorukov.osm.pgsnapshot.ExternalProcessing;
 import com.github.isuhorukov.osm.pgsnapshot.PipedProcess;
 import com.github.isuhorukov.osm.pgsnapshot.Splitter;
+import com.github.isuhorukov.osm.pgsnapshot.arrow.DuckDbParquetWriter;
 import com.github.isuhorukov.osm.pgsnapshot.arrow.NodeWayArrowWriter;
+import com.github.isuhorukov.osm.pgsnapshot.arrow.ParquetWriter;
 import com.github.isuhorukov.osm.pgsnapshot.arrow.RelationArrowWriter;
 import com.github.isuhorukov.osm.pgsnapshot.extension.TagExtension;
 import com.github.isuhorukov.osm.pgsnapshot.jdbc.PostgresqlLoader;
@@ -144,11 +147,12 @@ public class Pipeline {
         }
 
         long processingStartTime = System.currentTimeMillis();
-        try (MultipolygonExport multipolygonExport = MultipolygonExport.start(
-                () -> externalProcessing.exportMultipolygons(sourcePbfFile, resultDirectory, parameters.isSaveArrow()),
+        try (DuckDbParquetWriter parquetWriter = parameters.isSaveArrow() ? DuckDbParquetWriter.open() : null;
+             MultipolygonExport multipolygonExport = MultipolygonExport.start(
+                () -> externalProcessing.exportMultipolygons(sourcePbfFile, resultDirectory, parquetWriter),
                 exportMultipolygons && parameters.isParallelMultipolygonExport())) {
             ProcessedBlocks processedBlocks = processBlocksToFiles(externalProcessing, sourcePbfFile, resultDirectory,
-                    processingStartTime);
+                    arrowWriters(resultDirectory, parquetWriter), processingStartTime);
             long multipolygonCount = processedBlocks.multipolygonCount();
             long dataProcessingTime = System.currentTimeMillis() - processingStartTime;
             StatisticsWriter.printProcessingStatistics(processedBlocks.blockStatistics, processedBlocks.blockCount,
@@ -215,12 +219,21 @@ public class Pipeline {
         return Math.max(1, parameters.getWorkers()) * BLOCKS_IN_FLIGHT_PER_WORKER;
     }
 
+    private ArrowWriters arrowWriters(File resultDirectory, ParquetWriter parquetWriter) {
+        if (!parameters.isSaveArrow()) {
+            return null;
+        }
+        return new ArrowWriters(new File(resultDirectory, ResultLayout.ARROW_DIR), parameters.getArrowFormat(),
+                parquetWriter);
+    }
+
     private ProcessedBlocks processBlocksToFiles(ExternalProcessing externalProcessing, File sourcePbfFile,
-                                                 File resultDirectory, long processingStartTime)
+                                                 File resultDirectory, ArrowWriters arrowWriters,
+                                                 long processingStartTime)
             throws IOException, InterruptedException {
         ExecutorService saveExecutorService = getExecutorService(parameters.getWorkers());
         try {
-            return processBlocks(externalProcessing, sourcePbfFile, resultDirectory, new TsvBlockWriter(
+            return processBlocks(externalProcessing, sourcePbfFile, arrowWriters, new TsvBlockWriter(
                     saveExecutorService, resultDirectory, maxBlocksInFlight(), this::recordFailure), processingStartTime,
                     StoredVersions.NONE);
         } finally {
@@ -229,7 +242,7 @@ public class Pipeline {
     }
 
     private ProcessedBlocks processBlocks(ExternalProcessing externalProcessing, File sourcePbfFile,
-                                          File resultDirectory, OrderedBlockWriter blockWriter,
+                                          ArrowWriters arrowWriters, OrderedBlockWriter blockWriter,
                                           long processingStartTime, StoredVersions storedVersions)
             throws IOException, InterruptedException {
         final H3Core h3Core = H3Core.newInstance();
@@ -245,7 +258,7 @@ public class Pipeline {
                 parameters.isPreserveAllNodes())) {
             blockCount = Splitter.splitPbfByBlocks(addLocationsToWays.getInputStream(), (rawBlob, blockNumber) ->
                     submitBlock(executorService, blockWriter, blockNumber, () -> processBlock(rawBlob,
-                            blockNumber, blockProcessors, resultDirectory, blockStat, blockWriter)));
+                            blockNumber, blockProcessors, arrowWriters, blockStat, blockWriter)));
             addLocationsToWays.waitForSuccess();
             addLocationsToWaysTime = System.currentTimeMillis() - processingStartTime;
             executorService.shutdown();
@@ -302,7 +315,7 @@ public class Pipeline {
     }
 
     private void processBlock(RawBlob rawBlob, long blockNumber, ThreadLocal<BlockProcessor> blockProcessors,
-                              File resultDirectory, Map<Long, BlockStat> blockStat, OrderedBlockWriter blockWriter) {
+                              ArrowWriters arrowWriters, Map<Long, BlockStat> blockStat, OrderedBlockWriter blockWriter) {
         long threadStart = System.currentTimeMillis();
         if (blockNumber % 1000 == 0) {
             log.info("{}", blockNumber);
@@ -312,7 +325,7 @@ public class Pipeline {
             BlockResult result = decodeBlock(rawBlob, blockNumber, blockProcessors.get(), threadStart);
             blockStat.put(blockNumber, result.getBlockStat());
             if (!parameters.isCollectOnlyStat()) {
-                encodedBlock = persistBlock(result, resultDirectory);
+                encodedBlock = persistBlock(result, arrowWriters);
             }
             result.getBlockStat().setThreadTime(System.currentTimeMillis() - threadStart);
         } finally {
@@ -327,17 +340,11 @@ public class Pipeline {
         return blockListener.getResult();
     }
 
-    private EncodedBlock persistBlock(BlockResult result, File resultDirectory) {
+    private EncodedBlock persistBlock(BlockResult result, ArrowWriters arrowWriters) {
         BlockStat blockStatistic = result.getBlockStat();
-        if (parameters.isSaveArrow()) {
+        if (arrowWriters != null) {
             long startSaveTime = System.currentTimeMillis();
-            File arrowDir = new File(resultDirectory, ResultLayout.ARROW_DIR);
-            if (!result.getArrowNodeOrWays().isEmpty()) {
-                new NodeWayArrowWriter(arrowDir, parameters.getArrowFormat()).write(result.getArrowNodeOrWays(), blockStatistic.getId());
-            }
-            if (!result.getArrowRelations().isEmpty()) {
-                new RelationArrowWriter(arrowDir, parameters.getArrowFormat()).write(result.getArrowRelations(), blockStatistic.getId());
-            }
+            arrowWriters.write(result, blockStatistic.getId());
             blockStatistic.setSaveTime(System.currentTimeMillis() - startSaveTime);
         }
         if (!parameters.isSavePostgresqlTsv()) {
@@ -386,6 +393,25 @@ public class Pipeline {
             return Executors.newFixedThreadPool(workers);
         }
         return MoreExecutors.newDirectExecutorService();
+    }
+
+    private static final class ArrowWriters {
+        private final NodeWayArrowWriter nodeWayArrowWriter;
+        private final RelationArrowWriter relationArrowWriter;
+
+        private ArrowWriters(File arrowDirectory, ArrowFormat arrowFormat, ParquetWriter parquetWriter) {
+            nodeWayArrowWriter = new NodeWayArrowWriter(arrowDirectory, arrowFormat, parquetWriter);
+            relationArrowWriter = new RelationArrowWriter(arrowDirectory, arrowFormat, parquetWriter);
+        }
+
+        private void write(BlockResult result, long blockNumber) {
+            if (!result.getArrowNodeOrWays().isEmpty()) {
+                nodeWayArrowWriter.write(result.getArrowNodeOrWays(), blockNumber);
+            }
+            if (!result.getArrowRelations().isEmpty()) {
+                relationArrowWriter.write(result.getArrowRelations(), blockNumber);
+            }
+        }
     }
 
     private static final class ProcessedBlocks {

@@ -15,8 +15,8 @@ import java.util.List;
 
 public class NodeWayArrowWriter extends ArrowBatchWriter {
 
-    public NodeWayArrowWriter(File resultDir, ArrowFormat arrowFormat) {
-        super(resultDir, arrowFormat);
+    public NodeWayArrowWriter(File resultDir, ArrowFormat arrowFormat, ParquetWriter parquetWriter) {
+        super(resultDir, arrowFormat, parquetWriter);
     }
 
     public void write(List<ArrowNodeOrWay> arrowNodeOrWays, Long blockNumber) {

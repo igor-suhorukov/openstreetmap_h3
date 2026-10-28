@@ -1,8 +1,6 @@
 package com.github.isuhorukov.osm.pgsnapshot.arrow;
 
 import com.github.isuhorukov.osm.pgsnapshot.ArrowFormat;
-import org.apache.arrow.c.ArrowArrayStream;
-import org.apache.arrow.c.Data;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
@@ -12,29 +10,23 @@ import org.apache.arrow.vector.complex.impl.UnionMapWriter;
 import org.apache.arrow.vector.ipc.ArrowFileWriter;
 import org.apache.arrow.vector.ipc.ArrowReader;
 import org.apache.arrow.vector.types.pojo.Schema;
-import org.duckdb.DuckDBConnection;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.sql.DriverManager;
-import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.Map;
 
 public abstract class ArrowBatchWriter {
 
-    protected static final Logger log = LoggerFactory.getLogger(ArrowBatchWriter.class);
-
     protected final File resultDir;
     protected final ArrowFormat arrowFormat;
+    protected final ParquetWriter parquetWriter;
 
-    protected ArrowBatchWriter(File resultDir, ArrowFormat arrowFormat) {
+    protected ArrowBatchWriter(File resultDir, ArrowFormat arrowFormat, ParquetWriter parquetWriter) {
         this.resultDir = resultDir;
         this.arrowFormat = arrowFormat;
+        this.parquetWriter = parquetWriter;
     }
 
     protected static void writeTagsToArrow(BufferAllocator allocator, UnionMapWriter mapWriter, int idx, Map<String, String> tags) {
@@ -68,19 +60,9 @@ public abstract class ArrowBatchWriter {
         }
     }
 
-    // Output path is derived from server-controlled resultDirectory, not from external user input.
-    @SuppressWarnings("java:S2077")
-    protected static void saveParquet(File resultDirectory, BufferAllocator allocator, VectorSchemaRoot vectorSchemaRoot, String fileName) throws IOException, SQLException {
-        try (ArrowReader reader = RootArrowReader.fromRoot(allocator, vectorSchemaRoot);
-             var arrowArrayStream = ArrowArrayStream.allocateNew(allocator)) {
-            Data.exportArrayStream(allocator, reader, arrowArrayStream);
-            String filePath = new File(resultDirectory, fileName).getAbsolutePath();
-            try (DuckDBConnection connection = (DuckDBConnection) DriverManager.getConnection("jdbc:duckdb:")) {
-                connection.registerArrowStream("arrow_stream", arrowArrayStream);
-                try (Statement preparedStatement = connection.createStatement()) {
-                    preparedStatement.executeUpdate("COPY (SELECT * FROM arrow_stream) TO '" + filePath + ".parquet' (FORMAT 'PARQUET', CODEC 'ZSTD')");
-                }
-            }
+    private void saveParquet(BufferAllocator allocator, VectorSchemaRoot vectorSchemaRoot, String fileName) throws IOException {
+        try (ArrowReader reader = RootArrowReader.fromRoot(allocator, vectorSchemaRoot)) {
+            parquetWriter.write(allocator, reader, new File(resultDir, fileName + ".parquet"));
         }
     }
 
@@ -104,28 +86,22 @@ public abstract class ArrowBatchWriter {
         try (BufferAllocator allocator = new RootAllocator();
              VectorSchemaRoot root = VectorSchemaRoot.create(schema, allocator)) {
             writer.write(allocator, root);
-            dispatch(allocator, root, fileName, blockNumber);
+            dispatch(allocator, root, fileName);
         } catch (Exception e) {
-            log.error("block {}", blockNumber, e);
-            System.exit(-1);
+            throw new IllegalStateException("Writing Arrow block " + blockNumber + " failed", e);
         }
     }
 
-    protected void dispatch(BufferAllocator allocator, VectorSchemaRoot vectorSchemaRoot, String fileName, Long blockNumber) {
-        try {
-            switch (arrowFormat) {
-                case PARQUET:
-                    saveParquet(resultDir, allocator, vectorSchemaRoot, fileName);
-                    break;
-                case ARROW_IPC:
-                    saveArrowIPC(resultDir, vectorSchemaRoot, fileName);
-                    break;
-                default:
-                    throw new IllegalArgumentException(arrowFormat.name());
-            }
-        } catch (Exception e) {
-            log.error("block {}", blockNumber, e);
-            System.exit(-1);
+    protected void dispatch(BufferAllocator allocator, VectorSchemaRoot vectorSchemaRoot, String fileName) throws IOException {
+        switch (arrowFormat) {
+            case PARQUET:
+                saveParquet(allocator, vectorSchemaRoot, fileName);
+                break;
+            case ARROW_IPC:
+                saveArrowIPC(resultDir, vectorSchemaRoot, fileName);
+                break;
+            default:
+                throw new IllegalArgumentException(arrowFormat.name());
         }
     }
 }

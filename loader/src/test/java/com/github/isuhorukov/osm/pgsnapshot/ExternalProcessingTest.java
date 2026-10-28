@@ -1,5 +1,6 @@
 package com.github.isuhorukov.osm.pgsnapshot;
 
+import com.github.isuhorukov.osm.pgsnapshot.arrow.DuckDbParquetWriter;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -71,7 +72,9 @@ class ExternalProcessingTest {
                 "0103000020E6100000\tway\t7\t\"building\"=>\"yes\"\n" +
                         bigMultipolygonHex + "\trelation\t42\t\"landuse\"=>\"forest\"\n");
 
-        ExternalProcessing.transformMultipolygonToParquet(resultDir);
+        try (DuckDbParquetWriter parquetWriter = DuckDbParquetWriter.open()) {
+            ExternalProcessing.transformMultipolygonToParquet(resultDir, parquetWriter);
+        }
 
         try (Connection connection = DriverManager.getConnection("jdbc:duckdb:");
              Statement statement = connection.createStatement();

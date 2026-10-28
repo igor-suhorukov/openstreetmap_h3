@@ -18,8 +18,8 @@ import java.util.List;
 
 public class RelationArrowWriter extends ArrowBatchWriter {
 
-    public RelationArrowWriter(File resultDir, ArrowFormat arrowFormat) {
-        super(resultDir, arrowFormat);
+    public RelationArrowWriter(File resultDir, ArrowFormat arrowFormat, ParquetWriter parquetWriter) {
+        super(resultDir, arrowFormat, parquetWriter);
     }
 
     public void write(List<ArrowRelation> arrowRelations, Long blockNumber) {

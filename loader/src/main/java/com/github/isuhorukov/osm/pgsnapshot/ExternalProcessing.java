@@ -1,5 +1,6 @@
 package com.github.isuhorukov.osm.pgsnapshot;
 
+import com.github.isuhorukov.osm.pgsnapshot.arrow.DuckDbParquetWriter;
 import com.github.isuhorukov.osm.pgsnapshot.output.ResourceCopier;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
@@ -12,9 +13,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.charset.StandardCharsets;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -37,13 +35,13 @@ public class ExternalProcessing {
         this.invokeDockerCommand = invokeDockerCommand;
     }
 
-    public long exportMultipolygons(File sourcePbfFile, File resultDirectory, boolean saveArrow)
+    public long exportMultipolygons(File sourcePbfFile, File resultDirectory, DuckDbParquetWriter parquetWriter)
             throws IOException, InterruptedException {
         long osmiumExportStart = System.currentTimeMillis();
         executeMultipolygonExport(sourcePbfFile, resultDirectory.getName(), resultDirectory.getParent(),
                 getIndexType(sourcePbfFile));
-        if (saveArrow) {
-            transformMultipolygonToParquet(resultDirectory);
+        if (parquetWriter != null) {
+            transformMultipolygonToParquet(resultDirectory, parquetWriter);
         }
         return System.currentTimeMillis() - osmiumExportStart;
     }
@@ -69,23 +67,17 @@ public class ExternalProcessing {
         return splitTime;
     }
 
-    // Output path is derived from server-controlled resultDirectory, not from external user input.
-    @SuppressWarnings("java:S2077")
-    public static void transformMultipolygonToParquet(File resultDirectory) {
+    public static void transformMultipolygonToParquet(File resultDirectory, DuckDbParquetWriter parquetWriter)
+            throws IOException {
         String multipolygonSourceTsv = resultDirectory.getAbsolutePath() + MULTIPOLYGON_SOURCE_TSV;
-        try (Connection connection = DriverManager.getConnection("jdbc:duckdb:");
-             Statement statement = connection.createStatement()) {
-            statement.executeUpdate("COPY (SELECT  column2 id, from_hex(column0) wkb," +
-                    "'{'||replace(replace(column3,'\"=>\"','\":\"'),'\\\\','\\')||'}' tags_json FROM read_csv('"
-                    + multipolygonSourceTsv +
-                    "', HEADER=false, " +
-                    "columns=STRUCT_PACK(column0 := 'VARCHAR', column1 := 'VARCHAR', column2 := 'BIGINT', column3 := 'VARCHAR')," +
-                    "delim=E'\\t',escape=E'\\\\',quote='',AUTO_DETECT='false'," +
-                    csvLineSizeOptions(new File(multipolygonSourceTsv)) + ") where column1='relation') TO '"
-                    + resultDirectory.getAbsolutePath() + "/arrow/multipolygon.parquet' (FORMAT 'PARQUET', CODEC 'ZSTD')");
-        } catch (Exception ex) {
-            throw new IllegalStateException(ex);
-        }
+        parquetWriter.writeQuery("SELECT  column2 id, from_hex(column0) wkb," +
+                "'{'||replace(replace(column3,'\"=>\"','\":\"'),'\\\\','\\')||'}' tags_json FROM read_csv('"
+                + multipolygonSourceTsv +
+                "', HEADER=false, " +
+                "columns=STRUCT_PACK(column0 := 'VARCHAR', column1 := 'VARCHAR', column2 := 'BIGINT', column3 := 'VARCHAR')," +
+                "delim=E'\\t',escape=E'\\\\',quote='',AUTO_DETECT='false'," +
+                csvLineSizeOptions(new File(multipolygonSourceTsv)) + ") where column1='relation'",
+                new File(resultDirectory.getAbsolutePath() + "/arrow/multipolygon.parquet"));
     }
 
     static String csvLineSizeOptions(File tsvFile) throws IOException {
