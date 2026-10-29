@@ -3,6 +3,7 @@ package com.github.isuhorukov.osm.pgsnapshot.jdbc;
 import com.github.isuhorukov.osm.pgsnapshot.ExternalProcessing;
 import com.github.isuhorukov.osm.pgsnapshot.PipedProcess;
 import com.github.isuhorukov.osm.pgsnapshot.output.ResourceCopier;
+import com.github.isuhorukov.osm.pgsnapshot.pipeline.MultipolygonTags;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,11 +31,13 @@ final class MultipolygonSubset {
             PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------"));
 
     private final ExternalProcessing externalProcessing;
+    private final MultipolygonTags multipolygonTags;
     private final AtomicReference<PipedProcess> export = new AtomicReference<>();
     private volatile boolean cancelled;
 
-    MultipolygonSubset(ExternalProcessing externalProcessing) {
+    MultipolygonSubset(ExternalProcessing externalProcessing, MultipolygonTags multipolygonTags) {
         this.externalProcessing = externalProcessing;
+        this.multipolygonTags = multipolygonTags;
     }
 
     long copy(Connection connection, PsqlRunner runner, File sourcePbfFile)
@@ -55,7 +58,7 @@ final class MultipolygonSubset {
             try (PipedProcess subsetExport = externalProcessing.startMultipolygonExport(subset)) {
                 export.set(subsetExport);
                 checkCancelled();
-                rows = MultipolygonCopy.copyExport(connection, subsetExport);
+                rows = MultipolygonCopy.copyExport(connection, subsetExport, multipolygonTags);
             } finally {
                 export.set(null);
             }

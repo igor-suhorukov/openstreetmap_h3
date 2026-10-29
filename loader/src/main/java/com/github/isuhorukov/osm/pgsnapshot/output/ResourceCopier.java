@@ -5,12 +5,9 @@ import org.apache.commons.io.IOUtils;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 public class ResourceCopier {
 
@@ -45,20 +42,15 @@ public class ResourceCopier {
     }
 
     public static void copyResources(File resultDir, boolean columnarStorage) throws IOException {
-        copyResources(resultDir, columnarStorage, Collections.emptySet());
+        copyResources(resultDir, columnarStorage, false);
     }
 
-    public static void copyResources(File resultDir, boolean columnarStorage, Set<String> multipolygonTagKeys) throws IOException {
-        copyResources(resultDir, columnarStorage, false, multipolygonTagKeys);
-    }
-
-    public static void copyResources(File resultDir, boolean columnarStorage, boolean updatable,
-                                     Set<String> multipolygonTagKeys) throws IOException {
+    public static void copyResources(File resultDir, boolean columnarStorage, boolean updatable) throws IOException {
         File staticDir = new File(resultDir, ResultLayout.STATIC_DIR);
         copyResource("/" + H3_POLY_TSV_GZ, new File(staticDir, H3_POLY_TSV_GZ));
         write(new File(staticDir, DATABASE_INIT_SQL), databaseInitScript(columnarStorage, updatable));
         write(new File(staticDir, MULTIPOLYGON_SQL), multipolygonScript(columnarStorage));
-        write(new File(staticDir, MULTIPOLYGON_INSERT_SQL), multipolygonInsertScript(multipolygonTagKeys));
+        write(new File(staticDir, MULTIPOLYGON_INSERT_SQL), multipolygonInsertScript());
         write(new File(staticDir, DATABASE_AFTER_INIT_SQL), databaseAfterInitScript(updatable));
     }
 
@@ -98,14 +90,8 @@ public class ResourceCopier {
                 Collections.singletonMap(SUBSTITUTE, columnarStorage ? "USING COLUMNAR" : ""));
     }
 
-    public static String multipolygonInsertScript(Set<String> multipolygonTagKeys) throws IOException {
-        Map<String, String> multipolygonSubstitutes = new LinkedHashMap<>();
-        multipolygonSubstitutes.put("${multipolygon_tags}", multipolygonTagKeys.isEmpty()
-                ? "tags" : "coalesce(p.tags || r.extension_tags, p.tags) tags");
-        multipolygonSubstitutes.put("${multipolygon_tags_join}", multipolygonTagKeys.isEmpty()
-                ? "" : " left join (select id, slice(tags, " + sqlTextArray(multipolygonTagKeys) + ") extension_tags"
-                + " from relations where tags ?| " + sqlTextArray(multipolygonTagKeys) + ") r on r.id=p.id");
-        return resourceWithSubstitutes("/" + MULTIPOLYGON_INSERT_SQL, multipolygonSubstitutes);
+    public static String multipolygonInsertScript() throws IOException {
+        return resource("/" + MULTIPOLYGON_INSERT_SQL);
     }
 
     public static String relationsImportScript(boolean updatable) throws IOException {
@@ -195,10 +181,5 @@ public class ResourceCopier {
         try (OutputStream outputStream = new FileOutputStream(destination)) {
             IOUtils.write(content, outputStream, StandardCharsets.UTF_8);
         }
-    }
-
-    private static String sqlTextArray(Collection<String> values) {
-        return values.stream().map(value -> "'" + value.replace("'", "''") + "'")
-                .collect(Collectors.joining(",", "ARRAY[", "]"));
     }
 }

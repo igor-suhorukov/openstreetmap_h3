@@ -18,7 +18,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.StringTokenizer;
 import java.util.stream.Collectors;
 
 public class ExternalProcessing {
@@ -32,13 +31,6 @@ public class ExternalProcessing {
 
     public ExternalProcessing(boolean invokeDockerCommand) {
         this.invokeDockerCommand = invokeDockerCommand;
-    }
-
-    public long exportMultipolygons(File sourcePbfFile, File resultDirectory) throws IOException, InterruptedException {
-        long osmiumExportStart = System.currentTimeMillis();
-        executeMultipolygonExport(sourcePbfFile, resultDirectory.getName(), resultDirectory.getParent(),
-                getIndexType(sourcePbfFile));
-        return System.currentTimeMillis() - osmiumExportStart;
     }
 
     public long splitMultipolygonsAndWriteScripts(File resultDirectory, int scriptCount, long multipolygonCount)
@@ -96,17 +88,6 @@ public class ExternalProcessing {
             }
         }
         return Math.max(longest, current);
-    }
-
-    public void executeMultipolygonExport(File sourcePbfFile, String resultDirName, String basePath,
-                                          String indexType) throws IOException, InterruptedException {
-        String multipolygonCommand = (invokeDockerCommand ?
-                ("docker run -w " + basePath + " -v " + basePath + ":" + basePath +
-                        " mschilde/osmium-tool ") : "") + "/usr/bin/osmium export  -e --config=" + resultDirName +
-                "/static/osmium_export.json --fsync -i " + indexType +
-                " --geometry-types polygon  -v -f pg -x tags_type=hstore " + sourcePbfFile.getName() +
-                " -o " + (resultDirName + MULTIPOLYGON_SOURCE_TSV);
-        runCliCommand(multipolygonCommand, basePath);
     }
 
     static void generateMultipolygonCopyScripts(String resultDirFullPath) throws IOException {
@@ -196,19 +177,6 @@ public class ExternalProcessing {
         long sourceFileLength = sourcePbfFile.length();
         long maxMemory = Runtime.getRuntime().maxMemory();
         return sourceFileLength > maxMemory ? "dense_file_array" : "sparse_mem_array";
-    }
-
-    private static void runCliCommand(String command, String basePath) throws IOException, InterruptedException {
-        runProcess(Runtime.getRuntime().exec(commandArray(command), new String[0], new File(basePath)), command);
-    }
-
-    private static String[] commandArray(String command) {
-        StringTokenizer tokenizer = new StringTokenizer(command);
-        String[] commandArray = new String[tokenizer.countTokens()];
-        for (int i = 0; tokenizer.hasMoreTokens(); i++) {
-            commandArray[i] = tokenizer.nextToken();
-        }
-        return commandArray;
     }
 
     static void runProcess(Process process, String commandDescription) throws IOException, InterruptedException {

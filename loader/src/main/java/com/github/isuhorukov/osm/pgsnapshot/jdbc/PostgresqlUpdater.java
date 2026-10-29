@@ -7,6 +7,7 @@ import com.github.isuhorukov.osm.pgsnapshot.output.ImportState;
 import com.github.isuhorukov.osm.pgsnapshot.output.OrderedBlockWriter;
 import com.github.isuhorukov.osm.pgsnapshot.output.ResourceCopier;
 import com.github.isuhorukov.osm.pgsnapshot.pbfextractor.ReplicationHeader;
+import com.github.isuhorukov.osm.pgsnapshot.pipeline.MultipolygonTags;
 import com.github.isuhorukov.osm.pgsnapshot.pipeline.StoredVersions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,7 +26,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Consumer;
 
 public final class PostgresqlUpdater implements AutoCloseable {
@@ -65,21 +65,22 @@ public final class PostgresqlUpdater implements AutoCloseable {
     private boolean upToDate;
     private boolean completed;
 
-    private PostgresqlUpdater(CliParameters parameters, OpenedConnections connections, ExternalProcessing externalProcessing) {
+    private PostgresqlUpdater(CliParameters parameters, OpenedConnections connections, ExternalProcessing externalProcessing,
+                              MultipolygonTags multipolygonTags) {
         this.parameters = parameters;
         this.connections = connections;
-        this.multipolygonSubset = new MultipolygonSubset(externalProcessing);
+        this.multipolygonSubset = new MultipolygonSubset(externalProcessing, multipolygonTags);
     }
 
     public static PostgresqlUpdater start(CliParameters parameters, File sourcePbfFile, List<TagExtension> tagExtensions,
-                                          Set<String> multipolygonTagKeys, ExternalProcessing externalProcessing,
+                                          MultipolygonTags multipolygonTags, ExternalProcessing externalProcessing,
                                           Consumer<Throwable> failureListener)
             throws IOException, SQLException, InterruptedException {
         OpenedConnections connections = new OpenedConnections(
                 new PostgresqlConnections(parameters.getPostgresqlJdbcUrl(), System.getenv()));
-        PostgresqlUpdater updater = new PostgresqlUpdater(parameters, connections, externalProcessing);
+        PostgresqlUpdater updater = new PostgresqlUpdater(parameters, connections, externalProcessing, multipolygonTags);
         try {
-            updater.prepare(sourcePbfFile, tagExtensions, multipolygonTagKeys, failureListener);
+            updater.prepare(sourcePbfFile, tagExtensions, failureListener);
         } catch (IOException | SQLException | InterruptedException | RuntimeException e) {
             updater.close();
             throw e;
@@ -87,8 +88,8 @@ public final class PostgresqlUpdater implements AutoCloseable {
         return updater;
     }
 
-    private void prepare(File sourcePbfFile, List<TagExtension> tagExtensions, Set<String> multipolygonTagKeys,
-                         Consumer<Throwable> failureListener) throws IOException, SQLException, InterruptedException {
+    private void prepare(File sourcePbfFile, List<TagExtension> tagExtensions, Consumer<Throwable> failureListener)
+            throws IOException, SQLException, InterruptedException {
         updateConnection = connections.open("update");
         lock();
         StoredState stored = storedState();
@@ -109,7 +110,7 @@ public final class PostgresqlUpdater implements AutoCloseable {
         inputFiles.add(PostgresqlLoader.IMPORT_STATE_PATH,
                 ImportState.tsv(ImportState.UPDATE, sourcePbfFile, replication, parametersJson));
         inputFiles.add(PostgresqlLoader.STATIC_DIRECTORY + ResourceCopier.MULTIPOLYGON_INSERT_SQL,
-                ResourceCopier.multipolygonInsertScript(multipolygonTagKeys));
+                ResourceCopier.multipolygonInsertScript());
         new PsqlRunner(inputFiles).run(updateConnection, ResourceCopier.updateScript(ResourceCopier.UPDATE_PREPARE_SQL));
         catalog = VersionCatalog.read(connections);
         StreamedScript deltaScript = StreamedScript.of(ResourceCopier.updateScript(ResourceCopier.UPDATE_DELTA_SQL));

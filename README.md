@@ -166,6 +166,8 @@ Extensions add tags to nodes, ways and relations. An extension implements
 `com.github.isuhorukov.osm.pgsnapshot.extension.TagExtension` from the `extension-api` module and is registered in
 `META-INF/services/com.github.isuhorukov.osm.pgsnapshot.extension.TagExtension` of its jar. The loader finds extension jars
 on `loader.path`, an extension also adds its own command line options. Without extension jars the loader works as before.
+Tags with keys from `multipolygonTagKeys()` are added to multipolygons as well: the loader passes the extension a relation
+with the tags of the multipolygon from the osmium export (osmium drops the `type` tag) in every output mode.
 ``` bash
 java -Dloader.path=poi-organicmaps/target/osm-to-pgsnapshot-poi-organicmaps-1.0-SNAPSHOT.jar \
      -jar loader/target/osm-to-pgsnapshot-schema-ng-1.0-SNAPSHOT.jar -source_pbf thailand-latest.osm.pbf \
@@ -180,7 +182,7 @@ as for any invalid command line.
 With `-poi_mapping_dir /path/to/organicmaps/data` (a checkout of [Organic Maps](https://github.com/organicmaps/organicmaps))
 nodes, ways and relations that Organic Maps treats as POI get two additional tags with PostgreSQL array values:
 `is.poi` with Organic Maps types and `is.poi_category` with categories displayed in its search.
-Multipolygons take these tags from their relations.
+Multipolygons get these tags too, also in `-arrow_format` files.
 ```
 "amenity"=>"cafe", "shop"=>"bakery", "is.poi"=>"{amenity-cafe,shop-bakery}", "is.poi_category"=>"{category_eat,category_food}"
 ```

@@ -29,8 +29,11 @@ import org.openstreetmap.osmosis.pbf2.v0_6.impl.RawBlob;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.sql.SQLException;
 import java.util.*;
@@ -46,9 +49,11 @@ public class Pipeline {
 
     private static final Logger log = LoggerFactory.getLogger(Pipeline.class);
     private static final int BLOCKS_IN_FLIGHT_PER_WORKER = 4;
+    private static final int MULTIPOLYGON_OUTPUT_BUFFER = 1 << 16;
 
     private final CliParameters parameters;
     private final List<TagExtension> tagExtensions;
+    private final MultipolygonTags multipolygonTags;
     private final AtomicReference<Throwable> failure = new AtomicReference<>();
 
     public Pipeline(CliParameters parameters) {
@@ -58,6 +63,7 @@ public class Pipeline {
     public Pipeline(CliParameters parameters, List<TagExtension> tagExtensions) {
         this.parameters = parameters;
         this.tagExtensions = List.copyOf(tagExtensions);
+        this.multipolygonTags = MultipolygonTags.of(this.tagExtensions);
     }
 
     public void run() throws IOException, InterruptedException {
@@ -83,7 +89,7 @@ public class Pipeline {
     private void updatePostgresql(ExternalProcessing externalProcessing, File sourcePbfFile, long commandStartTime)
             throws IOException, InterruptedException {
         try (PostgresqlUpdater updater = PostgresqlUpdater.start(parameters, sourcePbfFile, tagExtensions,
-                multipolygonTagKeys(), externalProcessing, this::recordFailure)) {
+                multipolygonTags, externalProcessing, this::recordFailure)) {
             if (updater.isUpToDate()) {
                 return;
             }
@@ -110,7 +116,7 @@ public class Pipeline {
     private void loadPostgresql(ExternalProcessing externalProcessing, File sourcePbfFile, long commandStartTime)
             throws IOException, InterruptedException {
         try (PostgresqlLoader loader = PostgresqlLoader.start(parameters, sourcePbfFile, tagExtensions,
-                multipolygonTagKeys(), this::recordFailure)) {
+                multipolygonTags, this::recordFailure)) {
             if (parameters.isUpdatable()) {
                 loader.addImportState(importState(sourcePbfFile));
             }
@@ -222,12 +228,24 @@ public class Pipeline {
                                      DuckDbParquetWriter parquetWriter, PartitionFiles partitionFiles)
             throws IOException, InterruptedException {
         long start = System.currentTimeMillis();
-        externalProcessing.exportMultipolygons(sourcePbfFile, resultDirectory);
+        writeMultipolygonSource(externalProcessing, sourcePbfFile,
+                new File(resultDirectory, ExternalProcessing.MULTIPOLYGON_SOURCE_TSV));
         if (partitionFiles != null) {
             parquetWriter.scan(ExternalProcessing.multipolygonQuery(resultDirectory), partitionFiles::spillMultipolygons);
             partitionFiles.writeMultipolygons();
         }
         return System.currentTimeMillis() - start;
+    }
+
+    private void writeMultipolygonSource(ExternalProcessing externalProcessing, File sourcePbfFile, File multipolygonSource)
+            throws IOException, InterruptedException {
+        try (PipedProcess export = externalProcessing.startMultipolygonExport(sourcePbfFile);
+             OutputStream output = new BufferedOutputStream(new FileOutputStream(multipolygonSource),
+                     MULTIPOLYGON_OUTPUT_BUFFER)) {
+            long rows = MultipolygonRows.copyRelations(export.getInputStream(), output::write, multipolygonTags);
+            export.waitForSuccess();
+            log.info("{} multipolygon relations written to {}", rows, multipolygonSource);
+        }
     }
 
     private void writePartitionFiles(PartitionFiles partitionFiles) throws IOException, InterruptedException {
@@ -258,22 +276,13 @@ public class Pipeline {
 
         ResourceCopier.copyOsmiumSettings(resultDirectory);
         if (parameters.isSavePostgresqlTsv()) {
-            ResourceCopier.copyResources(resultDirectory, parameters.isColumnarStorage(), parameters.isUpdatable(),
-                    multipolygonTagKeys());
+            ResourceCopier.copyResources(resultDirectory, parameters.isColumnarStorage(), parameters.isUpdatable());
             DirectoryPostgresqlResources postgresqlResources = new DirectoryPostgresqlResources(resultDirectory);
             for (TagExtension tagExtension : tagExtensions) {
                 tagExtension.writePostgresqlResources(postgresqlResources);
             }
         }
         return resultDirectory;
-    }
-
-    private Set<String> multipolygonTagKeys() {
-        Set<String> multipolygonTagKeys = new TreeSet<>();
-        for (TagExtension tagExtension : tagExtensions) {
-            multipolygonTagKeys.addAll(tagExtension.multipolygonTagKeys());
-        }
-        return multipolygonTagKeys;
     }
 
     private int maxBlocksInFlight() {

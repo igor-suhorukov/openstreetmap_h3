@@ -79,6 +79,7 @@ class PipelineOsmiumTest {
         assertTrue(content(result.resolve("ways")).contains("Majeedhee Magu"));
         assertTrue(content(result.resolve("relations")).contains("is.test\\\"=>\\\"v-Relation"));
         assertTrue(content(result.resolve("multipolygon")).contains("201"));
+        assertTrue(content(result.resolve("multipolygon")).contains("\"is.test\"=>\"v-Relation\""));
         assertTrue(fileNames(result.resolve("sql")).containsAll(List.of("nodes_import_000.sql", "ways_import_000.sql",
                 "y_multipoly_aa.sql", "relations_import.sql", "ways_32767_import.sql")));
         assertEquals(List.of("multipolygon_import.sql", "nodes_analyze.sql", "ways_default_partition.sql"),
@@ -86,7 +87,7 @@ class PipelineOsmiumTest {
         assertTrue(content(result.resolve("sql")).contains("CSV FREEZE;"));
         assertTrue(fileNames(result.resolve("static")).containsAll(List.of("database_init.sql",
                 "database_after_init.sql", "multipolygon.sql", "multipolygon_tables.sql", "h3_poly.tsv.gz")));
-        assertTrue(content(result.resolve("static")).contains("extension_tags from relations"));
+        assertFalse(content(result.resolve("static")).contains("from relations"));
         assertEquals(List.of("osm_file_block.tsv", "osm_file_block_content.tsv", "osm_file_statistics.tsv"),
                 fileNames(result.resolve("import_related_metadata")));
         assertEquals(List.of("multipolygon_000.parquet"), fileNames(result.resolve("arrow/multipolygon")));
@@ -96,6 +97,17 @@ class PipelineOsmiumTest {
         assertFalse(Files.exists(result.resolve("arrow/spill")));
         assertEquals("SNAPPY", parquetCompression(result.resolve("arrow/ways/ways_000.parquet")));
         assertEquals("SNAPPY", parquetCompression(result.resolve("arrow/multipolygon/multipolygon_000.parquet")));
+        assertNotEquals(0, multipolygonsWithTestTag(result.resolve("arrow/multipolygon/multipolygon_000.parquet")));
+    }
+
+    private static long multipolygonsWithTestTag(Path file) throws SQLException {
+        try (Connection connection = DriverManager.getConnection("jdbc:duckdb:");
+             Statement statement = connection.createStatement();
+             ResultSet rs = statement.executeQuery("SELECT count(*) FROM read_parquet('" + file
+                     + "') WHERE json_extract_string(tags_json, '$.\"is.test\"') = 'v-Relation'")) {
+            rs.next();
+            return rs.getLong(1);
+        }
     }
 
     private static String parquetCompression(Path file) throws SQLException {

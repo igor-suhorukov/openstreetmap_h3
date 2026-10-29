@@ -11,6 +11,7 @@ import com.github.isuhorukov.osm.pgsnapshot.output.OrderedBlockWriter;
 import com.github.isuhorukov.osm.pgsnapshot.output.ResourceCopier;
 import com.github.isuhorukov.osm.pgsnapshot.output.ResultLayout;
 import com.github.isuhorukov.osm.pgsnapshot.output.StatisticsWriter;
+import com.github.isuhorukov.osm.pgsnapshot.pipeline.MultipolygonTags;
 import com.github.isuhorukov.osm.pgsnapshot.util.PartitionEstimator;
 import com.github.isuhorukov.osm.pgsnapshot.util.PartitionSplitter;
 import org.slf4j.Logger;
@@ -24,7 +25,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -39,6 +39,7 @@ public final class PostgresqlLoader implements AutoCloseable {
 
     private final CliParameters parameters;
     private final OpenedConnections connections;
+    private final MultipolygonTags multipolygonTags;
     private final InputFiles inputFiles = new InputFiles();
     private final List<CopyWorker> workers = new ArrayList<>();
     private final CopyTargets targets = new CopyTargets();
@@ -46,21 +47,22 @@ public final class PostgresqlLoader implements AutoCloseable {
     private volatile boolean multipolygonExportCancelled;
     private boolean completed;
 
-    private PostgresqlLoader(CliParameters parameters, OpenedConnections connections) {
+    private PostgresqlLoader(CliParameters parameters, OpenedConnections connections, MultipolygonTags multipolygonTags) {
         this.parameters = parameters;
         this.connections = connections;
+        this.multipolygonTags = multipolygonTags;
     }
 
     public static PostgresqlLoader start(CliParameters parameters, File sourcePbfFile, List<TagExtension> tagExtensions,
-                                         Set<String> multipolygonTagKeys, Consumer<Throwable> failureListener)
+                                         MultipolygonTags multipolygonTags, Consumer<Throwable> failureListener)
             throws IOException, SQLException {
         OpenedConnections connections = new OpenedConnections(
                 new PostgresqlConnections(parameters.getPostgresqlJdbcUrl(), System.getenv()));
         List<Partition> partitions = PartitionEstimator.estimatePartitions(sourcePbfFile,
                 parameters.getThresholdPercentFromMaxPartition());
-        PostgresqlLoader loader = new PostgresqlLoader(parameters, connections);
+        PostgresqlLoader loader = new PostgresqlLoader(parameters, connections, multipolygonTags);
         try {
-            loader.initializeDatabase(partitions, tagExtensions, multipolygonTagKeys);
+            loader.initializeDatabase(partitions, tagExtensions);
             loader.startWorkers(partitions, failureListener);
         } catch (IOException | SQLException | RuntimeException e) {
             loader.close();
@@ -69,7 +71,7 @@ public final class PostgresqlLoader implements AutoCloseable {
         return loader;
     }
 
-    private void initializeDatabase(List<Partition> partitions, List<TagExtension> tagExtensions, Set<String> multipolygonTagKeys)
+    private void initializeDatabase(List<Partition> partitions, List<TagExtension> tagExtensions)
             throws IOException, SQLException {
         long start = System.currentTimeMillis();
         boolean columnarStorage = parameters.isColumnarStorage();
@@ -82,7 +84,7 @@ public final class PostgresqlLoader implements AutoCloseable {
         inputFiles.addResource(STATIC_DIRECTORY + ResourceCopier.H3_POLY_TSV_GZ, "/" + ResourceCopier.H3_POLY_TSV_GZ);
         inputFiles.add(STATIC_DIRECTORY + ResourceCopier.MULTIPOLYGON_SQL, ResourceCopier.multipolygonScript(columnarStorage));
         inputFiles.add(STATIC_DIRECTORY + ResourceCopier.MULTIPOLYGON_INSERT_SQL,
-                ResourceCopier.multipolygonInsertScript(multipolygonTagKeys));
+                ResourceCopier.multipolygonInsertScript());
         try (Connection connection = connections.open("init")) {
             PsqlRunner runner = new PsqlRunner(inputFiles);
             runner.run(connection, ResourceCopier.databaseInitScript(columnarStorage, parameters.isUpdatable()));
@@ -161,7 +163,7 @@ public final class PostgresqlLoader implements AutoCloseable {
             if (multipolygonExportCancelled) {
                 throw new InterruptedException("multipolygon export cancelled");
             }
-            long rows = MultipolygonCopy.copyExport(connection, export);
+            long rows = MultipolygonCopy.copyExport(connection, export, multipolygonTags);
             log.info("{} multipolygon relations copied in {} ms", rows, System.currentTimeMillis() - start);
         } catch (SQLException e) {
             throw new IllegalStateException("multipolygon COPY failed", e);

@@ -8,8 +8,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Set;
-import java.util.TreeSet;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -68,7 +66,7 @@ class ResourceCopierTest {
     }
 
     @Test
-    void copyResources_withoutMultipolygonTagKeys_noJoinWithRelations() throws IOException {
+    void copyResources_multipolygonInsert_tagsFromOsmiumExportOnly() throws IOException {
         File resultDir = prepareStaticDir();
 
         ResourceCopier.copyResources(resultDir, false);
@@ -78,20 +76,6 @@ class ResourceCopierTest {
         assertTrue(multipolygon.contains("\ntags,\n"));
         assertTrue(multipolygon.contains("c.id=h.id order by 1;"));
         assertFalse(multipolygon.contains("from relations"));
-        assertFalse(multipolygon.contains("${"));
-    }
-
-    @Test
-    void copyResources_multipolygonTagKeys_takenFromRelations() throws IOException {
-        File resultDir = prepareStaticDir();
-
-        ResourceCopier.copyResources(resultDir, false, new TreeSet<>(Set.of("is.poi", "is.o'k")));
-
-        String multipolygon = Files.readString(
-                new File(new File(resultDir, ResultLayout.STATIC_DIR), "multipolygon_insert.sql").toPath());
-        assertTrue(multipolygon.contains("\ncoalesce(p.tags || r.extension_tags, p.tags) tags,\n"));
-        assertTrue(multipolygon.contains("c.id=h.id left join (select id, slice(tags, ARRAY['is.o''k','is.poi']) extension_tags"
-                + " from relations where tags ?| ARRAY['is.o''k','is.poi']) r on r.id=p.id order by 1;"), multipolygon);
         assertFalse(multipolygon.contains("${"));
     }
 
@@ -195,16 +179,14 @@ class ResourceCopierTest {
     @Test
     void scripts_sameTextAsCopiedFiles() throws Exception {
         File resultDir = prepareImportDirs();
-        Set<String> tagKeys = Set.of("is.poi");
-
         ResourceCopier.copyOsmiumSettings(resultDir);
-        ResourceCopier.copyResources(resultDir, true, tagKeys);
+        ResourceCopier.copyResources(resultDir, true);
         ResourceCopier.copyImportScripts(resultDir, true);
 
         Path result = resultDir.toPath();
         assertEquals(ResourceCopier.databaseInitScript(true), Files.readString(result.resolve("static/database_init.sql")));
         assertEquals(ResourceCopier.multipolygonScript(true), Files.readString(result.resolve("static/multipolygon.sql")));
-        assertEquals(ResourceCopier.multipolygonInsertScript(tagKeys), Files.readString(result.resolve("static/multipolygon_insert.sql")));
+        assertEquals(ResourceCopier.multipolygonInsertScript(), Files.readString(result.resolve("static/multipolygon_insert.sql")));
         assertEquals(ResourceCopier.ways32767ImportScript(true), Files.readString(result.resolve("sql/ways_32767_import.sql")));
         assertEquals(ResourceCopier.relationsImportScript(false), Files.readString(result.resolve("sql/relations_import.sql")));
         assertArrayEquals(ResourceCopier.resourceBytes("/osmium_export.json"), Files.readAllBytes(result.resolve("static/osmium_export.json")));
@@ -214,7 +196,7 @@ class ResourceCopierTest {
     void copyResources_updatable_versionColumnsJournalAndImportState() throws IOException {
         File resultDir = prepareStaticDir();
 
-        ResourceCopier.copyResources(resultDir, false, true, Set.of());
+        ResourceCopier.copyResources(resultDir, false, true);
 
         File staticDir = new File(resultDir, ResultLayout.STATIC_DIR);
         String dbInit = Files.readString(new File(staticDir, "database_init.sql").toPath());
@@ -235,7 +217,7 @@ class ResourceCopierTest {
     void copyResources_notUpdatable_noJournal() throws IOException {
         File resultDir = prepareStaticDir();
 
-        ResourceCopier.copyResources(resultDir, false, false, Set.of());
+        ResourceCopier.copyResources(resultDir, false, false);
 
         File staticDir = new File(resultDir, ResultLayout.STATIC_DIR);
         assertFalse(Files.readString(new File(staticDir, "database_init.sql").toPath()).contains("osm_import_state"));
