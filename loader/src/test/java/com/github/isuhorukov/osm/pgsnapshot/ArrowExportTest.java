@@ -160,6 +160,12 @@ class ArrowExportTest {
                             + rs.getString(4) + " " + rs.getString(5));
                 }
             }
+            try (ResultSet rs = statement.executeQuery("SELECT decode(value) FROM parquet_kv_metadata('" + file
+                    + "') WHERE decode(key) = 'geo'")) {
+                while (rs.next()) {
+                    lines.add("  geo " + rs.getString(1));
+                }
+            }
         }
         return String.join("\n", lines);
     }
@@ -196,7 +202,11 @@ class ArrowExportTest {
             List<String> select = new ArrayList<>();
             for (String[] column : columns) {
                 String name = '"' + column[0] + '"';
-                select.add(isMap(column) ? "map_keys(" + name + "), map_values(" + name + ")" : name);
+                if (isMap(column)) {
+                    select.add("map_keys(" + name + "), map_values(" + name + ")");
+                } else {
+                    select.add(isGeometry(column) ? "ST_AsWKB(" + name + ")" : name);
+                }
             }
             try (ResultSet rs = statement.executeQuery("SELECT " + String.join(", ", select) + " FROM read_parquet('"
                     + file + "', file_row_number = true) ORDER BY file_row_number")) {
@@ -212,6 +222,10 @@ class ArrowExportTest {
         return column[1].startsWith("MAP(");
     }
 
+    private static boolean isGeometry(String[] column) {
+        return column[1].startsWith("GEOMETRY");
+    }
+
     private static String parquetRow(ResultSet rs, List<String[]> columns) throws SQLException {
         List<String> values = new ArrayList<>();
         int index = 1;
@@ -220,7 +234,7 @@ class ArrowExportTest {
             if (isMap(column)) {
                 value = zip(listValue(rs.getObject(index)), listValue(rs.getObject(index + 1)));
                 index += 2;
-            } else if ("BLOB".equals(column[1])) {
+            } else if ("BLOB".equals(column[1]) || isGeometry(column)) {
                 value = rs.getBytes(index++);
             } else {
                 value = listValue(rs.getObject(index++));

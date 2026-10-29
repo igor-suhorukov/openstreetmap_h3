@@ -1,5 +1,6 @@
 package com.github.isuhorukov.osm.pgsnapshot;
 
+import com.github.isuhorukov.osm.pgsnapshot.arrow.ArrowSchemas;
 import com.github.isuhorukov.osm.pgsnapshot.arrow.DuckDbParquetWriter;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -15,6 +16,7 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -72,7 +74,8 @@ class ExternalProcessingTest {
                 "0103000020E6100000\tway\t7\t\"building\"=>\"yes\"\n" +
                         bigMultipolygonHex + "\trelation\t42\t\"landuse\"=>\"forest\"\n");
 
-        try (DuckDbParquetWriter parquetWriter = DuckDbParquetWriter.open()) {
+        try (DuckDbParquetWriter parquetWriter = DuckDbParquetWriter.open(GeoParquetVersion.V1,
+                Set.of(ArrowSchemas.LINE_STRING_WKB))) {
             ExternalProcessing.transformMultipolygonToParquet(resultDir, parquetWriter);
         }
 

@@ -119,6 +119,36 @@ class OsmPbfTransformationParseTest {
     }
 
     @Test
+    void optionsError_geoParquetVersionWithoutParquet_rejected() {
+        CliParameters ipc = new CliParameters();
+        JCommander.newBuilder().addObject(ipc).build().parse("-source_pbf", "a.osm.pbf", "-arrow_format", "ARROW_IPC",
+                "-geoparquet_version", "V2");
+        CliParameters tsv = new CliParameters();
+        JCommander.newBuilder().addObject(tsv).build().parse("-source_pbf", "a.osm.pbf", "-geoparquet_version", "BLOB");
+        CliParameters parquet = new CliParameters();
+        JCommander.newBuilder().addObject(parquet).build().parse("-source_pbf", "a.osm.pbf", "-arrow_format", "PARQUET",
+                "-geoparquet_version", "V2");
+        CliParameters update = new CliParameters();
+        JCommander.newBuilder().addObject(update).build().parse("-source_pbf", "a.osm.pbf", "-update",
+                "-geoparquet_version", "V2");
+
+        assertEquals("-geoparquet_version requires -arrow_format PARQUET", OsmPbfTransformation.optionsError(ipc));
+        assertEquals("-geoparquet_version requires -arrow_format PARQUET", OsmPbfTransformation.optionsError(tsv));
+        assertNull(OsmPbfTransformation.optionsError(parquet));
+        assertEquals("-update requires -pg_jdbc_url", OsmPbfTransformation.optionsError(update));
+    }
+
+    @Test
+    void run_geoParquetVersionWithArrowIpc_invalidArgumentsExitCode() throws Exception {
+        StringBuilder stderr = new StringBuilder();
+
+        assertEquals(OsmPbfTransformation.INVALID_ARGUMENTS_EXIT_CODE, run(stderr, "-source_pbf", "a.osm.pbf",
+                "-arrow_format", "ARROW_IPC", "-geoparquet_version", "V1"));
+
+        assertTrue(stderr.toString().contains("-geoparquet_version requires -arrow_format PARQUET"), stderr.toString());
+    }
+
+    @Test
     void updateOptionsError_updateWithJdbcAndArrowOrStatistics_rejected() {
         CliParameters arrow = new CliParameters();
         JCommander.newBuilder().addObject(arrow).build().parse("-source_pbf", "a.osm.pbf", "-update",

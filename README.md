@@ -110,6 +110,13 @@ Usage: <main class> [options]
       In case of not null parameter save Arrow data serialization: ARROW_IPC 
       or PARQUET
       Possible Values: [PARQUET, ARROW_IPC]
+    -geoparquet_version
+      Way line geometry in Parquet files: V1 - WKB with GeoParquet 1.0.0 
+      metadata (default), BOTH - GeoParquet 1.0.0 metadata and the Parquet 
+      GEOMETRY type, V2 - GeoParquet 2.0.0 metadata and the Parquet GEOMETRY 
+      type, BLOB - WKB without GeoParquet metadata. Requires -arrow_format 
+      PARQUET
+      Possible Values: [V1, BOTH, V2, BLOB]
     -result_in_tsv
       Save result data in TabSeparatedValue format for PostgreSQL COPY
       Default: true
@@ -790,6 +797,20 @@ full load of the new PBF:
 ## Apache Parquet export
 
 Parquet export activated with "-arrow_format PARQUET" command line parameter.
+
+The `lineStringWkb` column of ways is ISO WKB (little-endian, 2D, longitude and latitude, OGC:CRS84 = EPSG:4326); a way
+of one node is a Point. `-geoparquet_version` chooses how the column is written:
+
+| Value | Parquet column | `geo` metadata | Readers |
+|---|---|---|---|
+| `V1` (default) | BYTE_ARRAY | GeoParquet 1.0.0 | any Parquet reader, GeoParquet 1.x readers see a geometry column |
+| `BOTH` | GEOMETRY logical type, bounding box per row group | GeoParquet 1.0.0 | Parquet readers with the GEOMETRY type (Arrow/pyarrow 20+) |
+| `V2` | GEOMETRY logical type, bounding box per row group | GeoParquet 2.0.0 | Parquet readers with the GEOMETRY type (Arrow/pyarrow 20+) |
+| `BLOB` | BYTE_ARRAY | none | any Parquet reader, the column is plain binary |
+
+The file `geo` metadata has the bounding box of the file and the geometry types; CRS is not written, which means
+OGC:CRS84. `bboxWkb` of ways and `wkb` of `multipolygon.parquet` stay plain WKB binary columns. Arrow IPC files have the
+same WKB without GeoParquet metadata.
 OpenStreetMap H3 also allows you to convert data to Apache Parquet and process it in Hadoop and Apache Spark/Sedona. In this project, it allows you to do the same as osm-parquetizer but with additional data and collected geo coordinates for ways, as well as enriched h3 geo indexes. The files are successfully uploaded to the DuckDB Geo extension, I checked this and I will tell you the details in the publication.
 
 ```

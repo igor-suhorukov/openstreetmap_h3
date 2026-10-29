@@ -88,7 +88,7 @@ public class NodeWayArrowWriter extends ArrowBatchWriter {
             building = (BitVector) root.getVector("building");
             highway = (BitVector) root.getVector("highway");
             scale = (Float4Vector) root.getVector("scale");
-            lineStringWkb = (VarBinaryVector) root.getVector("lineStringWkb");
+            lineStringWkb = (VarBinaryVector) root.getVector(ArrowSchemas.LINE_STRING_WKB);
             bboxWkb = (VarBinaryVector) root.getVector("bboxWkb");
             h38IndexesVector = (ListVector) root.getVector("h38Indexes");
             bboxMinX = (Float8Vector) root.getVector("bboxMinX");

@@ -11,6 +11,8 @@ import java.util.*;
 
 public class ArrowSchemas {
 
+    public static final String LINE_STRING_WKB = "lineStringWkb";
+
     private ArrowSchemas() {
     }
 
@@ -44,7 +46,7 @@ public class ArrowSchemas {
                     , new Field("building", FieldType.notNullable(new ArrowType.Bool()), null)
                     , new Field("highway", FieldType.notNullable(new ArrowType.Bool()), null)
                     , new Field("scale", FieldType.notNullable(new ArrowType.FloatingPoint(FloatingPointPrecision.SINGLE)), null)
-                    , new Field("lineStringWkb", FieldType.notNullable(new ArrowType.Binary()), null)
+                    , new Field(LINE_STRING_WKB, FieldType.notNullable(new ArrowType.Binary()), null)
                     , new Field("bboxWkb", FieldType.notNullable(new ArrowType.Binary()), null)
                     , new Field("h38Indexes", FieldType.nullable(new ArrowType.List()), Collections.singletonList(new Field("h38Idx", FieldType.notNullable(new ArrowType.Int(32, true)), null)))
                     , new Field("bboxMinX", FieldType.notNullable(new ArrowType.FloatingPoint(FloatingPointPrecision.DOUBLE)), null)

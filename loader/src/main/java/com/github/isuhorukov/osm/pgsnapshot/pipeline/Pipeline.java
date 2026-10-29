@@ -5,6 +5,7 @@ import com.github.isuhorukov.osm.pgsnapshot.CliParameters;
 import com.github.isuhorukov.osm.pgsnapshot.ExternalProcessing;
 import com.github.isuhorukov.osm.pgsnapshot.PipedProcess;
 import com.github.isuhorukov.osm.pgsnapshot.Splitter;
+import com.github.isuhorukov.osm.pgsnapshot.arrow.ArrowSchemas;
 import com.github.isuhorukov.osm.pgsnapshot.arrow.DuckDbParquetWriter;
 import com.github.isuhorukov.osm.pgsnapshot.arrow.NodeWayArrowWriter;
 import com.github.isuhorukov.osm.pgsnapshot.arrow.ParquetWriter;
@@ -147,7 +148,9 @@ public class Pipeline {
         }
 
         long processingStartTime = System.currentTimeMillis();
-        try (DuckDbParquetWriter parquetWriter = parameters.isSaveArrow() ? DuckDbParquetWriter.open() : null;
+        try (DuckDbParquetWriter parquetWriter = parameters.isSaveArrow()
+                ? DuckDbParquetWriter.open(parameters.getGeoParquetVersion(), Set.of(ArrowSchemas.LINE_STRING_WKB))
+                : null;
              MultipolygonExport multipolygonExport = MultipolygonExport.start(
                 () -> externalProcessing.exportMultipolygons(sourcePbfFile, resultDirectory, parquetWriter),
                 exportMultipolygons && parameters.isParallelMultipolygonExport())) {

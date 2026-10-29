@@ -12,7 +12,8 @@ class CliParametersTest {
         CliParameters parameters = new CliParameters();
         JCommander.newBuilder().addObject(parameters).build().parse("-source_pbf", "a.osm.pbf", "-scale_approx_calc",
                 "-collect_only_statistics", "-skip_buildings", "-skip_highway", "-preserve_all_nodes",
-                "-arrow_format", "PARQUET", "-result_in_tsv", "false", "-columnar_storage", "-osmium_docker", "false",
+                "-arrow_format", "PARQUET", "-geoparquet_version", "BOTH", "-result_in_tsv", "false", "-columnar_storage",
+                "-osmium_docker", "false",
                 "-worker_threads", "3", "-pg_script_count", "5", "-data_partition_ratio", "0.5",
                 "-parallel_multipolygon_export", "false");
 
@@ -23,6 +24,8 @@ class CliParametersTest {
         assertTrue(parameters.isSkipHighway());
         assertTrue(parameters.isPreserveAllNodes());
         assertEquals(ArrowFormat.PARQUET, parameters.getArrowFormat());
+        assertEquals(GeoParquetVersion.BOTH, parameters.getGeoParquetVersion());
+        assertTrue(parameters.isGeoParquetVersionSet());
         assertTrue(parameters.isSaveArrow());
         assertFalse(parameters.isSavePostgresqlTsv());
         assertTrue(parameters.isColumnarStorage());
@@ -36,6 +39,7 @@ class CliParametersTest {
         assertTrue(text.contains("\"sourceFilePath\":\"a.osm.pbf\""), text);
         assertTrue(text.contains("\"workers\":3"), text);
         assertTrue(text.contains("\"arrowFormat\":\"PARQUET\""), text);
+        assertTrue(text.contains("\"geoParquetVersion\":\"BOTH\""), text);
         assertTrue(text.contains("\"parallelMultipolygonExport\":false"), text);
     }
 
@@ -86,6 +90,8 @@ class CliParametersTest {
         assertTrue(parameters.isInvokeDockerCommand());
         assertFalse(parameters.isSaveArrow());
         assertNull(parameters.getArrowFormat());
+        assertEquals(GeoParquetVersion.V1, parameters.getGeoParquetVersion());
+        assertFalse(parameters.isGeoParquetVersionSet());
         assertEquals(4, parameters.getWorkers());
         assertEquals(4, parameters.getScriptCount());
         assertEquals(0.48, parameters.getThresholdPercentFromMaxPartition());

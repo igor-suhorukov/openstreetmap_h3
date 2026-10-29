@@ -56,10 +56,10 @@ public class OsmPbfTransformation {
         if (parameters.isLoadPostgresqlJdbc() && (parameters.isSaveArrow() || parameters.isCollectOnlyStat())) {
             throw new IllegalArgumentException("pg_jdbc_url can't be combined with arrow_format or collect_only_statistics");
         }
-        String updateOptionsError = updateOptionsError(parameters);
-        if (updateOptionsError != null) {
+        String optionsError = optionsError(parameters);
+        if (optionsError != null) {
             jc.usage();
-            console.error(updateOptionsError);
+            console.error(optionsError);
             return INVALID_ARGUMENTS_EXIT_CODE;
         }
         try {
@@ -69,6 +69,17 @@ public class OsmPbfTransformation {
             return UPDATE_REFUSED_EXIT_CODE;
         }
         return 0;
+    }
+
+    static String optionsError(CliParameters parameters) {
+        String updateOptionsError = updateOptionsError(parameters);
+        if (updateOptionsError != null) {
+            return updateOptionsError;
+        }
+        if (parameters.isGeoParquetVersionSet() && parameters.getArrowFormat() != ArrowFormat.PARQUET) {
+            return "-geoparquet_version requires -arrow_format PARQUET";
+        }
+        return null;
     }
 
     static String updateOptionsError(CliParameters parameters) {

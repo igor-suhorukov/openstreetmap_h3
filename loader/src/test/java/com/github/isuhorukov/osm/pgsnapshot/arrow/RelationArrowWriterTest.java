@@ -1,6 +1,7 @@
 package com.github.isuhorukov.osm.pgsnapshot.arrow;
 
 import com.github.isuhorukov.osm.pgsnapshot.ArrowFormat;
+import com.github.isuhorukov.osm.pgsnapshot.GeoParquetVersion;
 import com.github.isuhorukov.osm.pgsnapshot.model.ArrowRelation;
 import com.github.isuhorukov.osm.pgsnapshot.model.ArrowRelationMember;
 import com.github.isuhorukov.osm.pgsnapshot.output.ResultLayout;
@@ -15,6 +16,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -27,7 +29,7 @@ class RelationArrowWriterTest {
 
     @BeforeEach
     void openParquetWriter() throws IOException {
-        parquetWriter = DuckDbParquetWriter.open();
+        parquetWriter = DuckDbParquetWriter.open(GeoParquetVersion.V1, Set.of(ArrowSchemas.LINE_STRING_WKB));
     }
 
     @AfterEach

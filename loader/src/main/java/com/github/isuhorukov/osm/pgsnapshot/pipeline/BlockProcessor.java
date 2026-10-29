@@ -14,6 +14,7 @@ import com.uber.h3core.H3Core;
 import org.geotools.referencing.CRS;
 import org.geotools.referencing.GeodeticCalculator;
 import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.io.ByteOrderValues;
 import org.locationtech.jts.io.WKBWriter;
 import org.opengis.referencing.FactoryException;
 import org.openstreetmap.osmosis.core.container.v0_6.EntityContainer;
@@ -53,7 +54,7 @@ public class BlockProcessor {
         this.storedVersions = storedVersions;
         this.geometryFactory = new GeometryFactory();
         this.memberTypeValueMapper = new MemberTypeValueMapper();
-        this.wkbWriter = new WKBWriter();
+        this.wkbWriter = new WKBWriter(2, ByteOrderValues.LITTLE_ENDIAN);
         this.serializer = new Serializer(parameters.isUpdatable());
         try {
             this.geodeticCalculator = new GeodeticCalculator(CRS.decode("EPSG:" + Serializer.SRID));
