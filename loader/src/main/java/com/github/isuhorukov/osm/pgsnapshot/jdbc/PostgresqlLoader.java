@@ -163,7 +163,7 @@ public final class PostgresqlLoader implements AutoCloseable {
             if (multipolygonExportCancelled) {
                 throw new InterruptedException("multipolygon export cancelled");
             }
-            long rows = MultipolygonCopy.copyExport(connection, export, multipolygonTags);
+            long rows = MultipolygonCopy.copyExport(connection, export, multipolygonTags, parameters.getWorkers());
             log.info("{} multipolygon relations copied in {} ms", rows, System.currentTimeMillis() - start);
         } catch (SQLException e) {
             throw new IllegalStateException("multipolygon COPY failed", e);

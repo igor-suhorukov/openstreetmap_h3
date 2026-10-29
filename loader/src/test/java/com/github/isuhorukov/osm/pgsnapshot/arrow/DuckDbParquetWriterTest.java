@@ -1,6 +1,7 @@
 package com.github.isuhorukov.osm.pgsnapshot.arrow;
 
 import com.github.isuhorukov.osm.pgsnapshot.GeoParquetVersion;
+import com.github.isuhorukov.osm.pgsnapshot.IpcCompression;
 import com.github.isuhorukov.osm.pgsnapshot.ParquetCompression;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
@@ -9,6 +10,7 @@ import org.apache.arrow.vector.RootArrowReader;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.ipc.ArrowFileReader;
 import org.apache.arrow.vector.ipc.ArrowReader;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
@@ -26,6 +28,7 @@ import org.locationtech.jts.io.ByteOrderValues;
 import org.locationtech.jts.io.WKBWriter;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -46,6 +49,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DuckDbParquetWriterTest {
 
@@ -162,33 +166,6 @@ class DuckDbParquetWriterTest {
     }
 
     @Test
-    void scan_query_passesAllBatches() throws Exception {
-        List<Long> ids = new ArrayList<>();
-        List<String> names = new ArrayList<>();
-
-        parquetWriter.scan("SELECT range AS id, 'name-' || range AS name FROM range(20000)", batch -> {
-            BigIntVector id = (BigIntVector) batch.getVector("id");
-            VarCharVector name = (VarCharVector) batch.getVector("name");
-            for (int row = 0; row < batch.getRowCount(); row++) {
-                ids.add(id.get(row));
-                names.add(name.getObject(row).toString());
-            }
-        });
-
-        assertEquals(20000, ids.size());
-        assertEquals(19999L, ids.get(19999));
-        assertEquals("name-12345", names.get(12345));
-    }
-
-    @Test
-    void scan_invalidQuery_throwsIOException() {
-        IOException exception = assertThrows(IOException.class,
-                () -> parquetWriter.scan("SELECT * FROM missing_table", batch -> { }));
-
-        assertEquals("Reading SELECT * FROM missing_table failed", exception.getMessage());
-    }
-
-    @Test
     void write_missingDirectory_throwsIOException() {
         File target = tempDir.resolve("missing/block.parquet").toFile();
 
@@ -247,6 +224,34 @@ class DuckDbParquetWriterTest {
 
         assertNull(geoMetadata(target));
         assertEquals(List.of("0 name-0", "1 name-1"), rows(target));
+    }
+
+    @Test
+    void arrowIpcWriter_wkbGeometryColumn_geoArrowWkbWithCrs84() throws Exception {
+        File target = tempDir.resolve("multipolygon.arrow").toFile();
+
+        try (BufferAllocator allocator = new RootAllocator();
+             VectorSchemaRoot root = VectorSchemaRoot.create(GEOMETRY_SCHEMA, allocator)) {
+            fillGeometries(root, new byte[][]{wkb(LINE, ByteOrderValues.LITTLE_ENDIAN)});
+            try (ArrowReader reader = RootArrowReader.fromRoot(allocator, root)) {
+                parquetWriter.arrowIpcWriter(IpcCompression.NONE).write(allocator, reader, target);
+            }
+        }
+
+        try (BufferAllocator allocator = new RootAllocator();
+             FileInputStream input = new FileInputStream(target);
+             ArrowFileReader reader = new ArrowFileReader(input.getChannel(), allocator)) {
+            Schema schema = reader.getVectorSchemaRoot().getSchema();
+            Map<String, String> geometry = schema.findField(GEOMETRY).getMetadata();
+            assertEquals(ArrowIpcWriter.GEOARROW_WKB, geometry.get(ArrowIpcWriter.EXTENSION_NAME));
+            assertTrue(geometry.get(ArrowIpcWriter.EXTENSION_METADATA).contains("\"crs_type\":\"projjson\""));
+            assertTrue(geometry.get(ArrowIpcWriter.EXTENSION_METADATA)
+                    .contains("\"id\":{\"authority\":\"OGC\",\"code\":\"CRS84\"}"));
+            assertEquals(Map.of(), schema.findField(OTHER).getMetadata());
+            assertTrue(reader.loadNextBatch());
+            assertArrayEquals(wkb(LINE, ByteOrderValues.LITTLE_ENDIAN),
+                    ((VarBinaryVector) reader.getVectorSchemaRoot().getVector(GEOMETRY)).get(0));
+        }
     }
 
     @Test

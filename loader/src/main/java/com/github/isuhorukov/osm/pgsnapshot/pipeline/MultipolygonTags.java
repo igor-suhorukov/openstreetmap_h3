@@ -49,20 +49,31 @@ public final class MultipolygonTags {
         return tab + 1;
     }
 
+    static long relationId(byte[] row, int rowStart, int rowEnd) {
+        return id(row, rowStart, tagsStart(row, rowStart, rowEnd) - 1);
+    }
+
+    List<Tag> tags(byte[] row, int rowStart, int rowEnd) {
+        int tagsStart = tagsStart(row, rowStart, rowEnd);
+        long id = id(row, rowStart, tagsStart - 1);
+        List<Tag> tags = sourceTags(id, row, tagsStart, rowEnd);
+        List<Tag> addedTags = addedTags(id, tags);
+        if (addedTags.isEmpty()) {
+            return tags;
+        }
+        List<Tag> allTags = new ArrayList<>(tags.size() + addedTags.size());
+        allTags.addAll(tags);
+        allTags.addAll(addedTags);
+        return allTags;
+    }
+
     byte[] enrichedTags(byte[] row, int rowStart, int rowEnd) {
         int tagsStart = tagsStart(row, rowStart, rowEnd);
         long id = id(row, rowStart, tagsStart - 1);
         boolean hasTags = hasTags(row, tagsStart, rowEnd);
-        List<Tag> tags = hasTags ? new Hstore(id, copyUnescaped(row, tagsStart, rowEnd)).tags() : Collections.emptyList();
-        Relation relation = new Relation(new CommonEntityData(id, 0, new Date(0), OsmUser.NONE, 0, tags),
-                Collections.emptyList());
         StringBuilder addedPairs = new StringBuilder();
-        for (KeyedExtension extension : extensions) {
-            for (Tag tag : extension.tagExtension.additionalTags(relation)) {
-                if (extension.keys.contains(tag.getKey())) {
-                    appendPair(addedPairs, tag, hasTags || addedPairs.length() > 0);
-                }
-            }
+        for (Tag tag : addedTags(id, sourceTags(id, row, tagsStart, rowEnd))) {
+            appendPair(addedPairs, tag, hasTags || addedPairs.length() > 0);
         }
         if (addedPairs.length() == 0) {
             return UNCHANGED;
@@ -72,6 +83,28 @@ public final class MultipolygonTags {
         byte[] enriched = Arrays.copyOfRange(row, tagsStart, tagsStart + keptLength + added.length);
         System.arraycopy(added, 0, enriched, keptLength, added.length);
         return enriched;
+    }
+
+    private static List<Tag> sourceTags(long id, byte[] row, int tagsStart, int rowEnd) {
+        return hasTags(row, tagsStart, rowEnd) ? new Hstore(id, copyUnescaped(row, tagsStart, rowEnd)).tags()
+                : Collections.emptyList();
+    }
+
+    private List<Tag> addedTags(long id, List<Tag> tags) {
+        if (extensions.isEmpty()) {
+            return Collections.emptyList();
+        }
+        Relation relation = new Relation(new CommonEntityData(id, 0, new Date(0), OsmUser.NONE, 0, tags),
+                Collections.emptyList());
+        List<Tag> addedTags = new ArrayList<>();
+        for (KeyedExtension extension : extensions) {
+            for (Tag tag : extension.tagExtension.additionalTags(relation)) {
+                if (extension.keys.contains(tag.getKey())) {
+                    addedTags.add(tag);
+                }
+            }
+        }
+        return addedTags;
     }
 
     private static long id(byte[] row, int rowStart, int idEnd) {

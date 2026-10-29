@@ -17,15 +17,15 @@ final class MultipolygonCopy {
     private MultipolygonCopy() {
     }
 
-    static long copyRelations(InputStream osmiumOutput, CopyIn copyIn, MultipolygonTags multipolygonTags)
+    static long copyRelations(InputStream osmiumOutput, CopyIn copyIn, MultipolygonTags multipolygonTags, int workers)
             throws IOException, SQLException {
-        return MultipolygonRows.copyRelations(osmiumOutput, copyIn::writeToCopy, multipolygonTags);
+        return MultipolygonRows.copyRelations(osmiumOutput, copyIn::writeToCopy, multipolygonTags, workers);
     }
 
-    static long copyExport(Connection connection, PipedProcess export, MultipolygonTags multipolygonTags)
+    static long copyExport(Connection connection, PipedProcess export, MultipolygonTags multipolygonTags, int workers)
             throws IOException, SQLException, InterruptedException {
         CopyIn copyIn = PsqlRunner.copyManager(connection).copyIn(COPY_SQL);
-        long rows = copyRelations(export.getInputStream(), copyIn, multipolygonTags);
+        long rows = copyRelations(export.getInputStream(), copyIn, multipolygonTags, workers);
         export.waitForSuccess();
         copyIn.endCopy();
         return rows;

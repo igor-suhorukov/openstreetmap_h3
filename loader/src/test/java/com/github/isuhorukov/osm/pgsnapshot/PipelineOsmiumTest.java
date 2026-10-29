@@ -104,7 +104,7 @@ class PipelineOsmiumTest {
         try (Connection connection = DriverManager.getConnection("jdbc:duckdb:");
              Statement statement = connection.createStatement();
              ResultSet rs = statement.executeQuery("SELECT count(*) FROM read_parquet('" + file
-                     + "') WHERE json_extract_string(tags_json, '$.\"is.test\"') = 'v-Relation'")) {
+                     + "') WHERE tags['is.test'] = 'v-Relation'")) {
             rs.next();
             return rs.getLong(1);
         }

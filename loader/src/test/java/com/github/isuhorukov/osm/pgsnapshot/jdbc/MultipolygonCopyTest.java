@@ -57,16 +57,16 @@ class MultipolygonCopyTest {
 
     @Test
     void copyRelations_onlyRelationRowsCopied() throws Exception {
-        assertEquals(3, MultipolygonCopy.copyRelations(input(OSMIUM_OUTPUT), copyIn, MultipolygonTags.NONE));
+        assertEquals(3, MultipolygonCopy.copyRelations(input(OSMIUM_OUTPUT), copyIn, MultipolygonTags.NONE, 0));
 
         assertEquals("0106B\trelation\t2\t\"landuse\"=>\"forest\"\n0106C\trelation\t3\t\"type\"=>\"multipolygon\"\n"
                 + "0106E\trelation\t5\t\\N", copied.toString(StandardCharsets.UTF_8));
-        verify(copyIn, times(2)).writeToCopy(any(byte[].class), anyInt(), anyInt());
+        verify(copyIn, times(1)).writeToCopy(any(byte[].class), anyInt(), anyInt());
     }
 
     @Test
     void copyRelations_smallReads_sameRows() throws Exception {
-        assertEquals(3, MultipolygonCopy.copyRelations(smallReads(OSMIUM_OUTPUT), copyIn, MultipolygonTags.NONE));
+        assertEquals(3, MultipolygonCopy.copyRelations(smallReads(OSMIUM_OUTPUT), copyIn, MultipolygonTags.NONE, 2));
 
         assertEquals("0106B\trelation\t2\t\"landuse\"=>\"forest\"\n0106C\trelation\t3\t\"type\"=>\"multipolygon\"\n"
                 + "0106E\trelation\t5\t\\N", copied.toString(StandardCharsets.UTF_8));
@@ -76,7 +76,7 @@ class MultipolygonCopyTest {
     void copyRelations_rowLongerThanBuffer_copiedWhole() throws Exception {
         String hugePolygon = "01".repeat(1_500_000) + "\trelation\t7\t\\N\n";
 
-        assertEquals(1, MultipolygonCopy.copyRelations(input("0106\tway\t6\t\\N\n" + hugePolygon), copyIn, MultipolygonTags.NONE));
+        assertEquals(1, MultipolygonCopy.copyRelations(input("0106\tway\t6\t\\N\n" + hugePolygon), copyIn, MultipolygonTags.NONE, 2));
 
         assertEquals(hugePolygon, copied.toString(StandardCharsets.UTF_8));
     }
@@ -92,13 +92,13 @@ class MultipolygonCopyTest {
         };
 
         assertEquals(1, assertTimeoutPreemptively(Duration.ofSeconds(20),
-                () -> MultipolygonCopy.copyRelations(pipe, copyIn, MultipolygonTags.NONE)));
+                () -> MultipolygonCopy.copyRelations(pipe, copyIn, MultipolygonTags.NONE, 2)));
         assertEquals(hugePolygon.length(), copied.size());
     }
 
     @Test
     void copyRelations_emptyInput_noRows() throws Exception {
-        assertEquals(0, MultipolygonCopy.copyRelations(input(""), copyIn, MultipolygonTags.NONE));
+        assertEquals(0, MultipolygonCopy.copyRelations(input(""), copyIn, MultipolygonTags.NONE, 2));
 
         verify(copyIn, never()).writeToCopy(any(byte[].class), anyInt(), anyInt());
     }
@@ -128,7 +128,7 @@ class MultipolygonCopyTest {
             }
         };
 
-        assertEquals(3, MultipolygonCopy.copyRelations(input(OSMIUM_OUTPUT), copyIn, MultipolygonTags.of(List.of(landuse))));
+        assertEquals(3, MultipolygonCopy.copyRelations(input(OSMIUM_OUTPUT), copyIn, MultipolygonTags.of(List.of(landuse)), 2));
 
         assertEquals("0106B\trelation\t2\t\"landuse\"=>\"forest\",\"is.landuse\"=>\"{2}\"\n"
                 + "0106C\trelation\t3\t\"type\"=>\"multipolygon\"\n0106E\trelation\t5\t\\N", copied.toString(StandardCharsets.UTF_8));

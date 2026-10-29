@@ -69,7 +69,7 @@ public final class PostgresqlUpdater implements AutoCloseable {
                               MultipolygonTags multipolygonTags) {
         this.parameters = parameters;
         this.connections = connections;
-        this.multipolygonSubset = new MultipolygonSubset(externalProcessing, multipolygonTags);
+        this.multipolygonSubset = new MultipolygonSubset(externalProcessing, multipolygonTags, parameters.getWorkers());
     }
 
     public static PostgresqlUpdater start(CliParameters parameters, File sourcePbfFile, List<TagExtension> tagExtensions,

@@ -3,12 +3,14 @@ package com.github.isuhorukov.osm.pgsnapshot.arrow;
 import com.github.isuhorukov.osm.pgsnapshot.GeoParquetVersion;
 import com.github.isuhorukov.osm.pgsnapshot.IpcCompression;
 import com.github.isuhorukov.osm.pgsnapshot.ParquetCompression;
+import com.github.isuhorukov.osm.pgsnapshot.model.ArrowMultipolygon;
 import com.github.isuhorukov.osm.pgsnapshot.model.ArrowNodeOrWay;
 import com.github.isuhorukov.osm.pgsnapshot.model.ArrowRelation;
 import com.github.isuhorukov.osm.pgsnapshot.model.Partition;
 import com.github.isuhorukov.osm.pgsnapshot.output.ResultLayout;
 import com.github.isuhorukov.osm.pgsnapshot.output.SpillChunk;
 import com.github.isuhorukov.osm.pgsnapshot.util.CompactH3;
+import com.github.isuhorukov.osm.pgsnapshot.util.GeometryH33;
 import com.github.isuhorukov.osm.pgsnapshot.util.PartitionSplitter;
 import com.uber.h3core.H3Core;
 import org.apache.arrow.compression.CommonsCompressionFactory;
@@ -16,13 +18,9 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.SmallIntVector;
-import org.apache.arrow.vector.VarBinaryVector;
-import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.ipc.ArrowFileReader;
-import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
-import org.apache.arrow.vector.types.pojo.Schema;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,7 +34,7 @@ import org.openstreetmap.osmosis.core.domain.v0_6.Tag;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -62,10 +60,8 @@ class PartitionFilesTest {
     private static final List<Partition> PARTITIONS = List.of(
             new Partition(0, (short) PartitionSplitter.LOWER_H3_3_BOUND, (short) 0, 0),
             new Partition(1, (short) 0, (short) PartitionSplitter.HIGH_H3_3_BOUND, 0));
-    private static final Schema DUCKDB_MULTIPOLYGON_SCHEMA = new Schema(List.of(
-            Field.nullable(ArrowSchemas.ID, new ArrowType.Int(64, true)),
-            Field.nullable(ArrowSchemas.WKB, new ArrowType.Binary()),
-            Field.nullable(ArrowSchemas.TAGS_JSON, new ArrowType.Utf8())));
+    private static final short PHUKET = h33(7.88, 98.30);
+    private static final short BANGKOK = h33(13.75, 100.50);
     private static final GeometryFactory GEOMETRY_FACTORY = new GeometryFactory();
     private static final ArrowSpill SPILL = ArrowSpill.of(IpcCompression.ZSTD, 1);
 
@@ -81,7 +77,7 @@ class PartitionFilesTest {
         ResultLayout.prepareResultDirectories(tempDir.toFile(), false, true);
         arrowDir = new File(tempDir.toFile(), ResultLayout.ARROW_DIR);
         parquetWriter = DuckDbParquetWriter.open(GeoParquetVersion.V1, ParquetCompression.ZSTD,
-                Set.of(ArrowSchemas.LINE_STRING_WKB));
+                Set.of(ArrowSchemas.LINE_STRING_WKB, ArrowSchemas.WKB));
         executor = Executors.newFixedThreadPool(2);
     }
 
@@ -137,24 +133,26 @@ class PartitionFilesTest {
 
     @Test
     void writeMultipolygons_arrowIpcByDuckDb_sortedByH33AndIdWithZstd() throws Exception {
-        H3Core h3Core = H3Core.newInstance();
-        short phuket = CompactH3.serialize3(h3Core.latLngToCell(7.88, 98.30, 3));
         PartitionFiles partitionFiles = new PartitionFiles(arrowDir, List.of(
                 new Partition(0, (short) PartitionSplitter.LOWER_H3_3_BOUND, (short) PartitionSplitter.HIGH_H3_3_BOUND,
                         0)), SPILL, new ArrowIpcWriter(IpcCompression.ZSTD, Set.of(ArrowSchemas.LINE_STRING_WKB)),
                 parquetWriter.arrowIpcWriter(IpcCompression.ZSTD));
 
-        multipolygonBatch(partitionFiles, new long[]{30, 10, 20},
-                new byte[][]{square(98.30, 7.88, 0.001), square(98.30, 7.88, 0.001), square(98.0, 7.5, 5.0)});
+        partitionFiles.appendMultipolygons(SPILL.encodeMultipolygons(List.of(multipolygon(30, PHUKET),
+                multipolygon(10, PHUKET), multipolygon(20, GeometryH33.MULTIPLE_CELLS))));
         partitionFiles.writeMultipolygons();
 
         assertEquals(List.of("multipolygon_000.arrow", "multipolygon_32767.arrow"),
                 fileNames(ResultLayout.MULTIPOLYGON_DIR));
-        assertEquals(List.of("batch", phuket + " 10", phuket + " 30"),
-                ipcBatches(new File(arrowDir, "multipolygon/multipolygon_000.arrow")));
+        File phuketFile = new File(arrowDir, "multipolygon/multipolygon_000.arrow");
+        assertEquals(List.of("batch", PHUKET + " 10", PHUKET + " 30"), ipcBatches(phuketFile));
         assertEquals(List.of("batch", "32767 20"), ipcBatches(new File(arrowDir, "multipolygon/multipolygon_32767.arrow")));
-        assertEquals("{\"version\":1,\"batches\":[{\"rows\":2,\"id\":[10,30],\"h33\":[" + phuket + "," + phuket + "]}]}",
-                footerMetadata(new File(arrowDir, "multipolygon/multipolygon_000.arrow")).get(BatchStatistics.METADATA_KEY));
+        assertEquals("{\"version\":1,\"batches\":[{\"rows\":2,\"id\":[10,30],\"h33\":[" + PHUKET + "," + PHUKET + "]}]}",
+                footerMetadata(phuketFile).get(BatchStatistics.METADATA_KEY));
+        assertEquals(ArrowIpcWriter.GEOARROW_WKB,
+                ipcField(phuketFile, ArrowSchemas.WKB).getMetadata().get(ArrowIpcWriter.EXTENSION_NAME));
+        assertEquals("tags: Map(false)<entries: Struct<key: Utf8 not null, value: Utf8> not null>",
+                ipcField(phuketFile, ArrowSchemas.TAGS).toString());
     }
 
     @Test
@@ -187,40 +185,31 @@ class PartitionFilesTest {
     }
 
     @Test
-    void spillMultipolygons_unsortedRows_partitionFilesSortedByH33AndId() throws Exception {
-        H3Core h3Core = H3Core.newInstance();
-        short phuket = CompactH3.serialize3(h3Core.latLngToCell(7.88, 98.30, 3));
-        short bangkok = CompactH3.serialize3(h3Core.latLngToCell(13.75, 100.50, 3));
+    void appendMultipolygons_unsortedChunks_partitionFilesSortedByH33AndIdWithGeoParquetAndTags() throws Exception {
         PartitionFiles partitionFiles = new PartitionFiles(arrowDir, List.of(
                 new Partition(0, (short) PartitionSplitter.LOWER_H3_3_BOUND, (short) PartitionSplitter.HIGH_H3_3_BOUND,
                         0)), SPILL, parquetWriter, parquetWriter);
 
-        multipolygonBatch(partitionFiles, new long[]{30, 10, 20},
-                new byte[][]{square(98.30, 7.88, 0.001), square(100.50, 13.75, 0.001), square(98.0, 7.5, 5.0)});
-        multipolygonBatch(partitionFiles, new long[]{5, 40},
-                new byte[][]{square(98.30, 7.88, 0.001), square(98.0, 7.5, 5.0)});
+        partitionFiles.appendMultipolygons(SPILL.encodeMultipolygons(List.of(multipolygon(30, PHUKET),
+                multipolygon(10, BANGKOK), multipolygon(20, GeometryH33.MULTIPLE_CELLS))));
+        partitionFiles.appendMultipolygons(SPILL.encodeMultipolygons(List.of(multipolygon(5, PHUKET),
+                multipolygon(40, GeometryH33.MULTIPLE_CELLS))));
         partitionFiles.writeMultipolygons();
 
         assertEquals(List.of("multipolygon_000.parquet", "multipolygon_32767.parquet"),
                 fileNames(ResultLayout.MULTIPOLYGON_DIR));
-        List<String> expected = Stream.of(phuket + " 5", phuket + " 30", bangkok + " 10")
+        List<String> expected = Stream.of(PHUKET + " 5", PHUKET + " 30", BANGKOK + " 10")
                 .sorted((a, b) -> Short.compare(Short.parseShort(a.split(" ")[0]), Short.parseShort(b.split(" ")[0])))
                 .collect(Collectors.toList());
         assertEquals(expected, rows("multipolygon/multipolygon_000.parquet", "h33, id"));
         assertEquals(List.of("32767 20", "32767 40"), rows("multipolygon/multipolygon_32767.parquet", "h33, id"));
-        assertEquals(List.of("{\"id\":\"30\"}"), rows("multipolygon/multipolygon_000.parquet", "tags_json",
+        assertEquals(List.of("{id=30, name=multipolygon 30}"), rows("multipolygon/multipolygon_000.parquet", "tags",
                 "id = 30"));
+        assertEquals(List.of("POLYGON ((98.3 7.88, 98.301 7.88, 98.301 7.881, 98.3 7.881, 98.3 7.88))"),
+                rows("multipolygon/multipolygon_000.parquet", "ST_AsText(wkb)", "id = 30"));
+        assertTrue(geoMetadata("multipolygon/multipolygon_000.parquet").contains(
+                "\"primary_column\":\"wkb\",\"columns\":{\"wkb\":{\"encoding\":\"WKB\",\"geometry_types\":[\"Polygon\"]"));
         assertEquals(List.of(), spillFileNames(ResultLayout.MULTIPOLYGON_DIR));
-    }
-
-    @Test
-    void spillMultipolygons_invalidWkb_throwsWithId() throws Exception {
-        PartitionFiles partitionFiles = new PartitionFiles(arrowDir, PARTITIONS, SPILL, parquetWriter, parquetWriter);
-
-        IllegalStateException exception = assertThrows(IllegalStateException.class,
-                () -> multipolygonBatch(partitionFiles, new long[]{77}, new byte[][]{{1, 2, 3}}));
-
-        assertEquals("Invalid WKB of multipolygon 77", exception.getMessage());
     }
 
     @Test
@@ -269,21 +258,34 @@ class PartitionFilesTest {
         }
     }
 
-    private static void multipolygonBatch(PartitionFiles partitionFiles, long[] ids, byte[][] wkbs)
-            throws IOException {
+    private static short h33(double latitude, double longitude) {
+        try {
+            return CompactH3.serialize3(H3Core.newInstance().latLngToCell(latitude, longitude, 3));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static ArrowMultipolygon multipolygon(long id, short h33) {
+        return new ArrowMultipolygon(id, h33, square(98.30, 7.88, 0.001),
+                List.of(new Tag("name", "multipolygon " + id), new Tag("id", String.valueOf(id))));
+    }
+
+    private static Field ipcField(File file, String name) throws IOException {
         try (BufferAllocator allocator = new RootAllocator();
-             VectorSchemaRoot root = VectorSchemaRoot.create(DUCKDB_MULTIPOLYGON_SCHEMA, allocator)) {
-            BigIntVector id = (BigIntVector) root.getVector(ArrowSchemas.ID);
-            VarBinaryVector wkb = (VarBinaryVector) root.getVector(ArrowSchemas.WKB);
-            VarCharVector tags = (VarCharVector) root.getVector(ArrowSchemas.TAGS_JSON);
-            root.allocateNew();
-            for (int row = 0; row < ids.length; row++) {
-                id.setSafe(row, ids[row]);
-                wkb.setSafe(row, wkbs[row]);
-                tags.setSafe(row, ("{\"id\":\"" + ids[row] + "\"}").getBytes(StandardCharsets.UTF_8));
-            }
-            root.setRowCount(ids.length);
-            partitionFiles.spillMultipolygons(root);
+             FileInputStream input = new FileInputStream(file);
+             ArrowFileReader reader = new ArrowFileReader(input.getChannel(), allocator,
+                     CommonsCompressionFactory.INSTANCE)) {
+            return reader.getVectorSchemaRoot().getSchema().findField(name);
+        }
+    }
+
+    private String geoMetadata(String file) throws SQLException {
+        try (Connection connection = DriverManager.getConnection("jdbc:duckdb:");
+             Statement statement = connection.createStatement();
+             ResultSet rs = statement.executeQuery("SELECT decode(value) FROM parquet_kv_metadata('"
+                     + new File(arrowDir, file).getAbsolutePath() + "') WHERE decode(key) = 'geo'")) {
+            return rs.next() ? rs.getString(1) : null;
         }
     }
 

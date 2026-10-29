@@ -32,12 +32,14 @@ final class MultipolygonSubset {
 
     private final ExternalProcessing externalProcessing;
     private final MultipolygonTags multipolygonTags;
+    private final int workers;
     private final AtomicReference<PipedProcess> export = new AtomicReference<>();
     private volatile boolean cancelled;
 
-    MultipolygonSubset(ExternalProcessing externalProcessing, MultipolygonTags multipolygonTags) {
+    MultipolygonSubset(ExternalProcessing externalProcessing, MultipolygonTags multipolygonTags, int workers) {
         this.externalProcessing = externalProcessing;
         this.multipolygonTags = multipolygonTags;
+        this.workers = workers;
     }
 
     long copy(Connection connection, PsqlRunner runner, File sourcePbfFile)
@@ -58,7 +60,7 @@ final class MultipolygonSubset {
             try (PipedProcess subsetExport = externalProcessing.startMultipolygonExport(subset)) {
                 export.set(subsetExport);
                 checkCancelled();
-                rows = MultipolygonCopy.copyExport(connection, subsetExport, multipolygonTags);
+                rows = MultipolygonCopy.copyExport(connection, subsetExport, multipolygonTags, workers);
             } finally {
                 export.set(null);
             }

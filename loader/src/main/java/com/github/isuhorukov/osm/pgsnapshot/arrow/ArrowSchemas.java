@@ -15,14 +15,12 @@ public class ArrowSchemas {
     public static final String ID = "id";
     public static final String H33 = "h33";
     public static final String WKB = "wkb";
-    public static final String TAGS_JSON = "tags_json";
+    public static final String TAGS = "tags";
 
     private ArrowSchemas() {
     }
 
     public static Schema getNodesOrWaysSchema(boolean isWays) {
-        FieldType mapType = new FieldType(false, ArrowType.Struct.INSTANCE, null, null);
-        FieldType keyType1 = new FieldType(false, new ArrowType.Utf8(), null, null);
         Map<String, String> idMetadata = null;
         Map<String, String> h33Metadata = null;
         Map<String, String> h38Metadata = null;
@@ -35,10 +33,7 @@ public class ArrowSchemas {
                 new Field("h38", h38FieldType, null),
                 new Field("latitude", FieldType.notNullable(new ArrowType.FloatingPoint(FloatingPointPrecision.DOUBLE)), null),
                 new Field("longitude", FieldType.notNullable(new ArrowType.FloatingPoint(FloatingPointPrecision.DOUBLE)), null),
-                new Field("tags", FieldType.nullable(new ArrowType.Map(true)),
-                        Collections.singletonList(new Field(MapVector.KEY_NAME, mapType,
-                                Arrays.asList(new Field(MapVector.KEY_NAME, keyType1, null),
-                                        new Field(MapVector.VALUE_NAME, keyType1, null)))))
+                tagsField()
         ));
         if (isWays) {
             Map<String, String> h33CenterMetadata = null;
@@ -67,20 +62,15 @@ public class ArrowSchemas {
                 new Field(ID, FieldType.notNullable(new ArrowType.Int(64, true)), null),
                 new Field(H33, FieldType.notNullable(new ArrowType.Int(16, true)), null),
                 new Field(WKB, FieldType.notNullable(new ArrowType.Binary()), null),
-                new Field(TAGS_JSON, FieldType.nullable(new ArrowType.Utf8()), null)));
+                tagsField()));
     }
 
     public static Schema getRelationSchema() {
-        FieldType mapType = new FieldType(false, ArrowType.Struct.INSTANCE, null, null);
-        FieldType keyType1 = new FieldType(false, new ArrowType.Utf8(), null, null);
         Map<String, String> idMetadata = null;
         FieldType idFieldType = new FieldType(false, new ArrowType.Int(64, true), null, idMetadata);
         List<Field> schemaFields = new ArrayList<>(Arrays.asList(
                 new Field("id", idFieldType, null),
-                new Field("tags", FieldType.nullable(new ArrowType.Map(true)),
-                        Collections.singletonList(new Field(MapVector.KEY_NAME, mapType,
-                                Arrays.asList(new Field(MapVector.KEY_NAME, keyType1, null),
-                                        new Field(MapVector.VALUE_NAME, keyType1, null)))))
+                tagsField()
                 , new Field("memberId", FieldType.notNullable(new ArrowType.List()), Collections.singletonList(
                         new Field("memberId", FieldType.notNullable(new ArrowType.Int(64, true)), null)
                 ))
@@ -92,5 +82,14 @@ public class ArrowSchemas {
                 ))
         ));
         return new Schema(schemaFields);
+    }
+
+    private static Field tagsField() {
+        FieldType entryType = new FieldType(false, ArrowType.Struct.INSTANCE, null, null);
+        FieldType stringType = new FieldType(false, new ArrowType.Utf8(), null, null);
+        return new Field(TAGS, FieldType.nullable(new ArrowType.Map(true)),
+                Collections.singletonList(new Field(MapVector.KEY_NAME, entryType,
+                        Arrays.asList(new Field(MapVector.KEY_NAME, stringType, null),
+                                new Field(MapVector.VALUE_NAME, stringType, null)))));
     }
 }

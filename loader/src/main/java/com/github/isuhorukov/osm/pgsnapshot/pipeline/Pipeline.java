@@ -34,7 +34,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.file.Files;
+import java.nio.ByteBuffer;
 import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -153,14 +153,13 @@ public class Pipeline {
                 : Collections.emptyList();
         try (DuckDbParquetWriter parquetWriter = parameters.isSaveArrow()
                 ? DuckDbParquetWriter.open(parameters.getGeoParquetVersion(), parameters.getParquetCompression(),
-                Set.of(ArrowSchemas.LINE_STRING_WKB))
+                Set.of(ArrowSchemas.LINE_STRING_WKB, ArrowSchemas.WKB))
                 : null) {
             PartitionFiles partitionFiles = parquetWriter != null
                     ? partitionFiles(new File(resultDirectory, ResultLayout.ARROW_DIR), partitions, parquetWriter)
                     : null;
             try {
-                saveFiles(externalProcessing, sourcePbfFile, resultDirectory, parquetWriter, partitionFiles,
-                        commandStartTime);
+                saveFiles(externalProcessing, sourcePbfFile, resultDirectory, partitionFiles, commandStartTime);
             } finally {
                 if (partitionFiles != null) {
                     partitionFiles.deleteSpill();
@@ -170,17 +169,14 @@ public class Pipeline {
     }
 
     private void saveFiles(ExternalProcessing externalProcessing, File sourcePbfFile, File resultDirectory,
-                           DuckDbParquetWriter parquetWriter, PartitionFiles partitionFiles,
-                           long commandStartTime) throws IOException, InterruptedException {
+                           PartitionFiles partitionFiles, long commandStartTime)
+            throws IOException, InterruptedException {
         boolean saveImportScripts = !parameters.isCollectOnlyStat() && parameters.isSavePostgresqlTsv();
         boolean exportMultipolygons = saveImportScripts || parameters.isSaveArrow();
-        if (exportMultipolygons && !saveImportScripts) {
-            ResultLayout.checkAndMakeMultipolygonDirectory(resultDirectory);
-        }
 
         long processingStartTime = System.currentTimeMillis();
         try (MultipolygonExport multipolygonExport = MultipolygonExport.start(
-                () -> exportMultipolygons(externalProcessing, sourcePbfFile, resultDirectory, parquetWriter,
+                () -> exportMultipolygons(externalProcessing, sourcePbfFile, resultDirectory, saveImportScripts,
                         partitionFiles),
                 exportMultipolygons && parameters.isParallelMultipolygonExport())) {
             ProcessedBlocks processedBlocks = processBlocksToFiles(externalProcessing, sourcePbfFile, resultDirectory,
@@ -200,8 +196,6 @@ public class Pipeline {
             if (saveImportScripts) {
                 multipolygonTime.setSplitMultipolygonByPartsTime(writeImportScripts(externalProcessing,
                         resultDirectory, processedBlocks.blockStatistics, multipolygonCount));
-            } else if (parameters.isSaveArrow()) {
-                deleteMultipolygonDirectory(resultDirectory);
             }
 
             StatisticsWriter.saveStatistics(resultDirectory, buildStatistics(processedBlocks.blockStatistics,
@@ -225,26 +219,36 @@ public class Pipeline {
     }
 
     private long exportMultipolygons(ExternalProcessing externalProcessing, File sourcePbfFile, File resultDirectory,
-                                     DuckDbParquetWriter parquetWriter, PartitionFiles partitionFiles)
+                                     boolean saveTsv, PartitionFiles partitionFiles)
             throws IOException, InterruptedException {
         long start = System.currentTimeMillis();
-        writeMultipolygonSource(externalProcessing, sourcePbfFile,
-                new File(resultDirectory, ExternalProcessing.MULTIPOLYGON_SOURCE_TSV));
+        MultipolygonBatchProcessor processor = new MultipolygonBatchProcessor(multipolygonTags, saveTsv,
+                partitionFiles != null ? partitionFiles.getArrowSpill() : null,
+                partitionFiles != null ? H3Core.newInstance() : null);
+        try (PipedProcess export = externalProcessing.startMultipolygonExport(sourcePbfFile);
+             OutputStream tsvOutput = saveTsv
+                     ? new BufferedOutputStream(new FileOutputStream(new File(resultDirectory,
+                     ExternalProcessing.MULTIPOLYGON_SOURCE_TSV)), MULTIPOLYGON_OUTPUT_BUFFER)
+                     : OutputStream.nullOutputStream()) {
+            long rows = MultipolygonRows.processRelations(export.getInputStream(), parameters.getWorkers(),
+                    processor::process, result -> writeMultipolygons(result, tsvOutput, partitionFiles));
+            export.waitForSuccess();
+            log.info("{} multipolygon relations exported in {} ms", rows, System.currentTimeMillis() - start);
+        }
         if (partitionFiles != null) {
-            parquetWriter.scan(ExternalProcessing.multipolygonQuery(resultDirectory), partitionFiles::spillMultipolygons);
             partitionFiles.writeMultipolygons();
         }
         return System.currentTimeMillis() - start;
     }
 
-    private void writeMultipolygonSource(ExternalProcessing externalProcessing, File sourcePbfFile, File multipolygonSource)
-            throws IOException, InterruptedException {
-        try (PipedProcess export = externalProcessing.startMultipolygonExport(sourcePbfFile);
-             OutputStream output = new BufferedOutputStream(new FileOutputStream(multipolygonSource),
-                     MULTIPOLYGON_OUTPUT_BUFFER)) {
-            long rows = MultipolygonRows.copyRelations(export.getInputStream(), output::write, multipolygonTags);
-            export.waitForSuccess();
-            log.info("{} multipolygon relations written to {}", rows, multipolygonSource);
+    private static void writeMultipolygons(MultipolygonBatchProcessor.Result result, OutputStream tsvOutput,
+                                           PartitionFiles partitionFiles) throws IOException {
+        ByteBuffer tsvRows = result.getTsvRows();
+        if (tsvRows != null) {
+            tsvOutput.write(tsvRows.array(), tsvRows.arrayOffset() + tsvRows.position(), tsvRows.remaining());
+        }
+        if (partitionFiles != null) {
+            partitionFiles.appendMultipolygons(result.getSpillChunks());
         }
     }
 
@@ -433,25 +437,6 @@ public class Pipeline {
         Throwable cause = failure.get();
         if (cause != null) {
             throw new IllegalStateException("Block processing failed", cause);
-        }
-    }
-
-    private static void deleteMultipolygonDirectory(File resultDirectory) {
-        File multipolygonDirectory = new File(resultDirectory, ResultLayout.MULTIPOLYGON_DIR);
-        File[] multipolygonFiles = multipolygonDirectory.listFiles();
-        if (multipolygonFiles != null) {
-            for (File f : multipolygonFiles) {
-                try {
-                    Files.delete(f.toPath());
-                } catch (IOException e) {
-                    log.warn("Failed to delete: {}", f, e);
-                }
-            }
-        }
-        try {
-            Files.delete(multipolygonDirectory.toPath());
-        } catch (IOException e) {
-            log.warn("Failed to delete directory: {}", multipolygonDirectory, e);
         }
     }
 

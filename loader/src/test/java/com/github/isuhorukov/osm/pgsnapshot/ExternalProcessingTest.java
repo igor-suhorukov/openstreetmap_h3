@@ -1,9 +1,5 @@
 package com.github.isuhorukov.osm.pgsnapshot;
 
-import com.github.isuhorukov.osm.pgsnapshot.arrow.ArrowSchemas;
-import com.github.isuhorukov.osm.pgsnapshot.arrow.DuckDbParquetWriter;
-import org.apache.arrow.vector.BigIntVector;
-import org.apache.arrow.vector.VarBinaryVector;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -13,9 +9,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -45,46 +39,6 @@ class ExternalProcessingTest {
         };
 
         assertEquals("dense_file_array", ExternalProcessing.getIndexType(largeFile));
-    }
-
-    @Test
-    void longestLineLength_lastLineWithoutNewline_counted() throws IOException {
-        File file = tempDir.resolve("lines.tsv").toFile();
-        Files.writeString(file.toPath(), "ab\nabcd\nabcdef");
-
-        assertEquals(6, ExternalProcessing.longestLineLength(file));
-    }
-
-    @Test
-    void csvLineSizeOptions_shortLines_duckDbDefaults() throws IOException {
-        File file = tempDir.resolve("short.tsv").toFile();
-        Files.writeString(file.toPath(), "0103000020E6100000\tway\t7\t\"building\"=>\"yes\"\n");
-
-        assertEquals("max_line_size=2000000,buffer_size=32000000", ExternalProcessing.csvLineSizeOptions(file));
-    }
-
-    @Test
-    void multipolygonQuery_lineLongerThanDuckDbDefaultLimit_readsRelations() throws Exception {
-        File resultDir = tempDir.toFile();
-        new File(resultDir, "multipolygon").mkdirs();
-        String bigMultipolygonHex = "AB".repeat(1_500_000);
-        Files.writeString(new File(resultDir, "multipolygon/source.tsv").toPath(),
-                "0103000020E6100000\tway\t7\t\"building\"=>\"yes\"\n" +
-                        bigMultipolygonHex + "\trelation\t42\t\"landuse\"=>\"forest\"\n");
-        List<String> rows = new ArrayList<>();
-
-        try (DuckDbParquetWriter parquetWriter = DuckDbParquetWriter.open(GeoParquetVersion.V1, ParquetCompression.ZSTD,
-                Set.of(ArrowSchemas.LINE_STRING_WKB))) {
-            parquetWriter.scan(ExternalProcessing.multipolygonQuery(resultDir), batch -> {
-                for (int row = 0; row < batch.getRowCount(); row++) {
-                    rows.add(((BigIntVector) batch.getVector("id")).get(row) + " "
-                            + ((VarBinaryVector) batch.getVector("wkb")).get(row).length + " "
-                            + batch.getVector("tags_json").getObject(row));
-                }
-            });
-        }
-
-        assertEquals(List.of("42 1500000 {\"landuse\":\"forest\"}"), rows);
     }
 
     @Test

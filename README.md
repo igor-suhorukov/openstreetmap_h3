@@ -836,7 +836,9 @@ its vertices, or 32767 when the vertices are in different cells (PostgreSQL inte
 boundaries, so rare multipolygons near cell borders get 32767 there).
 
 While PBF blocks are processed, rows are collected per H3 cell in Arrow IPC files in `arrow/spill`; then DuckDB writes
-each partition file and the intermediate files are deleted. `-spill_compression` chooses their compression: `ZSTD`
+each partition file and the intermediate files are deleted. Multipolygon rows of `osmium export` are processed in
+`-worker_threads` threads (tags of the extensions, `h33`, WKB) and collected in the same way; the multipolygon TSV is
+written only for the PostgreSQL import. `-spill_compression` chooses their compression: `ZSTD`
 (default, level `-spill_zstd_level`, 1 by default) or `NONE`. Thailand takes 1.35 GB of intermediate files with ZSTD
 level 1 and 2.4 GB without compression, for 1.1 GB of Parquet files. The export needs a PBF sorted by type and id
 (`osmium sort`), otherwise it stops with an error.
@@ -869,8 +871,9 @@ cell = [reader.get_batch(i) for i, b in enumerate(batches) if b["h33"][0] <= 257
 Arrow Java returns the same map from `ArrowFileReader.getMetaData()` after the footer is read. Query engines (DuckDB,
 Polars, DataFusion) don't use this index.
 
-The `lineStringWkb` column of ways is ISO WKB (little-endian, 2D, longitude and latitude, OGC:CRS84 = EPSG:4326); a way
-of one node is a Point. `-geoparquet_version` chooses how the column is written:
+The `lineStringWkb` column of ways and the `wkb` column of multipolygons are ISO WKB (little-endian, 2D, longitude and
+latitude, OGC:CRS84 = EPSG:4326, no SRID); a way of one node is a Point, a multipolygon is a MultiPolygon.
+`-geoparquet_version` chooses how these columns are written:
 
 | Value | Parquet column | `geo` metadata | Readers |
 |---|---|---|---|
@@ -880,10 +883,15 @@ of one node is a Point. `-geoparquet_version` chooses how the column is written:
 | `BLOB` | BYTE_ARRAY | none | any Parquet reader, the column is plain binary |
 
 The file `geo` metadata has the bounding box of the file and the geometry types; CRS is not written, which means
-OGC:CRS84. `bboxWkb` of ways and `wkb` of multipolygons stay plain WKB binary columns. In Arrow IPC files
-`lineStringWkb` is the same WKB marked as the GeoArrow `geoarrow.wkb` extension type with CRS `OGC:CRS84`: DuckDB reads it
-as `GEOMETRY('OGC:CRS84')`, and pyarrow with geoarrow-pyarrow or `geopandas.GeoDataFrame.from_arrow` as a geometry
-column; readers without GeoArrow see plain binary WKB.
+OGC:CRS84. `bboxWkb` of ways stays a plain WKB binary column. In Arrow IPC files `lineStringWkb` and the multipolygon
+`wkb` are the same WKB marked as the GeoArrow `geoarrow.wkb` extension type with CRS `OGC:CRS84` (as an authority code
+in `lineStringWkb`, as PROJJSON in multipolygon files written by DuckDB): DuckDB reads them as `GEOMETRY('OGC:CRS84')`,
+and pyarrow with geoarrow-pyarrow or `geopandas.GeoDataFrame.from_arrow` as geometry columns; readers without GeoArrow
+see plain binary WKB.
+
+Multipolygon `tags` is a map like `tags` of nodes, ways and relations: the relation tags from `osmium export` plus the
+tags of the extensions (`is.poi`), keys sorted, pairs with an empty key or value dropped, the first value kept when a
+key repeats. Multipolygon files written by DuckDB use its map layout (`entries` with nullable values) in Arrow IPC.
 OpenStreetMap H3 also allows you to convert data to Apache Parquet and process it in Hadoop and Apache Spark/Sedona. In this project, it allows you to do the same as osm-parquetizer but with additional data and collected geo coordinates for ways, as well as enriched h3 geo indexes. The files are successfully uploaded to the DuckDB Geo extension, I checked this and I will tell you the details in the publication.
 
 ```
@@ -1052,7 +1060,9 @@ root
 |-- id: long (nullable = true)
 |-- h33: short (nullable = true)
 |-- wkb: binary (nullable = true)
-|-- tags_json: string (nullable = true)
+|-- tags: map (nullable = true)
+|    |-- key: string
+|    |-- value: string (valueContainsNull = true)
 ```
 
 ### Use case diagram

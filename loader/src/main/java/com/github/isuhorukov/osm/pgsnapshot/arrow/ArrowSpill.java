@@ -1,6 +1,7 @@
 package com.github.isuhorukov.osm.pgsnapshot.arrow;
 
 import com.github.isuhorukov.osm.pgsnapshot.IpcCompression;
+import com.github.isuhorukov.osm.pgsnapshot.model.ArrowMultipolygon;
 import com.github.isuhorukov.osm.pgsnapshot.model.ArrowNodeOrWay;
 import com.github.isuhorukov.osm.pgsnapshot.model.ArrowRelation;
 import com.github.isuhorukov.osm.pgsnapshot.output.ResultLayout;
@@ -110,6 +111,23 @@ public final class ArrowSpill {
             return Map.of(RELATIONS_CELL, new SpillChunk(recordBatch(root), arrowRelations.get(0).getId(),
                     arrowRelations.get(arrowRelations.size() - 1).getId()));
         }
+    }
+
+    public Map<Short, byte[]> encodeMultipolygons(List<ArrowMultipolygon> multipolygons) {
+        Map<Short, List<ArrowMultipolygon>> byCell = new TreeMap<>();
+        for (ArrowMultipolygon multipolygon : multipolygons) {
+            byCell.computeIfAbsent(multipolygon.getH33(), h33 -> new ArrayList<>()).add(multipolygon);
+        }
+        Map<Short, byte[]> chunks = new TreeMap<>();
+        try (BufferAllocator allocator = new RootAllocator()) {
+            for (Map.Entry<Short, List<ArrowMultipolygon>> cell : byCell.entrySet()) {
+                try (VectorSchemaRoot root = VectorSchemaRoot.create(ArrowSchemas.getMultipolygonSchema(), allocator)) {
+                    MultipolygonArrowWriter.fill(allocator, root, cell.getValue());
+                    chunks.put(cell.getKey(), recordBatch(root));
+                }
+            }
+        }
+        return chunks;
     }
 
     public byte[] recordBatch(VectorSchemaRoot root) {

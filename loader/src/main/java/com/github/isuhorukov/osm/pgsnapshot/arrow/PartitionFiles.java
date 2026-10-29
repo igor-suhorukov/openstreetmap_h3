@@ -4,18 +4,10 @@ import com.github.isuhorukov.osm.pgsnapshot.model.Partition;
 import com.github.isuhorukov.osm.pgsnapshot.output.ResultLayout;
 import com.github.isuhorukov.osm.pgsnapshot.util.GeometryH33;
 import com.github.isuhorukov.osm.pgsnapshot.util.PartitionSplitter;
-import com.uber.h3core.H3Core;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
-import org.apache.arrow.vector.BigIntVector;
-import org.apache.arrow.vector.SmallIntVector;
-import org.apache.arrow.vector.VarBinaryVector;
-import org.apache.arrow.vector.VarCharVector;
-import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.ipc.ArrowReader;
 import org.apache.arrow.vector.types.pojo.Schema;
-import org.locationtech.jts.io.ParseException;
-import org.locationtech.jts.io.WKBReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,18 +38,15 @@ public final class PartitionFiles {
     private final ArrowSpill arrowSpill;
     private final PartitionWriter blockWriter;
     private final PartitionWriter multipolygonWriter;
-    private final H3Core h3Core;
-    private final WKBReader wkbReader = new WKBReader();
 
     public PartitionFiles(File arrowDirectory, List<Partition> partitions, ArrowSpill arrowSpill,
-                          PartitionWriter blockWriter, PartitionWriter multipolygonWriter) throws IOException {
+                          PartitionWriter blockWriter, PartitionWriter multipolygonWriter) {
         this.arrowDirectory = arrowDirectory;
         this.spillDirectory = new File(arrowDirectory, ResultLayout.SPILL_DIR);
         this.partitions = List.copyOf(partitions);
         this.arrowSpill = arrowSpill;
         this.blockWriter = blockWriter;
         this.multipolygonWriter = multipolygonWriter;
-        this.h3Core = H3Core.newInstance();
     }
 
     public File getSpillDirectory() {
@@ -94,35 +83,10 @@ public final class PartitionFiles {
                 System.currentTimeMillis() - start);
     }
 
-    public void spillMultipolygons(VectorSchemaRoot batch) throws IOException {
-        BigIntVector ids = (BigIntVector) batch.getVector(ArrowSchemas.ID);
-        VarBinaryVector wkbs = (VarBinaryVector) batch.getVector(ArrowSchemas.WKB);
-        VarCharVector tags = (VarCharVector) batch.getVector(ArrowSchemas.TAGS_JSON);
-        Map<Short, List<Integer>> rowsByCell = new TreeMap<>();
-        for (int row = 0; row < batch.getRowCount(); row++) {
-            rowsByCell.computeIfAbsent(h33(ids.get(row), wkbs.get(row)), h33 -> new ArrayList<>()).add(row);
-        }
+    public void appendMultipolygons(Map<Short, byte[]> chunks) throws IOException {
         File directory = new File(spillDirectory, ResultLayout.MULTIPOLYGON_DIR);
-        try (BufferAllocator allocator = new RootAllocator()) {
-            for (Map.Entry<Short, List<Integer>> cell : rowsByCell.entrySet()) {
-                try (VectorSchemaRoot root = VectorSchemaRoot.create(ArrowSchemas.getMultipolygonSchema(), allocator)) {
-                    root.allocateNew();
-                    BigIntVector cellIds = (BigIntVector) root.getVector(ArrowSchemas.ID);
-                    SmallIntVector cellH33 = (SmallIntVector) root.getVector(ArrowSchemas.H33);
-                    VarBinaryVector cellWkbs = (VarBinaryVector) root.getVector(ArrowSchemas.WKB);
-                    VarCharVector cellTags = (VarCharVector) root.getVector(ArrowSchemas.TAGS_JSON);
-                    int index = 0;
-                    for (int row : cell.getValue()) {
-                        cellIds.copyFromSafe(row, index, ids);
-                        cellH33.setSafe(index, cell.getKey());
-                        cellWkbs.copyFromSafe(row, index, wkbs);
-                        cellTags.copyFromSafe(row, index, tags);
-                        index++;
-                    }
-                    root.setRowCount(index);
-                    append(new File(directory, ResultLayout.spillFileName(cell.getKey())), arrowSpill.recordBatch(root));
-                }
-            }
+        for (Map.Entry<Short, byte[]> chunk : chunks.entrySet()) {
+            append(new File(directory, ResultLayout.spillFileName(chunk.getKey())), chunk.getValue());
         }
     }
 
@@ -146,14 +110,6 @@ public final class PartitionFiles {
             delete(directory);
         }
         delete(spillDirectory);
-    }
-
-    private short h33(long id, byte[] wkb) {
-        try {
-            return GeometryH33.of(wkbReader.read(wkb), h3Core);
-        } catch (ParseException e) {
-            throw new IllegalStateException("Invalid WKB of multipolygon " + id, e);
-        }
     }
 
     private List<PartitionFile> partitionFiles(String entityDir, String tableName, Schema schema,

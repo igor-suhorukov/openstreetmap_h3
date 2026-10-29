@@ -6,13 +6,11 @@ import com.github.isuhorukov.osm.pgsnapshot.ParquetCompression;
 import org.apache.arrow.c.ArrowArrayStream;
 import org.apache.arrow.c.Data;
 import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.ipc.ArrowReader;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.duckdb.DuckDBConnection;
-import org.duckdb.DuckDBResultSet;
 
 import java.io.Closeable;
 import java.io.File;
@@ -30,7 +28,8 @@ public final class DuckDbParquetWriter implements PartitionWriter, Closeable {
     public static final String FILE_EXTENSION = ".parquet";
     static final String ARROW_IPC_EXTENSION = "nanoarrow";
     private static final String ARROW_STREAM = "arrow_stream";
-    private static final long SCAN_BATCH_ROWS = 8192;
+    private static final String PARQUET_GEOMETRY = "ST_GeomFromWKB(%s)";
+    private static final String ARROW_IPC_GEOMETRY = "ST_GeomFromWKB(%s)::GEOMETRY('OGC:CRS84')";
 
     private final DuckDBConnection connection;
     private final GeoParquetVersion geoParquetVersion;
@@ -65,7 +64,8 @@ public final class DuckDbParquetWriter implements PartitionWriter, Closeable {
             throws IOException {
         String geoParquet = geoParquetVersion.isGeometry()
                 ? ", GEOPARQUET_VERSION '" + geoParquetVersion.name() + "'" : "";
-        copy(allocator, reader, target, select(reader.getVectorSchemaRoot().getSchema(), wkbGeometryColumns, orderBy),
+        copy(allocator, reader, target, select(reader.getVectorSchemaRoot().getSchema(),
+                geoParquetVersion.isGeometry() ? PARQUET_GEOMETRY : null, orderBy),
                 "FORMAT 'PARQUET', CODEC '" + compression.name() + "'" + geoParquet);
     }
 
@@ -88,35 +88,20 @@ public final class DuckDbParquetWriter implements PartitionWriter, Closeable {
             @Override
             public void write(BufferAllocator allocator, ArrowReader reader, File target, List<String> orderBy)
                     throws IOException {
-                copy(allocator, reader, target, select(reader.getVectorSchemaRoot().getSchema(), Set.of(), orderBy),
-                        options);
+                copy(allocator, reader, target, select(reader.getVectorSchemaRoot().getSchema(), ARROW_IPC_GEOMETRY,
+                        orderBy), options);
                 BatchStatistics.addToFooter(allocator, target);
             }
         };
     }
 
-    @SuppressWarnings("java:S2077")
-    public void scan(String query, ArrowBatchConsumer consumer) throws IOException {
-        try (BufferAllocator allocator = new RootAllocator();
-             DuckDBConnection reader = connection.duplicate();
-             Statement statement = reader.createStatement();
-             DuckDBResultSet resultSet = (DuckDBResultSet) statement.executeQuery(query);
-             ArrowReader batches = (ArrowReader) resultSet.arrowExportStream(allocator, SCAN_BATCH_ROWS)) {
-            while (batches.loadNextBatch()) {
-                consumer.accept(batches.getVectorSchemaRoot());
-            }
-        } catch (SQLException e) {
-            throw new IOException("Reading " + query + " failed", e);
-        }
-    }
-
-    private String select(Schema schema, Set<String> geometryColumns, List<String> orderBy) {
+    private String select(Schema schema, String geometryExpression, List<String> orderBy) {
         List<String> geometries = new ArrayList<>();
-        if (geoParquetVersion.isGeometry()) {
+        if (geometryExpression != null) {
             for (Field field : schema.getFields()) {
-                if (geometryColumns.contains(field.getName()) && field.getType() instanceof ArrowType.Binary) {
+                if (wkbGeometryColumns.contains(field.getName()) && field.getType() instanceof ArrowType.Binary) {
                     String column = quote(field.getName());
-                    geometries.add("ST_GeomFromWKB(" + column + ") AS " + column);
+                    geometries.add(String.format(geometryExpression, column) + " AS " + column);
                 }
             }
         }

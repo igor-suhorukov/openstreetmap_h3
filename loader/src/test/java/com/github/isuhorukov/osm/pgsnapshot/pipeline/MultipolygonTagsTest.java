@@ -134,6 +134,35 @@ class MultipolygonTagsTest {
     }
 
     @Test
+    void tags_relationWithAmenity_osmiumTagsThenExtensionTags() {
+        MultipolygonTags multipolygonTags = MultipolygonTags.of(List.of(new TestTagExtension("test", "is.test", "v")));
+
+        assertEquals(List.of("amenity=school", "name=a \"q\" b\\s tab\tnl\ncr\rend", "k=>x=v,w", "name:th=โรงเรียน",
+                "is.test=v-Relation"), pairs(tags(multipolygonTags, OSMIUM_ESCAPED_ROW)));
+        assertEquals(List.of("landuse=forest"), pairs(tags(multipolygonTags, "0106\trelation\t6\t\"landuse\"=>\"forest\"")));
+    }
+
+    @Test
+    void tags_noTagsOrNoExtensions_osmiumTagsOnly() {
+        assertEquals(List.of(), pairs(tags(MultipolygonTags.NONE, "0106\trelation\t8\t")));
+        assertEquals(List.of(), pairs(tags(MultipolygonTags.NONE, "0106\trelation\t9\t\\N")));
+        assertEquals(List.of("is.a=1"), pairs(tags(MultipolygonTags.of(List.of(adding("is.a", "1"))), "0106\trelation\t8\t")));
+        assertEquals(List.of("amenity=school"), pairs(tags(MultipolygonTags.NONE, "0106\trelation\t5\t\"amenity\"=>\"school\"")));
+    }
+
+    @Test
+    void relationId_osmiumRow_idColumn() {
+        byte[] row = OSMIUM_ESCAPED_ROW.getBytes(StandardCharsets.UTF_8);
+
+        assertEquals(100, MultipolygonTags.relationId(row, 0, row.length));
+    }
+
+    private static List<Tag> tags(MultipolygonTags multipolygonTags, String row) {
+        byte[] bytes = row.getBytes(StandardCharsets.UTF_8);
+        return multipolygonTags.tags(bytes, 0, bytes.length);
+    }
+
+    @Test
     void enrichedTags_malformedRow_throws() {
         MultipolygonTags multipolygonTags = MultipolygonTags.of(List.of(adding("is.a", "1")));
 
