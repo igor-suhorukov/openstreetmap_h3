@@ -94,7 +94,7 @@ Usage: <main class> [options]
       Default: true
     -parquet_compression
       Compression of Parquet files: ZSTD (default), LZ4 (written as the 
-      Parquet LZ4_RAW codec) or SNAPPY. Requires -arrow_format
+      Parquet LZ4_RAW codec) or SNAPPY. Requires -arrow_format PARQUET
       Possible Values: [ZSTD, LZ4, SNAPPY]
     -pg_jdbc_url
       Load data straight into PostgreSQL by JDBC COPY streams without TSV 
@@ -114,6 +114,11 @@ Usage: <main class> [options]
       In case of not null parameter save Arrow data serialization: ARROW_IPC 
       or PARQUET
       Possible Values: [PARQUET, ARROW_IPC]
+    -arrow_ipc_compression
+      Compression of Arrow IPC files: NONE (default) or ZSTD. Readers need 
+      ZSTD support of the Arrow IPC format, e.g. arrow-compression in Arrow 
+      Java. Requires -arrow_format ARROW_IPC
+      Possible Values: [ZSTD, NONE]
     -geoparquet_version
       Way line geometry in Parquet files: V1 - WKB with GeoParquet 1.0.0 
       metadata (default), BOTH - GeoParquet 1.0.0 metadata and the Parquet 
@@ -135,8 +140,8 @@ Usage: <main class> [options]
       Default: false
     -spill_compression
       Compression of the intermediate Arrow IPC files that collect rows per H3 
-      cell before Parquet partition files are written: ZSTD (default) or NONE. 
-      NONE is a little faster and takes about twice the disk space. Requires 
+      cell before partition files are written: ZSTD (default) or NONE. NONE is 
+      a little faster and takes about twice the disk space. Requires 
       -arrow_format 
       Possible Values: [ZSTD, NONE]
     -spill_zstd_level
@@ -838,8 +843,29 @@ level 1 and 2.4 GB without compression, for 1.1 GB of Parquet files. The export 
 as the Parquet `LZ4_RAW` codec, which needs Spark 3.4+, parquet-java 1.13+, Arrow/pyarrow or DuckDB to read. On Thailand
 the Parquet files take 1.15 GB with ZSTD, 1.53 GB with LZ4 and SNAPPY; LZ4 and SNAPPY write them about 0.5 s faster.
 
-With `-arrow_format ARROW_IPC` nodes, ways and relations are written in a file per PBF block, and multipolygons in the
-same Parquet partition files.
+`-arrow_format ARROW_IPC` writes the same partition files in the Arrow IPC file format (`.arrow`, also readable as
+Feather V2): `nodes_NNN.arrow`, `ways_NNN.arrow`, `ways_32767.arrow`, `relations.arrow`, `multipolygon_NNN.arrow` and
+`multipolygon_32767.arrow`, rows sorted by (`h33`, `id`). Record batches of nodes, ways and relations have up to 65,536
+rows and never span two H3 cells, so a reader can take the batches of one cell. Multipolygon files are written by DuckDB
+with the `nanoarrow` community extension, installed into `~/.duckdb/extensions` on first use (this needs internet
+access once); their batches of up to 65,536 rows may span cells. `-arrow_ipc_compression ZSTD` compresses record
+batches: Thailand takes 1.27 GB instead of 2.42 GB, and readers need ZSTD support of Arrow IPC. Without compression
+(the default) any Arrow IPC reader opens the files.
+
+Arrow IPC has no statistics of its own, so every `.arrow` file keeps a batch index in the custom metadata of its footer,
+key `openstreetmap_h3:batch_statistics`: for each record batch, in the footer order, the row count and the minimum and
+maximum of `id`, `h33` and `h38` (only the columns the file has).
+```json
+{"version":1,"batches":[{"rows":5,"id":[101,106],"h33":[24898,24898],"h38":[1631758505,1631758811]}]}
+```
+A reader picks the batches it needs and loads only them, e.g. with pyarrow:
+```python
+reader = pyarrow.ipc.open_file("arrow/ways/ways_004.arrow")
+batches = json.loads(reader.metadata[b"openstreetmap_h3:batch_statistics"])["batches"]
+cell = [reader.get_batch(i) for i, b in enumerate(batches) if b["h33"][0] <= 25764 <= b["h33"][1]]
+```
+Arrow Java returns the same map from `ArrowFileReader.getMetaData()` after the footer is read. Query engines (DuckDB,
+Polars, DataFusion) don't use this index.
 
 The `lineStringWkb` column of ways is ISO WKB (little-endian, 2D, longitude and latitude, OGC:CRS84 = EPSG:4326); a way
 of one node is a Point. `-geoparquet_version` chooses how the column is written:
@@ -852,8 +878,10 @@ of one node is a Point. `-geoparquet_version` chooses how the column is written:
 | `BLOB` | BYTE_ARRAY | none | any Parquet reader, the column is plain binary |
 
 The file `geo` metadata has the bounding box of the file and the geometry types; CRS is not written, which means
-OGC:CRS84. `bboxWkb` of ways and `wkb` of multipolygons stay plain WKB binary columns. Arrow IPC files have the
-same WKB without GeoParquet metadata.
+OGC:CRS84. `bboxWkb` of ways and `wkb` of multipolygons stay plain WKB binary columns. In Arrow IPC files
+`lineStringWkb` is the same WKB marked as the GeoArrow `geoarrow.wkb` extension type with CRS `OGC:CRS84`: DuckDB reads it
+as `GEOMETRY('OGC:CRS84')`, and pyarrow with geoarrow-pyarrow or `geopandas.GeoDataFrame.from_arrow` as a geometry
+column; readers without GeoArrow see plain binary WKB.
 OpenStreetMap H3 also allows you to convert data to Apache Parquet and process it in Hadoop and Apache Spark/Sedona. In this project, it allows you to do the same as osm-parquetizer but with additional data and collected geo coordinates for ways, as well as enriched h3 geo indexes. The files are successfully uploaded to the DuckDB Geo extension, I checked this and I will tell you the details in the publication.
 
 ```

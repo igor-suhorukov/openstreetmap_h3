@@ -80,8 +80,11 @@ public class OsmPbfTransformation {
         if (parameters.isGeoParquetVersionSet() && parameters.getArrowFormat() != ArrowFormat.PARQUET) {
             return "-geoparquet_version requires -arrow_format PARQUET";
         }
-        if (parameters.isParquetCompressionSet() && !parameters.isSaveArrow()) {
-            return "-parquet_compression requires -arrow_format";
+        if (parameters.isParquetCompressionSet() && parameters.getArrowFormat() != ArrowFormat.PARQUET) {
+            return "-parquet_compression requires -arrow_format PARQUET";
+        }
+        if (parameters.isArrowIpcCompressionSet() && parameters.getArrowFormat() != ArrowFormat.ARROW_IPC) {
+            return "-arrow_ipc_compression requires -arrow_format ARROW_IPC";
         }
         return spillOptionsError(parameters);
     }
@@ -93,7 +96,7 @@ public class OsmPbfTransformation {
         if (!parameters.isSpillZstdLevelSet()) {
             return null;
         }
-        if (parameters.getSpillCompression() != SpillCompression.ZSTD) {
+        if (parameters.getSpillCompression() != IpcCompression.ZSTD) {
             return "-spill_zstd_level requires -spill_compression ZSTD";
         }
         int level = parameters.getSpillZstdLevel();

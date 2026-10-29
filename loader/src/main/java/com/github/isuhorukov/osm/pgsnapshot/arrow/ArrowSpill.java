@@ -1,6 +1,6 @@
 package com.github.isuhorukov.osm.pgsnapshot.arrow;
 
-import com.github.isuhorukov.osm.pgsnapshot.SpillCompression;
+import com.github.isuhorukov.osm.pgsnapshot.IpcCompression;
 import com.github.isuhorukov.osm.pgsnapshot.model.ArrowNodeOrWay;
 import com.github.isuhorukov.osm.pgsnapshot.model.ArrowRelation;
 import com.github.isuhorukov.osm.pgsnapshot.output.ResultLayout;
@@ -47,8 +47,8 @@ public final class ArrowSpill {
         this.codec = codec;
     }
 
-    public static ArrowSpill of(SpillCompression compression, int zstdLevel) {
-        return new ArrowSpill(compression == SpillCompression.ZSTD
+    public static ArrowSpill of(IpcCompression compression, int zstdLevel) {
+        return new ArrowSpill(compression == IpcCompression.ZSTD
                 ? CommonsCompressionFactory.INSTANCE.createCodec(CompressionUtil.CodecType.ZSTD, zstdLevel)
                 : NoCompressionCodec.INSTANCE);
     }

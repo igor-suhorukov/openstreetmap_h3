@@ -1,5 +1,5 @@
 package com.github.isuhorukov.osm.pgsnapshot;
 
-public enum SpillCompression {
+public enum IpcCompression {
     ZSTD, NONE
 }

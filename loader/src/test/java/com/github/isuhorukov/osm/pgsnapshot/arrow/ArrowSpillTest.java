@@ -1,6 +1,6 @@
 package com.github.isuhorukov.osm.pgsnapshot.arrow;
 
-import com.github.isuhorukov.osm.pgsnapshot.SpillCompression;
+import com.github.isuhorukov.osm.pgsnapshot.IpcCompression;
 import com.github.isuhorukov.osm.pgsnapshot.model.ArrowNodeOrWay;
 import com.github.isuhorukov.osm.pgsnapshot.model.ArrowRelation;
 import com.github.isuhorukov.osm.pgsnapshot.model.ArrowRelationMember;
@@ -31,8 +31,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ArrowSpillTest {
 
-    private static final ArrowSpill ZSTD = ArrowSpill.of(SpillCompression.ZSTD, 1);
-    private static final ArrowSpill NONE = ArrowSpill.of(SpillCompression.NONE, 1);
+    private static final ArrowSpill ZSTD = ArrowSpill.of(IpcCompression.ZSTD, 1);
+    private static final ArrowSpill NONE = ArrowSpill.of(IpcCompression.NONE, 1);
 
     @TempDir
     Path tempDir;
@@ -118,7 +118,7 @@ class ArrowSpillTest {
         List<String> expected = List.of("1 5", "2 5", "3 5");
 
         for (int level : new int[]{-5, 1, 19}) {
-            SpillChunk chunk = ArrowSpill.of(SpillCompression.ZSTD, level).encode(nodes, List.of(), 0).get((short) 5);
+            SpillChunk chunk = ArrowSpill.of(IpcCompression.ZSTD, level).encode(nodes, List.of(), 0).get((short) 5);
             assertEquals(expected, rows(List.of(spillFile("level" + level, chunk)), false));
         }
     }

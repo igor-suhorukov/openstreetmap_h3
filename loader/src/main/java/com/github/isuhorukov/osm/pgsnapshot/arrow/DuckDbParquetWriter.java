@@ -1,6 +1,7 @@
 package com.github.isuhorukov.osm.pgsnapshot.arrow;
 
 import com.github.isuhorukov.osm.pgsnapshot.GeoParquetVersion;
+import com.github.isuhorukov.osm.pgsnapshot.IpcCompression;
 import com.github.isuhorukov.osm.pgsnapshot.ParquetCompression;
 import org.apache.arrow.c.ArrowArrayStream;
 import org.apache.arrow.c.Data;
@@ -13,6 +14,7 @@ import org.apache.arrow.vector.types.pojo.Schema;
 import org.duckdb.DuckDBConnection;
 import org.duckdb.DuckDBResultSet;
 
+import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.sql.DriverManager;
@@ -23,8 +25,10 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public final class DuckDbParquetWriter implements ParquetWriter {
+public final class DuckDbParquetWriter implements PartitionWriter, Closeable {
 
+    public static final String FILE_EXTENSION = ".parquet";
+    static final String ARROW_IPC_EXTENSION = "nanoarrow";
     private static final String ARROW_STREAM = "arrow_stream";
     private static final long SCAN_BATCH_ROWS = 8192;
 
@@ -52,17 +56,43 @@ public final class DuckDbParquetWriter implements ParquetWriter {
     }
 
     @Override
+    public String fileExtension() {
+        return FILE_EXTENSION;
+    }
+
+    @Override
     public void write(BufferAllocator allocator, ArrowReader reader, File target, List<String> orderBy)
             throws IOException {
-        try (ArrowArrayStream stream = ArrowArrayStream.allocateNew(allocator);
-             DuckDBConnection writer = connection.duplicate()) {
-            String query = select(reader.getVectorSchemaRoot().getSchema(), orderBy);
-            Data.exportArrayStream(allocator, reader, stream);
-            writer.registerArrowStream(ARROW_STREAM, stream);
-            copy(writer, query, target);
+        String geoParquet = geoParquetVersion.isGeometry()
+                ? ", GEOPARQUET_VERSION '" + geoParquetVersion.name() + "'" : "";
+        copy(allocator, reader, target, select(reader.getVectorSchemaRoot().getSchema(), wkbGeometryColumns, orderBy),
+                "FORMAT 'PARQUET', CODEC '" + compression.name() + "'" + geoParquet);
+    }
+
+    public PartitionWriter arrowIpcWriter(IpcCompression ipcCompression) throws IOException {
+        try (Statement statement = connection.createStatement()) {
+            statement.execute("INSTALL " + ARROW_IPC_EXTENSION + " FROM community");
+            statement.execute("LOAD " + ARROW_IPC_EXTENSION);
         } catch (SQLException e) {
-            throw new IOException("Writing " + target + " failed", e);
+            throw new IOException("Arrow IPC files of DuckDB need the " + ARROW_IPC_EXTENSION
+                    + " extension: INSTALL " + ARROW_IPC_EXTENSION + " FROM community failed", e);
         }
+        String options = "FORMAT 'ARROW', BATCH_SIZE " + CellBatchReader.MAX_BATCH_ROWS
+                + (ipcCompression == IpcCompression.ZSTD ? ", COMPRESSION 'zstd'" : "");
+        return new PartitionWriter() {
+            @Override
+            public String fileExtension() {
+                return ArrowIpcWriter.FILE_EXTENSION;
+            }
+
+            @Override
+            public void write(BufferAllocator allocator, ArrowReader reader, File target, List<String> orderBy)
+                    throws IOException {
+                copy(allocator, reader, target, select(reader.getVectorSchemaRoot().getSchema(), Set.of(), orderBy),
+                        options);
+                BatchStatistics.addToFooter(allocator, target);
+            }
+        };
     }
 
     @SuppressWarnings("java:S2077")
@@ -80,11 +110,11 @@ public final class DuckDbParquetWriter implements ParquetWriter {
         }
     }
 
-    private String select(Schema schema, List<String> orderBy) {
+    private String select(Schema schema, Set<String> geometryColumns, List<String> orderBy) {
         List<String> geometries = new ArrayList<>();
         if (geoParquetVersion.isGeometry()) {
             for (Field field : schema.getFields()) {
-                if (wkbGeometryColumns.contains(field.getName()) && field.getType() instanceof ArrowType.Binary) {
+                if (geometryColumns.contains(field.getName()) && field.getType() instanceof ArrowType.Binary) {
                     String column = quote(field.getName());
                     geometries.add("ST_GeomFromWKB(" + column + ") AS " + column);
                 }
@@ -103,12 +133,17 @@ public final class DuckDbParquetWriter implements ParquetWriter {
     }
 
     @SuppressWarnings("java:S2077")
-    private void copy(DuckDBConnection writer, String query, File target) throws SQLException {
-        String geoParquet = geoParquetVersion.isGeometry()
-                ? ", GEOPARQUET_VERSION '" + geoParquetVersion.name() + "'" : "";
-        try (Statement statement = writer.createStatement()) {
+    private void copy(BufferAllocator allocator, ArrowReader reader, File target, String query, String options)
+            throws IOException {
+        try (ArrowArrayStream stream = ArrowArrayStream.allocateNew(allocator);
+             DuckDBConnection writer = connection.duplicate();
+             Statement statement = writer.createStatement()) {
+            Data.exportArrayStream(allocator, reader, stream);
+            writer.registerArrowStream(ARROW_STREAM, stream);
             statement.executeUpdate("COPY (" + query + ") TO '" + target.getAbsolutePath().replace("'", "''")
-                    + "' (FORMAT 'PARQUET', CODEC '" + compression.name() + "'" + geoParquet + ")");
+                    + "' (" + options + ")");
+        } catch (SQLException e) {
+            throw new IOException("Writing " + target + " failed", e);
         }
     }
 

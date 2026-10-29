@@ -49,7 +49,7 @@ class CliParametersTest {
         JCommander.newBuilder().addObject(parameters).build().parse("-source_pbf", "a.osm.pbf", "-arrow_format",
                 "PARQUET", "-spill_compression", "ZSTD", "-spill_zstd_level", "7");
 
-        assertEquals(SpillCompression.ZSTD, parameters.getSpillCompression());
+        assertEquals(IpcCompression.ZSTD, parameters.getSpillCompression());
         assertTrue(parameters.isSpillCompressionSet());
         assertEquals(7, parameters.getSpillZstdLevel());
         assertTrue(parameters.isSpillZstdLevelSet());
@@ -63,13 +63,26 @@ class CliParametersTest {
         JCommander.newBuilder().addObject(parameters).build().parse("-source_pbf", "a.osm.pbf", "-arrow_format",
                 "PARQUET");
 
-        assertEquals(SpillCompression.ZSTD, parameters.getSpillCompression());
+        assertEquals(IpcCompression.ZSTD, parameters.getSpillCompression());
         assertFalse(parameters.isSpillCompressionSet());
         assertEquals(CliParameters.DEFAULT_SPILL_ZSTD_LEVEL, parameters.getSpillZstdLevel());
         assertEquals(1, parameters.getSpillZstdLevel());
         assertFalse(parameters.isSpillZstdLevelSet());
         assertEquals(ParquetCompression.ZSTD, parameters.getParquetCompression());
         assertFalse(parameters.isParquetCompressionSet());
+        assertEquals(IpcCompression.NONE, parameters.getArrowIpcCompression());
+        assertFalse(parameters.isArrowIpcCompressionSet());
+    }
+
+    @Test
+    void parse_arrowIpcCompression_getterAndToString() {
+        CliParameters parameters = new CliParameters();
+        JCommander.newBuilder().addObject(parameters).build().parse("-source_pbf", "a.osm.pbf", "-arrow_format",
+                "ARROW_IPC", "-arrow_ipc_compression", "ZSTD");
+
+        assertEquals(IpcCompression.ZSTD, parameters.getArrowIpcCompression());
+        assertTrue(parameters.isArrowIpcCompressionSet());
+        assertTrue(parameters.toString().contains("\"arrowIpcCompression\":\"ZSTD\""), parameters.toString());
     }
 
     @Test

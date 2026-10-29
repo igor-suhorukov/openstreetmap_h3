@@ -34,28 +34,29 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
-public final class ParquetPartitions {
+public final class PartitionFiles {
 
-    private static final Logger log = LoggerFactory.getLogger(ParquetPartitions.class);
+    private static final Logger log = LoggerFactory.getLogger(PartitionFiles.class);
     private static final String MULTIPOLYGON = "multipolygon";
-    private static final String PARQUET_EXTENSION = ".parquet";
     private static final List<String> MULTIPOLYGON_ORDER = List.of(ArrowSchemas.H33, ArrowSchemas.ID);
 
     private final File arrowDirectory;
     private final File spillDirectory;
     private final List<Partition> partitions;
-    private final ParquetWriter parquetWriter;
     private final ArrowSpill arrowSpill;
+    private final PartitionWriter blockWriter;
+    private final PartitionWriter multipolygonWriter;
     private final H3Core h3Core;
     private final WKBReader wkbReader = new WKBReader();
 
-    public ParquetPartitions(File arrowDirectory, List<Partition> partitions, ParquetWriter parquetWriter,
-                             ArrowSpill arrowSpill) throws IOException {
+    public PartitionFiles(File arrowDirectory, List<Partition> partitions, ArrowSpill arrowSpill,
+                          PartitionWriter blockWriter, PartitionWriter multipolygonWriter) throws IOException {
         this.arrowDirectory = arrowDirectory;
         this.spillDirectory = new File(arrowDirectory, ResultLayout.SPILL_DIR);
         this.partitions = List.copyOf(partitions);
-        this.parquetWriter = parquetWriter;
         this.arrowSpill = arrowSpill;
+        this.blockWriter = blockWriter;
+        this.multipolygonWriter = multipolygonWriter;
         this.h3Core = H3Core.newInstance();
     }
 
@@ -71,13 +72,14 @@ public final class ParquetPartitions {
         long start = System.currentTimeMillis();
         List<PartitionFile> files = new ArrayList<>();
         files.addAll(partitionFiles(ResultLayout.NODES_DIR, PartitionSplitter.NODES,
-                ArrowSchemas.getNodesOrWaysSchema(false), false));
+                ArrowSchemas.getNodesOrWaysSchema(false), false, blockWriter));
         files.addAll(partitionFiles(ResultLayout.WAYS_DIR, PartitionSplitter.WAYS,
-                ArrowSchemas.getNodesOrWaysSchema(true), true));
+                ArrowSchemas.getNodesOrWaysSchema(true), true, blockWriter));
         List<File> relationSpill = new ArrayList<>(spillFiles(ResultLayout.RELATIONS_DIR).values());
         if (!relationSpill.isEmpty()) {
             files.add(new PartitionFile(new File(new File(arrowDirectory, ResultLayout.RELATIONS_DIR),
-                    ResultLayout.RELATIONS_DIR + PARQUET_EXTENSION), ArrowSchemas.getRelationSchema(), relationSpill));
+                    ResultLayout.RELATIONS_DIR + blockWriter.fileExtension()), ArrowSchemas.getRelationSchema(),
+                    relationSpill, blockWriter));
         }
         files.sort(Comparator.comparingLong(PartitionFile::getSpilledBytes).reversed());
         List<Future<?>> writes = new ArrayList<>();
@@ -88,7 +90,7 @@ public final class ParquetPartitions {
             }));
         }
         awaitAll(writes);
-        log.info("{} Parquet partition files of nodes, ways and relations written in {} ms", files.size(),
+        log.info("{} partition files of nodes, ways and relations written in {} ms", files.size(),
                 System.currentTimeMillis() - start);
     }
 
@@ -127,11 +129,11 @@ public final class ParquetPartitions {
     public void writeMultipolygons() throws IOException {
         long start = System.currentTimeMillis();
         List<PartitionFile> files = partitionFiles(ResultLayout.MULTIPOLYGON_DIR, MULTIPOLYGON,
-                ArrowSchemas.getMultipolygonSchema(), true);
+                ArrowSchemas.getMultipolygonSchema(), true, multipolygonWriter);
         for (PartitionFile file : files) {
             write(file, MULTIPOLYGON_ORDER);
         }
-        log.info("{} Parquet partition files of multipolygons written in {} ms", files.size(),
+        log.info("{} partition files of multipolygons written in {} ms", files.size(),
                 System.currentTimeMillis() - start);
     }
 
@@ -155,7 +157,7 @@ public final class ParquetPartitions {
     }
 
     private List<PartitionFile> partitionFiles(String entityDir, String tableName, Schema schema,
-                                               boolean multipleCellsPartition) {
+                                               boolean multipleCellsPartition, PartitionWriter writer) {
         NavigableMap<Short, File> cells = spillFiles(entityDir);
         File targetDirectory = new File(arrowDirectory, entityDir);
         List<PartitionFile> files = new ArrayList<>();
@@ -164,15 +166,15 @@ public final class ParquetPartitions {
                     partition.getMaxRange(), false);
             if (!partitionCells.isEmpty()) {
                 files.add(new PartitionFile(new File(targetDirectory,
-                        PartitionSplitter.partitionTableName(tableName, partition.getId()) + PARQUET_EXTENSION),
-                        schema, new ArrayList<>(partitionCells.values())));
+                        PartitionSplitter.partitionTableName(tableName, partition.getId()) + writer.fileExtension()),
+                        schema, new ArrayList<>(partitionCells.values()), writer));
                 partitionCells.clear();
             }
         }
         File multipleCells = multipleCellsPartition ? cells.remove(GeometryH33.MULTIPLE_CELLS) : null;
         if (multipleCells != null) {
             files.add(new PartitionFile(new File(targetDirectory, tableName + "_" + GeometryH33.MULTIPLE_CELLS
-                    + PARQUET_EXTENSION), schema, List.of(multipleCells)));
+                    + writer.fileExtension()), schema, List.of(multipleCells), writer));
         }
         if (!cells.isEmpty()) {
             throw new IllegalStateException("No partition for " + entityDir + " with h3_3 " + cells.keySet());
@@ -197,8 +199,9 @@ public final class ParquetPartitions {
     private void write(PartitionFile file, List<String> orderBy) throws IOException {
         long start = System.currentTimeMillis();
         try (BufferAllocator allocator = new RootAllocator();
-             ArrowReader reader = ArrowSpill.reader(allocator, file.schema, file.spillFiles)) {
-            parquetWriter.write(allocator, reader, file.target, orderBy);
+             ArrowReader reader = new CellBatchReader(allocator, file.schema, file.spillFiles,
+                     CellBatchReader.MAX_BATCH_ROWS)) {
+            file.writer.write(allocator, reader, file.target, orderBy);
         }
         for (File spillFile : file.spillFiles) {
             delete(spillFile);
@@ -223,7 +226,7 @@ public final class ParquetPartitions {
             if (cause instanceof RuntimeException) {
                 throw (RuntimeException) cause;
             }
-            throw new IllegalStateException("Writing Parquet partition failed", cause);
+            throw new IllegalStateException("Writing partition file failed", cause);
         }
     }
 
@@ -245,12 +248,14 @@ public final class ParquetPartitions {
         private final File target;
         private final Schema schema;
         private final List<File> spillFiles;
+        private final PartitionWriter writer;
         private final long spilledBytes;
 
-        private PartitionFile(File target, Schema schema, List<File> spillFiles) {
+        private PartitionFile(File target, Schema schema, List<File> spillFiles, PartitionWriter writer) {
             this.target = target;
             this.schema = schema;
             this.spillFiles = spillFiles;
+            this.writer = writer;
             this.spilledBytes = spillFiles.stream().mapToLong(File::length).sum();
         }
 

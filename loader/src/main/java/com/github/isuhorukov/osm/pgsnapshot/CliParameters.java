@@ -28,10 +28,12 @@ public class CliParameters {
     private ArrowFormat arrowFormat;
     @Parameter(names = {"-geoparquet_version"}, description = "Way line geometry in Parquet files: V1 - WKB with GeoParquet 1.0.0 metadata (default), BOTH - GeoParquet 1.0.0 metadata and the Parquet GEOMETRY type, V2 - GeoParquet 2.0.0 metadata and the Parquet GEOMETRY type, BLOB - WKB without GeoParquet metadata. Requires -arrow_format PARQUET")
     private GeoParquetVersion geoParquetVersion;
-    @Parameter(names = {"-parquet_compression"}, description = "Compression of Parquet files: ZSTD (default), LZ4 (written as the Parquet LZ4_RAW codec) or SNAPPY. Requires -arrow_format")
+    @Parameter(names = {"-parquet_compression"}, description = "Compression of Parquet files: ZSTD (default), LZ4 (written as the Parquet LZ4_RAW codec) or SNAPPY. Requires -arrow_format PARQUET")
     private ParquetCompression parquetCompression;
-    @Parameter(names = {"-spill_compression"}, description = "Compression of the intermediate Arrow IPC files that collect rows per H3 cell before Parquet partition files are written: ZSTD (default) or NONE. NONE is a little faster and takes about twice the disk space. Requires -arrow_format")
-    private SpillCompression spillCompression;
+    @Parameter(names = {"-arrow_ipc_compression"}, description = "Compression of Arrow IPC files: NONE (default) or ZSTD. Readers need ZSTD support of the Arrow IPC format, e.g. arrow-compression in Arrow Java. Requires -arrow_format ARROW_IPC")
+    private IpcCompression arrowIpcCompression;
+    @Parameter(names = {"-spill_compression"}, description = "Compression of the intermediate Arrow IPC files that collect rows per H3 cell before partition files are written: ZSTD (default) or NONE. NONE is a little faster and takes about twice the disk space. Requires -arrow_format")
+    private IpcCompression spillCompression;
     @Parameter(names = {"-spill_zstd_level"}, description = "ZSTD level of the intermediate Arrow IPC files, from -131072 (fastest) to 22 (smallest), default 1. Requires -spill_compression ZSTD")
     private Integer spillZstdLevel;
     @Parameter(names = {"-result_in_tsv"}, arity = 1, description = "Save result data in TabSeparatedValue format for PostgreSQL COPY")
@@ -68,7 +70,9 @@ public class CliParameters {
     public boolean isGeoParquetVersionSet() { return geoParquetVersion != null; }
     public ParquetCompression getParquetCompression() { return parquetCompression != null ? parquetCompression : ParquetCompression.ZSTD; }
     public boolean isParquetCompressionSet() { return parquetCompression != null; }
-    public SpillCompression getSpillCompression() { return spillCompression != null ? spillCompression : SpillCompression.ZSTD; }
+    public IpcCompression getArrowIpcCompression() { return arrowIpcCompression != null ? arrowIpcCompression : IpcCompression.NONE; }
+    public boolean isArrowIpcCompressionSet() { return arrowIpcCompression != null; }
+    public IpcCompression getSpillCompression() { return spillCompression != null ? spillCompression : IpcCompression.ZSTD; }
     public boolean isSpillCompressionSet() { return spillCompression != null; }
     public int getSpillZstdLevel() { return spillZstdLevel != null ? spillZstdLevel : DEFAULT_SPILL_ZSTD_LEVEL; }
     public boolean isSpillZstdLevelSet() { return spillZstdLevel != null; }
@@ -111,6 +115,7 @@ public class CliParameters {
                 .append("arrowFormat", arrowFormat)
                 .append("geoParquetVersion", geoParquetVersion)
                 .append("parquetCompression", parquetCompression)
+                .append("arrowIpcCompression", arrowIpcCompression)
                 .append("spillCompression", spillCompression)
                 .append("spillZstdLevel", spillZstdLevel)
                 .append("savePostgresqlTsv", savePostgresqlTsv)

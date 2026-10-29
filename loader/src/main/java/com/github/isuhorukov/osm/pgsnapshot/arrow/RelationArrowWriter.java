@@ -2,7 +2,6 @@ package com.github.isuhorukov.osm.pgsnapshot.arrow;
 
 import com.github.isuhorukov.osm.pgsnapshot.model.ArrowRelation;
 import com.github.isuhorukov.osm.pgsnapshot.model.ArrowRelationMember;
-import com.github.isuhorukov.osm.pgsnapshot.output.ResultLayout;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
@@ -11,25 +10,13 @@ import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.MapVector;
 import org.apache.arrow.vector.complex.impl.UnionListWriter;
 import org.apache.arrow.vector.complex.impl.UnionMapWriter;
-import org.apache.arrow.vector.types.pojo.Schema;
 
-import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
-public class RelationArrowWriter extends ArrowBatchWriter {
+public final class RelationArrowWriter {
 
-    public RelationArrowWriter(File resultDir) {
-        super(resultDir);
-    }
-
-    public void write(List<ArrowRelation> arrowRelations, Long blockNumber) {
-        if (arrowRelations == null || arrowRelations.isEmpty()) {
-            return;
-        }
-        Schema schema = ArrowSchemas.getRelationSchema();
-        String fileName = String.format("%s/%08d", ResultLayout.RELATIONS_DIR, blockNumber);
-        writeBlock(blockNumber, schema, fileName, (allocator, root) -> fill(allocator, root, arrowRelations));
+    private RelationArrowWriter() {
     }
 
     static void fill(BufferAllocator allocator, VectorSchemaRoot root, List<ArrowRelation> arrowRelations) {
@@ -56,7 +43,7 @@ public class RelationArrowWriter extends ArrowBatchWriter {
             List<ArrowRelationMember> relationMembers = arrowRelation.getRelationMembers();
 
             idVector.set(idx, arrowRelation.getId());
-            writeTagsToArrow(allocator, mapWriter, idx, arrowRelation.getTags());
+            ArrowTags.write(allocator, mapWriter, idx, arrowRelation.getTags());
 
             memberIdVectorWriter.setPosition(idx);
             memberTypeVectorWriter.setPosition(idx);

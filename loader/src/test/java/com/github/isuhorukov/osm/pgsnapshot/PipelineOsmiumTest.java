@@ -113,13 +113,17 @@ class PipelineOsmiumTest {
         Path pbf = samplePbf("arrow");
 
         assertEquals(0, OsmPbfTransformation.run(new String[]{"-source_pbf", pbf.toString(), "-osmium_docker", "false",
-                "-arrow_format", "ARROW_IPC", "-result_in_tsv", "false", "-parallel_multipolygon_export", "false"}));
+                "-arrow_format", "ARROW_IPC", "-arrow_ipc_compression", "ZSTD", "-result_in_tsv", "false",
+                "-parallel_multipolygon_export", "false"}));
 
         Path result = pbf.resolveSibling("sample_loc_ways");
-        assertEquals(List.of("multipolygon_000.parquet"), fileNames(result.resolve("arrow/multipolygon")));
+        assertEquals(List.of("multipolygon_000.arrow"), fileNames(result.resolve("arrow/multipolygon")));
         assertFalse(Files.exists(result.resolve("arrow/spill")));
-        assertTrue(fileNames(result.resolve("arrow/nodes")).stream().allMatch(name -> name.endsWith(".arrow")));
-        assertFalse(fileNames(result.resolve("arrow/ways")).isEmpty());
+        assertEquals(List.of("nodes_000.arrow"), fileNames(result.resolve("arrow/nodes")));
+        assertEquals(List.of("ways_000.arrow", "ways_32767.arrow"), fileNames(result.resolve("arrow/ways")));
+        assertEquals(List.of("relations.arrow"), fileNames(result.resolve("arrow/relations")));
+        assertEquals("ARROW1", new String(Files.readAllBytes(result.resolve("arrow/ways/ways_000.arrow")),
+                0, 6, StandardCharsets.US_ASCII));
         assertFalse(Files.exists(result.resolve("multipolygon")));
         assertFalse(Files.exists(result.resolve("nodes")));
     }

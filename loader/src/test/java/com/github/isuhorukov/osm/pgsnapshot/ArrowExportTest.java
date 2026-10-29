@@ -1,6 +1,7 @@
 package com.github.isuhorukov.osm.pgsnapshot;
 
 import com.github.isuhorukov.osm.pgsnapshot.output.ResultLayout;
+import org.apache.arrow.compression.CommonsCompressionFactory;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.FieldVector;
@@ -34,6 +35,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -47,6 +49,8 @@ class ArrowExportTest {
     private static final String SECTION = "== ";
     private static final List<String> ENTITIES = List.of(ResultLayout.NODES_DIR, ResultLayout.WAYS_DIR,
             ResultLayout.RELATIONS_DIR);
+    private static final List<String> IPC_ENTITIES = List.of(ResultLayout.NODES_DIR, ResultLayout.WAYS_DIR,
+            ResultLayout.RELATIONS_DIR, ResultLayout.MULTIPOLYGON_DIR);
 
     @TempDir
     Path tempDir;
@@ -72,8 +76,8 @@ class ArrowExportTest {
             assertEquals(expected.get(format + " schema"), parquetSchema(arrow));
             assertEquals(expected.get(format + " rows"), parquetRows(arrow));
         } else {
-            assertEquals(expected.get(format + " schema"), ipcSchema(arrow) + "\n" + multipolygonSchema(arrow));
-            assertEquals(expected.get(format + " rows"), ipcRows(arrow) + "\n" + multipolygonRows(arrow));
+            assertEquals(expected.get(format + " schema"), ipcSchema(arrow));
+            assertEquals(expected.get(format + " rows"), ipcRows(arrow));
         }
     }
 
@@ -277,10 +281,11 @@ class ArrowExportTest {
     private static String ipcSchema(Path arrow) throws IOException {
         List<String> lines = new ArrayList<>();
         try (BufferAllocator allocator = new RootAllocator()) {
-            for (String entity : ENTITIES) {
+            for (String entity : IPC_ENTITIES) {
                 for (Path file : entityFiles(arrow, entity)) {
                     try (FileChannel channel = FileChannel.open(file, StandardOpenOption.READ);
-                         ArrowFileReader reader = new ArrowFileReader(channel, allocator)) {
+                         ArrowFileReader reader = new ArrowFileReader(channel, allocator,
+                                 CommonsCompressionFactory.INSTANCE)) {
                         VectorSchemaRoot root = reader.getVectorSchemaRoot();
                         long rows = 0;
                         while (reader.loadNextBatch()) {
@@ -288,8 +293,10 @@ class ArrowExportTest {
                         }
                         lines.add(arrow.relativize(file) + " rows=" + rows + " record_batches="
                                 + reader.getRecordBlocks().size());
+                        lines.add("  footer " + new TreeMap<>(reader.getMetaData()));
                         for (Field field : root.getSchema().getFields()) {
-                            lines.add("  " + field);
+                            lines.add("  " + field + (field.getMetadata().isEmpty() ? ""
+                                    : " " + new TreeMap<>(field.getMetadata())));
                         }
                     }
                 }
@@ -301,10 +308,11 @@ class ArrowExportTest {
     private static String ipcRows(Path arrow) throws IOException {
         List<String> rows = new ArrayList<>();
         try (BufferAllocator allocator = new RootAllocator()) {
-            for (String entity : ENTITIES) {
+            for (String entity : IPC_ENTITIES) {
                 for (Path file : entityFiles(arrow, entity)) {
                     try (FileChannel channel = FileChannel.open(file, StandardOpenOption.READ);
-                         ArrowFileReader reader = new ArrowFileReader(channel, allocator)) {
+                         ArrowFileReader reader = new ArrowFileReader(channel, allocator,
+                                 CommonsCompressionFactory.INSTANCE)) {
                         VectorSchemaRoot root = reader.getVectorSchemaRoot();
                         while (reader.loadNextBatch()) {
                             for (int row = 0; row < root.getRowCount(); row++) {

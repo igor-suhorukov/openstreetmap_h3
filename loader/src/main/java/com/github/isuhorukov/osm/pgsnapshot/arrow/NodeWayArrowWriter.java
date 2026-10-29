@@ -1,33 +1,18 @@
 package com.github.isuhorukov.osm.pgsnapshot.arrow;
 
 import com.github.isuhorukov.osm.pgsnapshot.model.ArrowNodeOrWay;
-import com.github.isuhorukov.osm.pgsnapshot.output.ResultLayout;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.*;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.MapVector;
 import org.apache.arrow.vector.complex.impl.UnionListWriter;
 import org.apache.arrow.vector.complex.impl.UnionMapWriter;
-import org.apache.arrow.vector.types.pojo.Schema;
 
-import java.io.File;
 import java.util.List;
 
-public class NodeWayArrowWriter extends ArrowBatchWriter {
+public final class NodeWayArrowWriter {
 
-    public NodeWayArrowWriter(File resultDir) {
-        super(resultDir);
-    }
-
-    public void write(List<ArrowNodeOrWay> arrowNodeOrWays, Long blockNumber) {
-        if (arrowNodeOrWays == null || arrowNodeOrWays.isEmpty()) {
-            return;
-        }
-        boolean isWays = arrowNodeOrWays.stream().anyMatch(item -> item.getPointIdxs() != null);
-        Schema schema = ArrowSchemas.getNodesOrWaysSchema(isWays);
-        String fileName = String.format("%s/%08d",
-                isWays ? ResultLayout.WAYS_DIR : ResultLayout.NODES_DIR, blockNumber);
-        writeBlock(blockNumber, schema, fileName, (allocator, root) -> fill(allocator, root, arrowNodeOrWays, isWays));
+    private NodeWayArrowWriter() {
     }
 
     static void fill(BufferAllocator allocator, VectorSchemaRoot root, List<ArrowNodeOrWay> arrowNodeOrWays,
@@ -55,7 +40,7 @@ public class NodeWayArrowWriter extends ArrowBatchWriter {
             h38Vector.set(idx, item.getH38());
             latitudeVector.set(idx, item.getLatitude());
             longitudeVector.set(idx, item.getLongitude());
-            writeTagsToArrow(allocator, mapWriter, idx, item.getTags());
+            ArrowTags.write(allocator, mapWriter, idx, item.getTags());
             if (wayVectors != null) {
                 wayVectors.writeElement(idx, item);
             }

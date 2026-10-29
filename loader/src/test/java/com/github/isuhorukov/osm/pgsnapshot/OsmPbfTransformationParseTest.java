@@ -139,12 +139,23 @@ class OsmPbfTransformationParseTest {
     }
 
     @Test
-    void optionsError_parquetCompression_requiresArrowFormat() {
-        assertEquals("-parquet_compression requires -arrow_format",
+    void optionsError_parquetCompression_requiresParquet() {
+        assertEquals("-parquet_compression requires -arrow_format PARQUET",
                 OsmPbfTransformation.optionsError(parse("-parquet_compression", "SNAPPY")));
-        assertNull(OsmPbfTransformation.optionsError(parse("-arrow_format", "ARROW_IPC", "-parquet_compression", "LZ4")));
+        assertEquals("-parquet_compression requires -arrow_format PARQUET",
+                OsmPbfTransformation.optionsError(parse("-arrow_format", "ARROW_IPC", "-parquet_compression", "LZ4")));
         assertNull(OsmPbfTransformation.optionsError(parse("-arrow_format", "PARQUET", "-parquet_compression",
                 "SNAPPY")));
+    }
+
+    @Test
+    void optionsError_arrowIpcCompression_requiresArrowIpc() {
+        assertEquals("-arrow_ipc_compression requires -arrow_format ARROW_IPC",
+                OsmPbfTransformation.optionsError(parse("-arrow_ipc_compression", "ZSTD")));
+        assertEquals("-arrow_ipc_compression requires -arrow_format ARROW_IPC",
+                OsmPbfTransformation.optionsError(parse("-arrow_format", "PARQUET", "-arrow_ipc_compression", "ZSTD")));
+        assertNull(OsmPbfTransformation.optionsError(parse("-arrow_format", "ARROW_IPC", "-arrow_ipc_compression",
+                "ZSTD")));
     }
 
     @Test

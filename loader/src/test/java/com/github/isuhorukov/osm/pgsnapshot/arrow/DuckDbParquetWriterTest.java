@@ -110,6 +110,7 @@ class DuckDbParquetWriterTest {
         }
 
         assertEquals(compression == ParquetCompression.LZ4 ? "LZ4_RAW" : compression.name(), compression(target));
+        assertEquals(".parquet", parquetWriter.fileExtension());
         assertArrayEquals(wkb(LINE, ByteOrderValues.LITTLE_ENDIAN), wkb(target, GEOMETRY, true).get(0));
     }
 
