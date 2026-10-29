@@ -59,7 +59,7 @@ public class CliParameters {
     private boolean updatable = false;
     @Parameter(names = {"-update"}, description = "Update a database loaded with -updatable from a newer PBF: only new, changed and deleted objects are written. Requires -pg_jdbc_url")
     private boolean update = false;
-    @Parameter(names = {"-admin_units"}, description = "Build the directory of administrative units (boundary=administrative relations with admin_level) from the PBF and write the column admin_units bigint[] with the ids of the leaf units of buildings, POIs, address points, stops and platforms, parking, toilets, ATMs, fuel stations, protected areas and places. Works with TSV files and -arrow_format")
+    @Parameter(names = {"-admin_units"}, description = "Build the directory of administrative units (boundary=administrative relations with admin_level) from the PBF and write the column admin_units bigint[] with the ids of the leaf units of buildings, POIs, address points, stops and platforms, parking, toilets, ATMs, fuel stations, protected areas and places. Works with TSV files, -arrow_format and -pg_jdbc_url")
     private boolean adminUnits = false;
     @Parameter(names = {"-admin_unit_shares"}, description = "Also write the column admin_unit_shares real[] with the shares of the object in the units of admin_units. Requires -admin_units")
     private boolean adminUnitShares = false;

@@ -5,6 +5,7 @@ import org.apache.arrow.compression.CommonsCompressionFactory;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.ipc.ArrowFileReader;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -48,6 +49,27 @@ class AdminUnitsPipelineTest {
     private static final double LAT = 18.7;
     private static final String SUBTREE_WAYS = "SELECT count(*)::text FROM ways w, admin.unit u WHERE u.id = 10 %s"
             + "AND w.admin_units && ARRAY(SELECT id FROM admin.unit WHERE path @> ARRAY[10::bigint])";
+    private static final String ROWS = "SELECT count(*) || ' ' || md5(string_agg(t::text, E'\\n' ORDER BY %s)) FROM %s t";
+    private static final List<String> JDBC_CONTENT_QUERIES = List.of(
+            String.format(ROWS, "t.id", "(SELECT id, h3_3, h3_8, tags, geom, admin_units, admin_unit_shares FROM nodes)"),
+            String.format(ROWS, "t.id", "(SELECT id, closed, building, highway, h3_3, h3_8, scale, tags, bbox, centre, "
+                    + "linestring, points, h3_8_regions, h3_3_multi_regions, admin_units, admin_unit_shares FROM ways)"),
+            String.format(ROWS, "t.id", "(SELECT id, h3_3, h3_8, scale, tags, bbox, centre, polygon, h3_3_multi_regions, "
+                    + "admin_units, admin_unit_shares FROM multipolygon)"),
+            String.format(ROWS, "t.id", "admin.unit"),
+            String.format(ROWS, "t.unit_id, t.part_no", "admin.unit_region"),
+            "SELECT concat_ws(' ', id, operation, osm_import_id, parameters, units, object_rows) FROM admin.state",
+            "SELECT count(*) || ' ' || md5(string_agg(c.relname || ' ' || d.objsubid || ' ' || d.description, E'\\n' "
+                    + "ORDER BY c.relname, d.objsubid)) FROM pg_description d JOIN pg_class c ON c.oid = d.objoid "
+                    + "JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname IN ('public', 'admin')",
+            "SELECT string_agg(pg_get_indexdef(i.indexrelid), ' | ' ORDER BY i.indexrelid::regclass::text) FROM pg_index i "
+                    + "JOIN pg_class c ON c.oid = i.indrelid JOIN pg_namespace n ON n.oid = c.relnamespace "
+                    + "WHERE n.nspname = 'admin'",
+            "SELECT string_agg(n.nspname || '.' || c.relname, ',' ORDER BY n.nspname, c.relname) FROM pg_class c "
+                    + "JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname IN ('public', 'admin') "
+                    + "AND c.relkind IN ('r', 'p', 'v') AND c.relname !~ '_[0-9]{3}$'");
+
+    private static GenericContainer<?> postgis;
 
     @TempDir
     Path tempDir;
@@ -55,6 +77,34 @@ class AdminUnitsPipelineTest {
     @BeforeAll
     static void osmiumAvailable() {
         assumeTrue(Files.isExecutable(OSMIUM), OSMIUM + " is required");
+    }
+
+    @AfterAll
+    static void stopPostgis() {
+        if (postgis != null) {
+            postgis.stop();
+        }
+    }
+
+    private static synchronized String url(String database) {
+        if (postgis == null) {
+            assumeTrue(DockerClientFactory.instance().isDockerAvailable(), "Docker is required");
+            postgis = new GenericContainer<>(DockerImageName.parse(POSTGIS_IMAGE))
+                    .withEnv("POSTGRES_PASSWORD", PASSWORD)
+                    .withExposedPorts(5432)
+                    .waitingFor(Wait.forLogMessage(".*database system is ready to accept connections.*\\s", 2)
+                            .withStartupTimeout(Duration.ofMinutes(2)));
+            postgis.start();
+        }
+        return "jdbc:postgresql://" + postgis.getHost() + ":" + postgis.getMappedPort(5432) + "/" + database
+                + "?user=postgres&password=" + PASSWORD;
+    }
+
+    private static void createDatabase(String database) throws SQLException {
+        try (Connection connection = DriverManager.getConnection(url("postgres"));
+             Statement statement = connection.createStatement()) {
+            statement.execute("CREATE DATABASE " + database);
+        }
     }
 
     static String fixture() {
@@ -266,36 +316,59 @@ class AdminUnitsPipelineTest {
 
     @Test
     void run_tsvImportedIntoPostgresql_hasDirectoryColumnsAndPrunedSubtree() throws Exception {
-        assumeTrue(DockerClientFactory.instance().isDockerAvailable(), "Docker is required");
+        createDatabase("admin_tsv");
         Path pbf = pbf("postgresql");
         assertEquals(0, run(pbf, "-admin_units", "-admin_unit_shares"));
-        try (GenericContainer<?> postgis = new GenericContainer<>(DockerImageName.parse(POSTGIS_IMAGE))
-                .withEnv("POSTGRES_PASSWORD", PASSWORD)
-                .withExposedPorts(5432)
-                .waitingFor(Wait.forLogMessage(".*database system is ready to accept connections.*\\s", 2)
-                        .withStartupTimeout(Duration.ofMinutes(2)))) {
-            postgis.start();
-            String url = "jdbc:postgresql://" + postgis.getHost() + ":" + postgis.getMappedPort(5432)
-                    + "/postgres?user=postgres&password=" + PASSWORD;
-            try (Connection connection = DriverManager.getConnection(url)) {
-                ResultDirectoryImport.importResultDirectory(connection, pbf.resolveSibling("admin_loc_ways").toFile());
-                assertEquals("5 1", query(connection, "SELECT count(*) || ' ' || count(*) FILTER (WHERE parent_id IS NULL) "
-                        + "FROM admin.unit"));
-                assertNotEquals("0", query(connection, "SELECT count(*)::text FROM admin.unit_region"));
-                assertEquals("{1,10,20}", query(connection, "SELECT path::text FROM admin.unit WHERE id = 20"));
-                assertEquals("{20,21} {1,1}", query(connection, "SELECT admin_units::text || ' ' || admin_unit_shares::text "
-                        + "FROM nodes WHERE id = 31"));
-                assertEquals("{11}", query(connection, "SELECT admin_units::text FROM multipolygon WHERE id = 101"));
-                assertEquals("2", query(connection, "SELECT count(*)::text FROM multipolygon WHERE admin_units IS NOT NULL"));
-                assertEquals(query(connection, String.format(SUBTREE_WAYS, "")),
-                        query(connection, String.format(SUBTREE_WAYS, "AND w.h3_3 = ANY (u.h3_3) ")));
-                assertEquals("2", query(connection, String.format(SUBTREE_WAYS, "")));
-                assertEquals("5", query(connection, "SELECT parameters->'report'->>'units' FROM admin.state"));
-                assertEquals("0", query(connection, "SELECT count(*)::text FROM nodes n JOIN LATERAL ("
-                        + "SELECT array_agg(DISTINCT r.unit_id ORDER BY r.unit_id) units FROM admin.unit_region r "
-                        + "WHERE ST_Intersects(r.geom, n.geom)) h ON true WHERE n.admin_units IS NOT NULL AND n.id <> 31 "
-                        + "AND h.units IS DISTINCT FROM (SELECT array_agg(u ORDER BY u) FROM unnest(n.admin_units) u)"));
+        try (Connection connection = DriverManager.getConnection(url("admin_tsv"))) {
+            ResultDirectoryImport.importResultDirectory(connection, pbf.resolveSibling("admin_loc_ways").toFile());
+            assertEquals("5 1", query(connection, "SELECT count(*) || ' ' || count(*) FILTER (WHERE parent_id IS NULL) "
+                    + "FROM admin.unit"));
+            assertNotEquals("0", query(connection, "SELECT count(*)::text FROM admin.unit_region"));
+            assertEquals("{1,10,20}", query(connection, "SELECT path::text FROM admin.unit WHERE id = 20"));
+            assertEquals("{20,21} {1,1}", query(connection, "SELECT admin_units::text || ' ' || admin_unit_shares::text "
+                    + "FROM nodes WHERE id = 31"));
+            assertEquals("{11}", query(connection, "SELECT admin_units::text FROM multipolygon WHERE id = 101"));
+            assertEquals("2", query(connection, "SELECT count(*)::text FROM multipolygon WHERE admin_units IS NOT NULL"));
+            assertEquals(query(connection, String.format(SUBTREE_WAYS, "")),
+                    query(connection, String.format(SUBTREE_WAYS, "AND w.h3_3 = ANY (u.h3_3) ")));
+            assertEquals("2", query(connection, String.format(SUBTREE_WAYS, "")));
+            assertEquals("5", query(connection, "SELECT parameters->'report'->>'units' FROM admin.state"));
+            assertEquals("0", query(connection, "SELECT count(*)::text FROM nodes n JOIN LATERAL ("
+                    + "SELECT array_agg(DISTINCT r.unit_id ORDER BY r.unit_id) units FROM admin.unit_region r "
+                    + "WHERE ST_Intersects(r.geom, n.geom)) h ON true WHERE n.admin_units IS NOT NULL AND n.id <> 31 "
+                    + "AND h.units IS DISTINCT FROM (SELECT array_agg(u ORDER BY u) FROM unnest(n.admin_units) u)"));
+        }
+    }
+
+    @Test
+    void run_pgJdbcUrl_sameContentAsImportedFilesWithoutWritingFiles() throws Exception {
+        createDatabase("admin_jdbc");
+        createDatabase("admin_files");
+        Path jdbcPbf = pbf("jdbc");
+        Path filesPbf = pbf("files");
+        Path export = tempDir.resolve("jdbc_export");
+
+        assertEquals(0, run(jdbcPbf, "-admin_units", "-admin_unit_shares", "-pg_jdbc_url", url("admin_jdbc"),
+                "-admin_units_export", export.toString()));
+        assertEquals(0, run(filesPbf, "-admin_units", "-admin_unit_shares"));
+        try (Connection connection = DriverManager.getConnection(url("admin_files"))) {
+            ResultDirectoryImport.importResultDirectory(connection, filesPbf.resolveSibling("admin_loc_ways").toFile());
+        }
+
+        assertEquals(List.of("admin.osm.pbf"), fileNames(jdbcPbf.getParent()));
+        assertEquals(List.of("admin_regions.geojsonl", "admin_regions.parquet", "admin_units.geojsonl",
+                "admin_units.jsonl", "admin_units.parquet", "admin_units_state.json"), fileNames(export));
+        try (Connection files = DriverManager.getConnection(url("admin_files"));
+             Connection jdbc = DriverManager.getConnection(url("admin_jdbc"))) {
+            for (String contentQuery : JDBC_CONTENT_QUERIES) {
+                assertEquals(query(files, contentQuery), query(jdbc, contentQuery), contentQuery);
             }
+            assertEquals("{20,21} {1,1}", query(jdbc, "SELECT admin_units::text || ' ' || admin_unit_shares::text "
+                    + "FROM nodes WHERE id = 31"));
+            assertEquals("5 2", query(jdbc, "SELECT (SELECT count(*) FROM admin.unit) || ' ' || count(*) "
+                    + "FROM multipolygon WHERE admin_units IS NOT NULL"));
+            assertTrue(query(jdbc, "SELECT col_description(attrelid, attnum) FROM pg_attribute "
+                    + "WHERE attrelid = 'nodes'::regclass AND attname = 'admin_units'").startsWith("Ids of the leaf"));
         }
     }
 

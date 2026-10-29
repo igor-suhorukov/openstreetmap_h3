@@ -3,6 +3,9 @@ package com.github.isuhorukov.osm.pgsnapshot.jdbc;
 import com.github.isuhorukov.osm.pgsnapshot.CliParameters;
 import com.github.isuhorukov.osm.pgsnapshot.ExternalProcessing;
 import com.github.isuhorukov.osm.pgsnapshot.PipedProcess;
+import com.github.isuhorukov.osm.pgsnapshot.admin.AdminColumns;
+import com.github.isuhorukov.osm.pgsnapshot.admin.AdminDatabaseFiles;
+import com.github.isuhorukov.osm.pgsnapshot.admin.AdminUnits;
 import com.github.isuhorukov.osm.pgsnapshot.extension.TagExtension;
 import com.github.isuhorukov.osm.pgsnapshot.model.Partition;
 import com.github.isuhorukov.osm.pgsnapshot.model.statistics.PbfStatistics;
@@ -22,17 +25,20 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 public final class PostgresqlLoader implements AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(PostgresqlLoader.class);
     static final String STATIC_DIRECTORY = ResultLayout.STATIC_DIR + "/";
     static final String IMPORT_STATE_PATH = ResultLayout.IMPORT_RELATED_METADATA_DIR + '/' + ImportState.OSM_IMPORT_STATE_TSV;
+    static final String ADMIN_UNITS_DIRECTORY = AdminUnits.OUTPUT_DIRECTORY + "/";
     static final int QUEUED_CHUNKS_PER_WORKER_THREAD = 16;
     private static final long MIN_PENDING_BYTES_PER_WORKER = 1L << 20;
     private static final long MAX_PENDING_BYTES_PER_WORKER = 128L << 20;
@@ -40,6 +46,8 @@ public final class PostgresqlLoader implements AutoCloseable {
     private final CliParameters parameters;
     private final OpenedConnections connections;
     private final MultipolygonTags multipolygonTags;
+    private final AdminUnits adminUnits;
+    private final AdminColumns adminColumns;
     private final InputFiles inputFiles = new InputFiles();
     private final List<CopyWorker> workers = new ArrayList<>();
     private final CopyTargets targets = new CopyTargets();
@@ -47,20 +55,23 @@ public final class PostgresqlLoader implements AutoCloseable {
     private volatile boolean multipolygonExportCancelled;
     private boolean completed;
 
-    private PostgresqlLoader(CliParameters parameters, OpenedConnections connections, MultipolygonTags multipolygonTags) {
+    private PostgresqlLoader(CliParameters parameters, OpenedConnections connections, MultipolygonTags multipolygonTags,
+                             AdminUnits adminUnits) {
         this.parameters = parameters;
         this.connections = connections;
         this.multipolygonTags = multipolygonTags;
+        this.adminUnits = adminUnits;
+        this.adminColumns = adminUnits != null ? adminUnits.getColumns() : AdminColumns.NONE;
     }
 
     public static PostgresqlLoader start(CliParameters parameters, File sourcePbfFile, List<TagExtension> tagExtensions,
-                                         MultipolygonTags multipolygonTags, Consumer<Throwable> failureListener)
-            throws IOException, SQLException {
+                                         MultipolygonTags multipolygonTags, AdminUnits adminUnits,
+                                         Consumer<Throwable> failureListener) throws IOException, SQLException {
         OpenedConnections connections = new OpenedConnections(
                 new PostgresqlConnections(parameters.getPostgresqlJdbcUrl(), System.getenv()));
         List<Partition> partitions = PartitionEstimator.estimatePartitions(sourcePbfFile,
                 parameters.getThresholdPercentFromMaxPartition());
-        PostgresqlLoader loader = new PostgresqlLoader(parameters, connections, multipolygonTags);
+        PostgresqlLoader loader = new PostgresqlLoader(parameters, connections, multipolygonTags, adminUnits);
         try {
             loader.initializeDatabase(partitions, tagExtensions);
             loader.startWorkers(partitions, failureListener);
@@ -84,10 +95,11 @@ public final class PostgresqlLoader implements AutoCloseable {
         inputFiles.addResource(STATIC_DIRECTORY + ResourceCopier.H3_POLY_TSV_GZ, "/" + ResourceCopier.H3_POLY_TSV_GZ);
         inputFiles.add(STATIC_DIRECTORY + ResourceCopier.MULTIPOLYGON_SQL, ResourceCopier.multipolygonScript(columnarStorage));
         inputFiles.add(STATIC_DIRECTORY + ResourceCopier.MULTIPOLYGON_INSERT_SQL,
-                ResourceCopier.multipolygonInsertScript());
+                ResourceCopier.multipolygonInsertScript(adminColumns));
         try (Connection connection = connections.open("init")) {
             PsqlRunner runner = new PsqlRunner(inputFiles);
-            runner.run(connection, ResourceCopier.databaseInitScript(columnarStorage, parameters.isUpdatable()));
+            runner.run(connection, ResourceCopier.databaseInitScript(columnarStorage, parameters.isUpdatable(),
+                    adminColumns));
             JdbcPostgresqlResources extensionResources = new JdbcPostgresqlResources(inputFiles);
             for (TagExtension tagExtension : tagExtensions) {
                 tagExtension.writePostgresqlResources(extensionResources);
@@ -108,10 +120,10 @@ public final class PostgresqlLoader implements AutoCloseable {
         for (int workerIndex = 0; workerIndex < partitionsByWorker.size(); workerIndex++) {
             List<PartitionTable> tables = new ArrayList<>();
             for (Partition partition : partitionsByWorker.get(workerIndex)) {
-                tables.add(new PartitionTable(PartitionSplitter.NODES, PartitionSplitter.nodeColumns(updatable),
-                        partition, columnarStorage));
-                tables.add(new PartitionTable(PartitionSplitter.WAYS, PartitionSplitter.wayColumns(updatable),
-                        partition, columnarStorage));
+                tables.add(new PartitionTable(PartitionSplitter.NODES,
+                        PartitionSplitter.nodeColumns(updatable) + adminColumns.copyColumns(), partition, columnarStorage));
+                tables.add(new PartitionTable(PartitionSplitter.WAYS,
+                        PartitionSplitter.wayColumns(updatable) + adminColumns.copyColumns(), partition, columnarStorage));
             }
             String name = "copy-partitions-" + workerIndex;
             PartitionCopyWorker worker = new PartitionCopyWorker(name, connections.open(name), queueCapacity,
@@ -123,7 +135,7 @@ public final class PostgresqlLoader implements AutoCloseable {
         }
         addScriptWorker("copy-relations", ResourceCopier.relationsImportScript(updatable),
                 queueCapacity, pendingBytesLimit, failureListener);
-        addScriptWorker("copy-ways-32767", ResourceCopier.ways32767ImportScript(columnarStorage, updatable),
+        addScriptWorker("copy-ways-32767", ResourceCopier.ways32767ImportScript(columnarStorage, updatable, adminColumns),
                 queueCapacity, pendingBytesLimit, failureListener);
         for (CopyWorker worker : workers) {
             worker.start();
@@ -163,7 +175,8 @@ public final class PostgresqlLoader implements AutoCloseable {
             if (multipolygonExportCancelled) {
                 throw new InterruptedException("multipolygon export cancelled");
             }
-            long rows = MultipolygonCopy.copyExport(connection, export, multipolygonTags, parameters.getWorkers());
+            long rows = MultipolygonCopy.copyExport(connection, export, multipolygonTags, parameters.getWorkers(),
+                    adminUnits != null ? adminUnits.getBinder() : null);
             log.info("{} multipolygon relations copied in {} ms", rows, System.currentTimeMillis() - start);
         } catch (SQLException e) {
             throw new IllegalStateException("multipolygon COPY failed", e);
@@ -194,6 +207,11 @@ public final class PostgresqlLoader implements AutoCloseable {
         scripts.put(ResourceCopier.MULTIPOLYGON_IMPORT_SQL, ResourceCopier.resource("/" + ResourceCopier.MULTIPOLYGON_IMPORT_SQL));
         scripts.put(ResourceCopier.WAYS_DEFAULT_PARTITION_SQL, ResourceCopier.waysDefaultPartitionScript(updatable));
         scripts.put(ResourceCopier.NODES_ANALYZE_SQL, ResourceCopier.nodesAnalyzeScript(updatable));
+        if (adminUnits != null) {
+            addAdminUnitFiles();
+            scripts.put(ResourceCopier.ADMIN_UNITS_IMPORT_SQL,
+                    ResourceCopier.resource("/" + ResourceCopier.ADMIN_UNITS_IMPORT_SQL));
+        }
         Map<String, ParallelTasks.Task> tasks = new LinkedHashMap<>();
         for (Map.Entry<String, String> script : scripts.entrySet()) {
             tasks.put("finalize-" + script.getKey(), () -> {
@@ -204,6 +222,17 @@ public final class PostgresqlLoader implements AutoCloseable {
         }
         ParallelTasks.run(tasks);
         log.info("import finalized in {} ms", System.currentTimeMillis() - start);
+    }
+
+    private void addAdminUnitFiles() {
+        adminUnits.finish();
+        addRows(AdminDatabaseFiles.UNIT_TSV, () -> AdminDatabaseFiles.unitRows(adminUnits));
+        addRows(AdminDatabaseFiles.UNIT_REGION_TSV, () -> AdminDatabaseFiles.regionRows(adminUnits));
+        addRows(AdminDatabaseFiles.STATE_TSV, () -> List.of(AdminDatabaseFiles.stateRow(adminUnits)).iterator());
+    }
+
+    private void addRows(String fileName, Supplier<Iterator<String>> rows) {
+        inputFiles.add(ADMIN_UNITS_DIRECTORY + fileName, () -> new RowsInputStream(rows.get()));
     }
 
     public void addImportState(byte[] importState) {

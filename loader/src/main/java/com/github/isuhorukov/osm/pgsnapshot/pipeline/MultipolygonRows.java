@@ -1,5 +1,6 @@
 package com.github.isuhorukov.osm.pgsnapshot.pipeline;
 
+import com.github.isuhorukov.osm.pgsnapshot.admin.AdminBinder;
 import com.github.isuhorukov.osm.pgsnapshot.admin.AdminBinding;
 import com.github.isuhorukov.osm.pgsnapshot.admin.AdminColumns;
 import com.github.isuhorukov.osm.pgsnapshot.util.GeometryH33;
@@ -62,10 +63,18 @@ public final class MultipolygonRows {
     public static <E extends Exception> long copyRelations(InputStream osmiumOutput, Sink<E> sink,
                                                            MultipolygonTags multipolygonTags, int workers)
             throws IOException, E {
-        GeometryH33 geometryH33 = GeometryH33.instance();
-        return processRelations(osmiumOutput, workers,
-                batch -> batch.importRows(multipolygonTags, geometryH33.cells(batch.geometries())),
-                rows -> sink.write(rows.array(), rows.arrayOffset() + rows.position(), rows.remaining()));
+        return copyRelations(osmiumOutput, sink, multipolygonTags, workers, null);
+    }
+
+    public static <E extends Exception> long copyRelations(InputStream osmiumOutput, Sink<E> sink,
+                                                           MultipolygonTags multipolygonTags, int workers,
+                                                           AdminBinder adminBinder) throws IOException, E {
+        MultipolygonBatchProcessor processor = new MultipolygonBatchProcessor(multipolygonTags, true, null,
+                GeometryH33.instance(), adminBinder);
+        return processRelations(osmiumOutput, workers, processor::process, result -> {
+            ByteBuffer rows = result.getTsvRows();
+            sink.write(rows.array(), rows.arrayOffset() + rows.position(), rows.remaining());
+        });
     }
 
     static <R, E extends Exception> long processRelations(InputStream osmiumOutput, int workers,
@@ -275,10 +284,6 @@ public final class MultipolygonRows {
             } catch (ParseException e) {
                 throw new IllegalStateException("Invalid WKB of multipolygon " + id, e);
             }
-        }
-
-        ByteBuffer importRows(MultipolygonTags multipolygonTags, short[][] cells) {
-            return importRows(multipolygonTags, cells, null, AdminColumns.NONE);
         }
 
         ByteBuffer importRows(MultipolygonTags multipolygonTags, short[][] cells, AdminBinding[] bindings,

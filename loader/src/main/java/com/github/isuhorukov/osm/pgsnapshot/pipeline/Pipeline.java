@@ -122,8 +122,10 @@ public class Pipeline {
 
     private void loadPostgresql(ExternalProcessing externalProcessing, File sourcePbfFile, long commandStartTime)
             throws IOException, InterruptedException {
+        AdminUnits adminUnits = parameters.isAdminUnits()
+                ? AdminUnits.prepare(parameters, externalProcessing, sourcePbfFile) : null;
         try (PostgresqlLoader loader = PostgresqlLoader.start(parameters, sourcePbfFile, tagExtensions,
-                multipolygonTags, this::recordFailure)) {
+                multipolygonTags, adminUnits, this::recordFailure)) {
             if (parameters.isUpdatable()) {
                 loader.addImportState(importState(sourcePbfFile));
             }
@@ -136,7 +138,7 @@ public class Pipeline {
                     parameters.isParallelMultipolygonExport())) {
                 processedBlocks = processBlocks(externalProcessing, sourcePbfFile, null,
                         loader.blockWriter(maxBlocksInFlight(), this::recordFailure), processingStartTime,
-                        StoredVersions.NONE, null);
+                        StoredVersions.NONE, adminUnits != null ? adminUnits.getBinder() : null);
                 dataProcessingTime = System.currentTimeMillis() - processingStartTime;
                 StatisticsWriter.printProcessingStatistics(processedBlocks.blockStatistics, processedBlocks.blockCount,
                         dataProcessingTime, processedBlocks.multipolygonCount());
@@ -150,17 +152,35 @@ public class Pipeline {
         } catch (SQLException e) {
             throw new IllegalStateException("Loading into PostgreSQL failed", e);
         }
+        if (adminUnits != null) {
+            exportAdminUnits(adminUnits, sourcePbfFile);
+        }
+    }
+
+    private void exportAdminUnits(AdminUnits adminUnits, File sourcePbfFile) throws IOException, InterruptedException {
+        if (parameters.getAdminUnitsExport() != null) {
+            long start = System.currentTimeMillis();
+            writeAdminUnitsExport(adminUnits, sourcePbfFile);
+            log.info("admin unit directory exported in {} ms", System.currentTimeMillis() - start);
+        }
+        if (log.isInfoEnabled()) {
+            log.info("admin unit directory loaded: {}", adminUnits.reportMetadataJson());
+        }
     }
 
     private void exportAdminUnitsOnly(ExternalProcessing externalProcessing, File sourcePbfFile,
                                       long commandStartTime) throws IOException, InterruptedException {
-        AdminUnits adminUnits = AdminUnits.prepare(parameters, externalProcessing, sourcePbfFile);
+        writeAdminUnitsExport(AdminUnits.prepare(parameters, externalProcessing, sourcePbfFile), sourcePbfFile);
+        log.info("admin unit directory exported in {} ms", System.currentTimeMillis() - commandStartTime);
+    }
+
+    private void writeAdminUnitsExport(AdminUnits adminUnits, File sourcePbfFile)
+            throws IOException, InterruptedException {
         try (DuckDbParquetWriter exportWriter = exportParquetWriter()) {
             new AdminUnitsOutput(adminUnits, importStateJson(sourcePbfFile))
                     .export(new File(parameters.getAdminUnitsExport()), exportWriter)
                     .write();
         }
-        log.info("admin unit directory exported in {} ms", System.currentTimeMillis() - commandStartTime);
     }
 
     private void saveFiles(ExternalProcessing externalProcessing, File sourcePbfFile, long commandStartTime)

@@ -30,7 +30,9 @@ class AdminUnitsOptionsTest {
             "-admin_units_cache /tmp/c|require -admin_units",
             "-name_lang en|require -admin_units",
             "-min_area_m2 5|require -admin_units",
-            "-admin_units -pg_jdbc_url jdbc:postgresql://h/d|not with -pg_jdbc_url or -update",
+            "-admin_units -update -pg_jdbc_url jdbc:postgresql://h/d|not with -update yet",
+            "-admin_units -admin_units_only -admin_units_export /tmp/e -pg_jdbc_url jdbc:postgresql://h/d|"
+                    + "-admin_units_only can't be combined with -pg_jdbc_url",
             "-admin_units -updatable|can't be combined with -updatable",
             "-admin_units -collect_only_statistics|can't be combined with -collect_only_statistics",
             "-admin_units -admin_units_only|-admin_units_only requires -admin_units_export",
@@ -51,6 +53,8 @@ class AdminUnitsOptionsTest {
         assertNull(OsmPbfTransformation.optionsError(parse("-admin_units -admin_unit_shares -arrow_format PARQUET "
                 + "-admin_units_export /tmp/e -admin_units_only -admin_units_cache /tmp/c -name_lang th,en "
                 + "-parent_share 0.8 -subarea_share 0.6 -min_share 0 -min_area_m2 0 -min_length_m 50")));
+        assertNull(OsmPbfTransformation.optionsError(parse("-admin_units -admin_unit_shares "
+                + "-pg_jdbc_url jdbc:postgresql://h/d -admin_units_export /tmp/e -admin_units_cache /tmp/c")));
     }
 
     @Test

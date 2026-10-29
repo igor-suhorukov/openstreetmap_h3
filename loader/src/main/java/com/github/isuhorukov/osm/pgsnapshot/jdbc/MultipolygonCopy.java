@@ -1,6 +1,7 @@
 package com.github.isuhorukov.osm.pgsnapshot.jdbc;
 
 import com.github.isuhorukov.osm.pgsnapshot.PipedProcess;
+import com.github.isuhorukov.osm.pgsnapshot.admin.AdminBinder;
 import com.github.isuhorukov.osm.pgsnapshot.pipeline.MultipolygonRows;
 import com.github.isuhorukov.osm.pgsnapshot.pipeline.MultipolygonTags;
 import org.postgresql.copy.CopyIn;
@@ -19,13 +20,23 @@ final class MultipolygonCopy {
 
     static long copyRelations(InputStream osmiumOutput, CopyIn copyIn, MultipolygonTags multipolygonTags, int workers)
             throws IOException, SQLException {
-        return MultipolygonRows.copyRelations(osmiumOutput, copyIn::writeToCopy, multipolygonTags, workers);
+        return copyRelations(osmiumOutput, copyIn, multipolygonTags, workers, null);
+    }
+
+    static long copyRelations(InputStream osmiumOutput, CopyIn copyIn, MultipolygonTags multipolygonTags, int workers,
+                              AdminBinder adminBinder) throws IOException, SQLException {
+        return MultipolygonRows.copyRelations(osmiumOutput, copyIn::writeToCopy, multipolygonTags, workers, adminBinder);
     }
 
     static long copyExport(Connection connection, PipedProcess export, MultipolygonTags multipolygonTags, int workers)
             throws IOException, SQLException, InterruptedException {
+        return copyExport(connection, export, multipolygonTags, workers, null);
+    }
+
+    static long copyExport(Connection connection, PipedProcess export, MultipolygonTags multipolygonTags, int workers,
+                           AdminBinder adminBinder) throws IOException, SQLException, InterruptedException {
         CopyIn copyIn = PsqlRunner.copyManager(connection).copyIn(COPY_SQL);
-        long rows = copyRelations(export.getInputStream(), copyIn, multipolygonTags, workers);
+        long rows = copyRelations(export.getInputStream(), copyIn, multipolygonTags, workers, adminBinder);
         export.waitForSuccess();
         copyIn.endCopy();
         return rows;

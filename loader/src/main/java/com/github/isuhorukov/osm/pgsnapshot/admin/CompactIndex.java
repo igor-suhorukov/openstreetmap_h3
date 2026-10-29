@@ -23,7 +23,6 @@ final class CompactIndex {
     static final int EXTERIOR = 0;
     static final int INTERIOR = 1;
     static final int BOUNDARY = 2;
-    private static final int ON_BOUNDARY = -1;
     private static final byte APART = 0;
     private static final byte NEAR = 1;
     private static final byte HIT = 2;
@@ -37,6 +36,7 @@ final class CompactIndex {
     private final int[] pieceRing;
     private final int[] pieceUnit;
     private final PackedTree tree;
+    private final LatitudeBands bands;
     private final Comparator<Integer> pointOrder;
 
     CompactIndex(List<AdminUnit> units, AdminOptions options, IndexArrays arrays) {
@@ -48,6 +48,7 @@ final class CompactIndex {
         this.pieceRing = arrays.pieceRing;
         this.pieceUnit = arrays.pieceUnit;
         this.tree = new PackedTree(arrays.pieceBox.clone());
+        this.bands = LatitudeBands.of(arrays);
         this.pointOrder = Comparator.comparingInt((Integer unit) -> -units.get(unit).getLevel())
                 .thenComparingDouble(unit -> units.get(unit).getAreaM2())
                 .thenComparingLong(unit -> units.get(unit).getId());
@@ -70,38 +71,7 @@ final class CompactIndex {
     }
 
     int locate(int piece, long x, long y) {
-        boolean inside = false;
-        for (int r = pieceRing[piece]; r < pieceRing[piece + 1]; r++) {
-            int crossings = ringCrossings(r, x, y);
-            if (crossings == ON_BOUNDARY) {
-                return BOUNDARY;
-            }
-            inside ^= crossings == 1;
-        }
-        return inside ? INTERIOR : EXTERIOR;
-    }
-
-    private int ringCrossings(int r, long x, long y) {
-        int parity = 0;
-        long ax = xOf(xy[ringStart[r]]);
-        long ay = yOf(xy[ringStart[r]]);
-        for (int i = ringStart[r] + 1; i < ringStart[r + 1]; i++) {
-            long bx = xOf(xy[i]);
-            long by = yOf(xy[i]);
-            long cross = (bx - ax) * (y - ay) - (x - ax) * (by - ay);
-            boolean bAbove = by > y;
-            if ((ay > y) != bAbove) {
-                if (cross == 0) {
-                    return ON_BOUNDARY;
-                }
-                parity ^= (cross > 0) == bAbove ? 1 : 0;
-            } else if ((ay == y || by == y) && x >= Math.min(ax, bx) && x <= Math.max(ax, bx) && cross == 0) {
-                return ON_BOUNDARY;
-            }
-            ax = bx;
-            ay = by;
-        }
-        return parity;
+        return bands.locate(piece, x, y);
     }
 
     UnitShares point(double longitude, double latitude) {

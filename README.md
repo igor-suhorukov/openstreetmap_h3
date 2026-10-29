@@ -160,8 +160,8 @@ Usage: <main class> [options]
       relations with admin_level) from the PBF and write the column 
       admin_units bigint[] with the ids of the leaf units of buildings, POIs, 
       address points, stops and platforms, parking, toilets, ATMs, fuel 
-      stations, protected areas and places. Works with TSV files and 
-      -arrow_format
+      stations, protected areas and places. Works with TSV files, 
+      -arrow_format and -pg_jdbc_url
       Default: false
     -admin_unit_shares
       Also write the column admin_unit_shares real[] with the shares of the 
@@ -867,7 +867,7 @@ full load of the new PBF:
 ## Administrative units (`-admin_units`)
 
 `-admin_units` builds a directory of administrative units from the PBF and binds buildings, POIs and some other objects
-to their leaf units in the new column `admin_units`. It works with TSV files and `-arrow_format`; `-pg_jdbc_url`,
+to their leaf units in the new column `admin_units`. It works with TSV files, `-arrow_format` and `-pg_jdbc_url`;
 `-update` and `-updatable` are not supported yet. The design, the decisions and the measurements are in
 `admin_units/PLAN.md`.
 
@@ -884,7 +884,9 @@ built in Java:
   parent level of the confirmed `subarea` links of the country, and geometry picks the unit of that level;
 - the own territory of a unit is the unit minus its descendants. It is cut into pieces of at most 256 vertices along
   lines of the 1e-7 degree OSM grid and kept in a compact in-memory index: integer coordinates and a packed Hilbert
-  R-tree (37 MB for Thailand). All overlays are snap-rounded to the OSM grid.
+  R-tree (37 MB for Thailand). A piece with 16 edges or more is split into up to 32 latitude bands that list the edges
+  crossing each band, so a point is tested only against the edges of its band (8 MB more for Thailand). All overlays
+  are snap-rounded to the OSM grid.
 
 The leaf units of an object are the units whose own territory contains it. The column is filled only for buildings
 (ways, multipolygons and nodes with `building`), POIs (`is.poi` of the `poi-organicmaps` extension), address points
@@ -915,6 +917,7 @@ The directory is written after all objects are bound:
 |---|---|
 | TSV files | `admin_units/unit.tsv`, `unit_region.tsv` and `state.tsv`; `sql_finalize/admin_units_import.sql` loads them into `admin.unit`, `admin.unit_region` and `admin.state` |
 | `-arrow_format` | `arrow/admin_units/admin_units` and `arrow/admin_units/admin_regions` with the extension of the format; Parquet geometry follows `-geoparquet_version`, Arrow IPC marks `geom` as `geoarrow.wkb` |
+| `-pg_jdbc_url` | `admin.unit`, `admin.unit_region` and `admin.state` are loaded by COPY in the same run, together with the other finalization scripts; no TSV files are written |
 | `-admin_units_export <dir>` | `admin_units.jsonl` (one unit per line, no geometry), `admin_units.geojsonl` and `admin_regions.geojsonl` (GeoJSONSeq), `admin_units.parquet`, `admin_regions.parquet` and `admin_units_state.json` |
 
 `admin_units` (table `admin.unit`) has `id`, `admin_level`, `parent_id`, `parent_source` (`G` geometry, `S` `subarea`),
@@ -956,14 +959,18 @@ FROM parquet_kv_metadata('arrow/*/*.parquet') WHERE decode(key) = 'openstreetmap
 The fingerprint is the SHA-256 of the extracted relations and polygons, `-name_lang`, `-parent_share`,
 `-subarea_share` and the format and rules versions. `-admin_units_cache <dir>` keeps the built directory in
 `admin_index.bin` and reuses it while the fingerprint stays the same; osmium still extracts the boundaries.
-`-admin_units_only` with `-admin_units_export` only builds and exports the directory.
+`-admin_units_only` with `-admin_units_export` only builds and exports the directory; it can't be combined with
+`-pg_jdbc_url`.
 
 Thailand (2025-05 PBF, 2,381 units, 16 worker threads, TSV and Parquet): the boundary extraction takes 3.0 s, the
 directory 9.5 s or 0.1 s from the cache (36 MB), the binding adds about 0.8 s to the block processing and the directory
 files 0.8 s. The load takes 21.4 s with the cache and 31.1 s the first time instead of 16.9 s without `-admin_units`;
 with `-admin_unit_shares` and `-admin_units_export` 22.5 s with the cache. 207,903 nodes (18,638 with two units or more), 1,181,425 ways (153,965) and
 2,738 multipolygons (388) get `admin_units`; 148,159 of 1,133,408 bound buildings (13%) have two units or more, mostly
-where a municipality overlaps a tambon. The other columns and files are the same as without `-admin_units`.
+where a municipality overlaps a tambon. The other columns and files are the same as without `-admin_units`. With
+`-pg_jdbc_url` (8 connections) and the cache the load takes 24.9 s instead of 20.2 s, mostly the boundary extraction,
+and the database has the same content as the imported TSV files. A point lookup over the Thailand nodes takes
+0.31 µs, 0.62 µs without the latitude bands.
 
 ## Apache Parquet export
 

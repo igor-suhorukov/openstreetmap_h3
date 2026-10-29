@@ -29,6 +29,10 @@ final class InputFiles {
         add(path, content.getBytes(StandardCharsets.UTF_8));
     }
 
+    void add(String path, Source source) {
+        files.put(path, source);
+    }
+
     void addResource(String path, String classpath) {
         files.put(path, () -> ResourceCopier.openResource(classpath));
     }

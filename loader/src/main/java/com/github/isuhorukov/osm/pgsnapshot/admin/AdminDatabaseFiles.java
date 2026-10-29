@@ -15,8 +15,10 @@ import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 public final class AdminDatabaseFiles {
 
@@ -37,39 +39,45 @@ public final class AdminDatabaseFiles {
     }
 
     public static void writeUnits(AdminUnits adminUnits, File directory) throws IOException {
-        AdminDirectory adminDirectory = adminUnits.getDirectory();
-        List<AdminUnit> units = adminDirectory.getUnits();
-        List<String> nameLang = adminDirectory.getOptions().getNameLang();
-        try (Writer writer = writer(new File(directory, UNIT_TSV))) {
-            for (AdminUnit unit : units) {
-                writer.write(unitRow(units, unit, nameLang));
-            }
-        }
+        write(new File(directory, UNIT_TSV), unitRows(adminUnits));
     }
 
     public static void writeRegions(AdminUnits adminUnits, File directory) throws IOException {
-        AdminDirectory adminDirectory = adminUnits.getDirectory();
-        WKBWriter wkbWriter = new WKBWriter(2, ByteOrderValues.LITTLE_ENDIAN, true);
-        int[] partNumbers = adminDirectory.regionPartNumbers();
-        try (Writer writer = writer(new File(directory, UNIT_REGION_TSV))) {
-            for (int region = 0; region < partNumbers.length; region++) {
-                AdminUnit unit = adminDirectory.regionUnit(region);
-                Polygon polygon = adminDirectory.region(region);
-                polygon.setSRID(Serializer.SRID);
-                writer.write(unit.getId() + "\t" + partNumbers[region] + "\t" + unit.getLevel() + "\t"
-                        + WKBWriter.toHex(wkbWriter.write(polygon)) + "\n");
-            }
-        }
+        write(new File(directory, UNIT_REGION_TSV), regionRows(adminUnits));
     }
 
     public static void writeState(AdminUnits adminUnits, File directory) throws IOException {
-        try (Writer writer = writer(new File(directory, STATE_TSV))) {
-            StringBuilder row = new StringBuilder("load\t").append(NULL).append('\t');
-            HStoreFormatSerializer.escapeString(row, adminUnits.reportMetadataJson());
-            row.append('\t').append(adminUnits.getDirectory().getUnits().size()).append('\t')
-                    .append(adminUnits.boundObjects()).append('\n');
-            writer.write(row.toString());
-        }
+        write(new File(directory, STATE_TSV), List.of(stateRow(adminUnits)).iterator());
+    }
+
+    public static Iterator<String> unitRows(AdminUnits adminUnits) {
+        AdminDirectory adminDirectory = adminUnits.getDirectory();
+        List<AdminUnit> units = adminDirectory.getUnits();
+        List<String> nameLang = adminDirectory.getOptions().getNameLang();
+        return units.stream().map(unit -> unitRow(units, unit, nameLang)).iterator();
+    }
+
+    public static Iterator<String> regionRows(AdminUnits adminUnits) {
+        AdminDirectory adminDirectory = adminUnits.getDirectory();
+        WKBWriter wkbWriter = new WKBWriter(2, ByteOrderValues.LITTLE_ENDIAN, true);
+        int[] partNumbers = adminDirectory.regionPartNumbers();
+        return IntStream.range(0, partNumbers.length)
+                .mapToObj(region -> regionRow(adminDirectory, wkbWriter, region, partNumbers[region])).iterator();
+    }
+
+    public static String stateRow(AdminUnits adminUnits) {
+        StringBuilder row = new StringBuilder("load\t").append(NULL).append('\t');
+        HStoreFormatSerializer.escapeString(row, adminUnits.reportMetadataJson());
+        return row.append('\t').append(adminUnits.getDirectory().getUnits().size()).append('\t')
+                .append(adminUnits.boundObjects()).append('\n').toString();
+    }
+
+    private static String regionRow(AdminDirectory adminDirectory, WKBWriter wkbWriter, int region, int partNumber) {
+        AdminUnit unit = adminDirectory.regionUnit(region);
+        Polygon polygon = adminDirectory.region(region);
+        polygon.setSRID(Serializer.SRID);
+        return unit.getId() + "\t" + partNumber + "\t" + unit.getLevel() + "\t"
+                + WKBWriter.toHex(wkbWriter.write(polygon)) + "\n";
     }
 
     static String unitRow(List<AdminUnit> units, AdminUnit unit, List<String> nameLang) {
@@ -117,8 +125,12 @@ public final class AdminDatabaseFiles {
         return tags;
     }
 
-    private static Writer writer(File file) throws IOException {
-        return new BufferedWriter(new OutputStreamWriter(Files.newOutputStream(file.toPath()),
-                StandardCharsets.UTF_8), BUFFER_SIZE);
+    private static void write(File file, Iterator<String> rows) throws IOException {
+        try (Writer writer = new BufferedWriter(new OutputStreamWriter(Files.newOutputStream(file.toPath()),
+                StandardCharsets.UTF_8), BUFFER_SIZE)) {
+            while (rows.hasNext()) {
+                writer.write(rows.next());
+            }
+        }
     }
 }

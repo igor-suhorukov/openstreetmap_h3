@@ -105,8 +105,8 @@ public class OsmPbfTransformation {
     }
 
     private static String adminUnitsCombinationError(CliParameters parameters) {
-        if (parameters.isLoadPostgresqlJdbc() || parameters.isUpdate()) {
-            return "-admin_units is supported with TSV files and -arrow_format, not with -pg_jdbc_url or -update yet";
+        if (parameters.isUpdate()) {
+            return "-admin_units is supported with TSV files, -arrow_format and -pg_jdbc_url, not with -update yet";
         }
         if (parameters.isUpdatable()) {
             return "-admin_units can't be combined with -updatable: -update doesn't keep admin_units current yet";
@@ -116,6 +116,9 @@ public class OsmPbfTransformation {
         }
         if (parameters.isAdminUnitsOnly() && parameters.getAdminUnitsExport() == null) {
             return "-admin_units_only requires -admin_units_export";
+        }
+        if (parameters.isAdminUnitsOnly() && parameters.isLoadPostgresqlJdbc()) {
+            return "-admin_units_only can't be combined with -pg_jdbc_url: it writes only the -admin_units_export files";
         }
         return null;
     }
