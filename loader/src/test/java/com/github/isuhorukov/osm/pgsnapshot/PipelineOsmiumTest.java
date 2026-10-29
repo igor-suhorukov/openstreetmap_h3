@@ -11,6 +11,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
@@ -65,7 +70,8 @@ class PipelineOsmiumTest {
         Path pbf = samplePbf("tsv");
 
         assertEquals(0, OsmPbfTransformation.run(new String[]{"-source_pbf", pbf.toString(), "-osmium_docker", "false",
-                "-arrow_format", "PARQUET", "-spill_compression", "NONE", "-worker_threads", "2", "-test_tag_value", "v"}));
+                "-arrow_format", "PARQUET", "-spill_compression", "NONE", "-parquet_compression", "SNAPPY",
+                "-worker_threads", "2", "-test_tag_value", "v"}));
 
         Path result = pbf.resolveSibling("sample_loc_ways");
         assertTrue(Files.isRegularFile(result.resolve("ways/32767.tsv")));
@@ -88,6 +94,18 @@ class PipelineOsmiumTest {
         assertEquals(List.of("ways_000.parquet", "ways_32767.parquet"), fileNames(result.resolve("arrow/ways")));
         assertEquals(List.of("relations.parquet"), fileNames(result.resolve("arrow/relations")));
         assertFalse(Files.exists(result.resolve("arrow/spill")));
+        assertEquals("SNAPPY", parquetCompression(result.resolve("arrow/ways/ways_000.parquet")));
+        assertEquals("SNAPPY", parquetCompression(result.resolve("arrow/multipolygon/multipolygon_000.parquet")));
+    }
+
+    private static String parquetCompression(Path file) throws SQLException {
+        try (Connection connection = DriverManager.getConnection("jdbc:duckdb:");
+             Statement statement = connection.createStatement();
+             ResultSet rs = statement.executeQuery("SELECT string_agg(DISTINCT compression, ',') FROM parquet_metadata('"
+                     + file + "')")) {
+            rs.next();
+            return rs.getString(1);
+        }
     }
 
     @Test

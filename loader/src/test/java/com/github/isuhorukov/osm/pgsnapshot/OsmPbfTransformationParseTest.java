@@ -139,6 +139,15 @@ class OsmPbfTransformationParseTest {
     }
 
     @Test
+    void optionsError_parquetCompression_requiresArrowFormat() {
+        assertEquals("-parquet_compression requires -arrow_format",
+                OsmPbfTransformation.optionsError(parse("-parquet_compression", "SNAPPY")));
+        assertNull(OsmPbfTransformation.optionsError(parse("-arrow_format", "ARROW_IPC", "-parquet_compression", "LZ4")));
+        assertNull(OsmPbfTransformation.optionsError(parse("-arrow_format", "PARQUET", "-parquet_compression",
+                "SNAPPY")));
+    }
+
+    @Test
     void optionsError_spillOptions_validated() {
         assertEquals("-spill_compression and -spill_zstd_level require -arrow_format",
                 OsmPbfTransformation.optionsError(parse("-spill_compression", "NONE")));

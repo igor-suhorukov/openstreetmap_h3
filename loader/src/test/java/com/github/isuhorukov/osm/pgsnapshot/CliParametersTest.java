@@ -68,6 +68,19 @@ class CliParametersTest {
         assertEquals(CliParameters.DEFAULT_SPILL_ZSTD_LEVEL, parameters.getSpillZstdLevel());
         assertEquals(1, parameters.getSpillZstdLevel());
         assertFalse(parameters.isSpillZstdLevelSet());
+        assertEquals(ParquetCompression.ZSTD, parameters.getParquetCompression());
+        assertFalse(parameters.isParquetCompressionSet());
+    }
+
+    @Test
+    void parse_parquetCompression_getterAndToString() {
+        CliParameters parameters = new CliParameters();
+        JCommander.newBuilder().addObject(parameters).build().parse("-source_pbf", "a.osm.pbf", "-arrow_format",
+                "PARQUET", "-parquet_compression", "LZ4");
+
+        assertEquals(ParquetCompression.LZ4, parameters.getParquetCompression());
+        assertTrue(parameters.isParquetCompressionSet());
+        assertTrue(parameters.toString().contains("\"parquetCompression\":\"LZ4\""), parameters.toString());
     }
 
     @Test

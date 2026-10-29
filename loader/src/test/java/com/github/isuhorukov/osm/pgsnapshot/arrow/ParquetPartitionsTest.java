@@ -1,6 +1,7 @@
 package com.github.isuhorukov.osm.pgsnapshot.arrow;
 
 import com.github.isuhorukov.osm.pgsnapshot.GeoParquetVersion;
+import com.github.isuhorukov.osm.pgsnapshot.ParquetCompression;
 import com.github.isuhorukov.osm.pgsnapshot.SpillCompression;
 import com.github.isuhorukov.osm.pgsnapshot.model.ArrowNodeOrWay;
 import com.github.isuhorukov.osm.pgsnapshot.model.ArrowRelation;
@@ -75,7 +76,8 @@ class ParquetPartitionsTest {
     void prepare() throws IOException {
         ResultLayout.prepareResultDirectories(tempDir.toFile(), false, true);
         arrowDir = new File(tempDir.toFile(), ResultLayout.ARROW_DIR);
-        parquetWriter = DuckDbParquetWriter.open(GeoParquetVersion.V1, Set.of(ArrowSchemas.LINE_STRING_WKB));
+        parquetWriter = DuckDbParquetWriter.open(GeoParquetVersion.V1, ParquetCompression.ZSTD,
+                Set.of(ArrowSchemas.LINE_STRING_WKB));
         executor = Executors.newFixedThreadPool(2);
     }
 

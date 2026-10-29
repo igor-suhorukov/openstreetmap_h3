@@ -92,6 +92,10 @@ Usage: <main class> [options]
       'false' when memory is not enough for the second osmium node location 
       index
       Default: true
+    -parquet_compression
+      Compression of Parquet files: ZSTD (default), LZ4 (written as the 
+      Parquet LZ4_RAW codec) or SNAPPY. Requires -arrow_format
+      Possible Values: [ZSTD, LZ4, SNAPPY]
     -pg_jdbc_url
       Load data straight into PostgreSQL by JDBC COPY streams without TSV 
       files and import scripts, e.g. 
@@ -829,6 +833,10 @@ each partition file and the intermediate files are deleted. `-spill_compression`
 (default, level `-spill_zstd_level`, 1 by default) or `NONE`. Thailand takes 1.35 GB of intermediate files with ZSTD
 level 1 and 2.4 GB without compression, for 1.1 GB of Parquet files. The export needs a PBF sorted by type and id
 (`osmium sort`), otherwise it stops with an error.
+
+`-parquet_compression` chooses the codec of all Parquet files: `ZSTD` (default), `LZ4` or `SNAPPY`. DuckDB writes `LZ4`
+as the Parquet `LZ4_RAW` codec, which needs Spark 3.4+, parquet-java 1.13+, Arrow/pyarrow or DuckDB to read. On Thailand
+the Parquet files take 1.15 GB with ZSTD, 1.53 GB with LZ4 and SNAPPY; LZ4 and SNAPPY write them about 0.5 s faster.
 
 With `-arrow_format ARROW_IPC` nodes, ways and relations are written in a file per PBF block, and multipolygons in the
 same Parquet partition files.

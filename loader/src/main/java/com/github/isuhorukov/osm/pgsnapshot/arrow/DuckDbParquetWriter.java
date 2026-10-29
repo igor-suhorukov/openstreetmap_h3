@@ -1,6 +1,7 @@
 package com.github.isuhorukov.osm.pgsnapshot.arrow;
 
 import com.github.isuhorukov.osm.pgsnapshot.GeoParquetVersion;
+import com.github.isuhorukov.osm.pgsnapshot.ParquetCompression;
 import org.apache.arrow.c.ArrowArrayStream;
 import org.apache.arrow.c.Data;
 import org.apache.arrow.memory.BufferAllocator;
@@ -29,20 +30,22 @@ public final class DuckDbParquetWriter implements ParquetWriter {
 
     private final DuckDBConnection connection;
     private final GeoParquetVersion geoParquetVersion;
+    private final ParquetCompression compression;
     private final Set<String> wkbGeometryColumns;
 
     private DuckDbParquetWriter(DuckDBConnection connection, GeoParquetVersion geoParquetVersion,
-                                Set<String> wkbGeometryColumns) {
+                                ParquetCompression compression, Set<String> wkbGeometryColumns) {
         this.connection = connection;
         this.geoParquetVersion = geoParquetVersion;
+        this.compression = compression;
         this.wkbGeometryColumns = Set.copyOf(wkbGeometryColumns);
     }
 
-    public static DuckDbParquetWriter open(GeoParquetVersion geoParquetVersion, Set<String> wkbGeometryColumns)
-            throws IOException {
+    public static DuckDbParquetWriter open(GeoParquetVersion geoParquetVersion, ParquetCompression compression,
+                                           Set<String> wkbGeometryColumns) throws IOException {
         try {
             return new DuckDbParquetWriter((DuckDBConnection) DriverManager.getConnection("jdbc:duckdb:"),
-                    geoParquetVersion, wkbGeometryColumns);
+                    geoParquetVersion, compression, wkbGeometryColumns);
         } catch (SQLException e) {
             throw new IOException("Opening DuckDB failed", e);
         }
@@ -105,7 +108,7 @@ public final class DuckDbParquetWriter implements ParquetWriter {
                 ? ", GEOPARQUET_VERSION '" + geoParquetVersion.name() + "'" : "";
         try (Statement statement = writer.createStatement()) {
             statement.executeUpdate("COPY (" + query + ") TO '" + target.getAbsolutePath().replace("'", "''")
-                    + "' (FORMAT 'PARQUET', CODEC 'ZSTD'" + geoParquet + ")");
+                    + "' (FORMAT 'PARQUET', CODEC '" + compression.name() + "'" + geoParquet + ")");
         }
     }
 

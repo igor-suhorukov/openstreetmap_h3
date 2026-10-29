@@ -147,7 +147,8 @@ public class Pipeline {
                 ? PartitionEstimator.estimatePartitions(sourcePbfFile, parameters.getThresholdPercentFromMaxPartition())
                 : Collections.emptyList();
         try (DuckDbParquetWriter parquetWriter = parameters.isSaveArrow()
-                ? DuckDbParquetWriter.open(parameters.getGeoParquetVersion(), Set.of(ArrowSchemas.LINE_STRING_WKB))
+                ? DuckDbParquetWriter.open(parameters.getGeoParquetVersion(), parameters.getParquetCompression(),
+                Set.of(ArrowSchemas.LINE_STRING_WKB))
                 : null) {
             ParquetPartitions parquetPartitions = parquetWriter != null
                     ? new ParquetPartitions(new File(resultDirectory, ResultLayout.ARROW_DIR), partitions, parquetWriter,

@@ -80,6 +80,9 @@ public class OsmPbfTransformation {
         if (parameters.isGeoParquetVersionSet() && parameters.getArrowFormat() != ArrowFormat.PARQUET) {
             return "-geoparquet_version requires -arrow_format PARQUET";
         }
+        if (parameters.isParquetCompressionSet() && !parameters.isSaveArrow()) {
+            return "-parquet_compression requires -arrow_format";
+        }
         return spillOptionsError(parameters);
     }
 

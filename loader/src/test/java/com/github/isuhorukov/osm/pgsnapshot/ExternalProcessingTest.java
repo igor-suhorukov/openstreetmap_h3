@@ -73,7 +73,7 @@ class ExternalProcessingTest {
                         bigMultipolygonHex + "\trelation\t42\t\"landuse\"=>\"forest\"\n");
         List<String> rows = new ArrayList<>();
 
-        try (DuckDbParquetWriter parquetWriter = DuckDbParquetWriter.open(GeoParquetVersion.V1,
+        try (DuckDbParquetWriter parquetWriter = DuckDbParquetWriter.open(GeoParquetVersion.V1, ParquetCompression.ZSTD,
                 Set.of(ArrowSchemas.LINE_STRING_WKB))) {
             parquetWriter.scan(ExternalProcessing.multipolygonQuery(resultDir), batch -> {
                 for (int row = 0; row < batch.getRowCount(); row++) {

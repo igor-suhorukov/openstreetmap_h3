@@ -1,6 +1,7 @@
 package com.github.isuhorukov.osm.pgsnapshot.arrow;
 
 import com.github.isuhorukov.osm.pgsnapshot.GeoParquetVersion;
+import com.github.isuhorukov.osm.pgsnapshot.ParquetCompression;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
@@ -77,7 +78,7 @@ class DuckDbParquetWriterTest {
 
     @BeforeEach
     void openParquetWriter() throws IOException {
-        parquetWriter = DuckDbParquetWriter.open(GeoParquetVersion.V1, Set.of(GEOMETRY));
+        parquetWriter = DuckDbParquetWriter.open(GeoParquetVersion.V1, ParquetCompression.ZSTD, Set.of(GEOMETRY));
     }
 
     @AfterEach
@@ -93,6 +94,23 @@ class DuckDbParquetWriterTest {
 
         assertEquals(List.of("10 name-10", "11 name-11", "12 name-12"), rows(target));
         assertEquals("ZSTD", compression(target));
+    }
+
+    @ParameterizedTest
+    @EnumSource(ParquetCompression.class)
+    void write_compression_parquetCodec(ParquetCompression compression) throws Exception {
+        File target = tempDir.resolve(compression + ".parquet").toFile();
+
+        try (DuckDbParquetWriter writer = DuckDbParquetWriter.open(GeoParquetVersion.V1, compression,
+                Set.of(GEOMETRY));
+             BufferAllocator allocator = new RootAllocator();
+             VectorSchemaRoot root = VectorSchemaRoot.create(GEOMETRY_SCHEMA, allocator)) {
+            fillGeometries(root, new byte[][]{wkb(LINE, ByteOrderValues.LITTLE_ENDIAN)});
+            write(writer, allocator, root, target);
+        }
+
+        assertEquals(compression == ParquetCompression.LZ4 ? "LZ4_RAW" : compression.name(), compression(target));
+        assertArrayEquals(wkb(LINE, ByteOrderValues.LITTLE_ENDIAN), wkb(target, GEOMETRY, true).get(0));
     }
 
     @Test
@@ -192,7 +210,7 @@ class DuckDbParquetWriterTest {
     void write_wkbGeometryColumn_writesGeoParquetVersion(GeoParquetVersion version) throws Exception {
         File target = tempDir.resolve(version + ".parquet").toFile();
 
-        try (DuckDbParquetWriter writer = DuckDbParquetWriter.open(version, Set.of(GEOMETRY))) {
+        try (DuckDbParquetWriter writer = DuckDbParquetWriter.open(version, ParquetCompression.ZSTD, Set.of(GEOMETRY))) {
             writeGeometries(writer, target, ByteOrderValues.BIG_ENDIAN);
         }
 
