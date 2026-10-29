@@ -44,6 +44,33 @@ class CliParametersTest {
     }
 
     @Test
+    void parse_spillOptions_gettersAndToString() {
+        CliParameters parameters = new CliParameters();
+        JCommander.newBuilder().addObject(parameters).build().parse("-source_pbf", "a.osm.pbf", "-arrow_format",
+                "PARQUET", "-spill_compression", "ZSTD", "-spill_zstd_level", "7");
+
+        assertEquals(SpillCompression.ZSTD, parameters.getSpillCompression());
+        assertTrue(parameters.isSpillCompressionSet());
+        assertEquals(7, parameters.getSpillZstdLevel());
+        assertTrue(parameters.isSpillZstdLevelSet());
+        String text = parameters.toString();
+        assertTrue(text.contains("\"spillCompression\":\"ZSTD\",\"spillZstdLevel\":7"), text);
+    }
+
+    @Test
+    void parse_noSpillOptions_zstdLevelOneByDefault() {
+        CliParameters parameters = new CliParameters();
+        JCommander.newBuilder().addObject(parameters).build().parse("-source_pbf", "a.osm.pbf", "-arrow_format",
+                "PARQUET");
+
+        assertEquals(SpillCompression.ZSTD, parameters.getSpillCompression());
+        assertFalse(parameters.isSpillCompressionSet());
+        assertEquals(CliParameters.DEFAULT_SPILL_ZSTD_LEVEL, parameters.getSpillZstdLevel());
+        assertEquals(1, parameters.getSpillZstdLevel());
+        assertFalse(parameters.isSpillZstdLevelSet());
+    }
+
+    @Test
     void parse_pgJdbcUrl_postgresqlRowsWithoutTsvFilesAndMaskedPassword() {
         CliParameters parameters = new CliParameters();
         JCommander.newBuilder().addObject(parameters).build().parse("-source_pbf", "a.osm.pbf", "-result_in_tsv", "false",

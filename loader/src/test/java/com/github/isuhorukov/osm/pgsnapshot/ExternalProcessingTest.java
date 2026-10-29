@@ -2,6 +2,8 @@ package com.github.isuhorukov.osm.pgsnapshot;
 
 import com.github.isuhorukov.osm.pgsnapshot.arrow.ArrowSchemas;
 import com.github.isuhorukov.osm.pgsnapshot.arrow.DuckDbParquetWriter;
+import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.VarBinaryVector;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -11,10 +13,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.ResultSet;
-import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -65,30 +64,27 @@ class ExternalProcessingTest {
     }
 
     @Test
-    void transformMultipolygonToParquet_lineLongerThanDuckDbDefaultLimit_converted() throws Exception {
+    void multipolygonQuery_lineLongerThanDuckDbDefaultLimit_readsRelations() throws Exception {
         File resultDir = tempDir.toFile();
         new File(resultDir, "multipolygon").mkdirs();
-        new File(resultDir, "arrow").mkdirs();
         String bigMultipolygonHex = "AB".repeat(1_500_000);
         Files.writeString(new File(resultDir, "multipolygon/source.tsv").toPath(),
                 "0103000020E6100000\tway\t7\t\"building\"=>\"yes\"\n" +
                         bigMultipolygonHex + "\trelation\t42\t\"landuse\"=>\"forest\"\n");
+        List<String> rows = new ArrayList<>();
 
         try (DuckDbParquetWriter parquetWriter = DuckDbParquetWriter.open(GeoParquetVersion.V1,
                 Set.of(ArrowSchemas.LINE_STRING_WKB))) {
-            ExternalProcessing.transformMultipolygonToParquet(resultDir, parquetWriter);
+            parquetWriter.scan(ExternalProcessing.multipolygonQuery(resultDir), batch -> {
+                for (int row = 0; row < batch.getRowCount(); row++) {
+                    rows.add(((BigIntVector) batch.getVector("id")).get(row) + " "
+                            + ((VarBinaryVector) batch.getVector("wkb")).get(row).length + " "
+                            + batch.getVector("tags_json").getObject(row));
+                }
+            });
         }
 
-        try (Connection connection = DriverManager.getConnection("jdbc:duckdb:");
-             Statement statement = connection.createStatement();
-             ResultSet resultSet = statement.executeQuery("SELECT id, octet_length(wkb), tags_json FROM read_parquet('"
-                     + new File(resultDir, "arrow/multipolygon.parquet").getAbsolutePath() + "')")) {
-            assertTrue(resultSet.next());
-            assertEquals(42, resultSet.getLong(1));
-            assertEquals(1_500_000, resultSet.getLong(2));
-            assertEquals("{\"landuse\":\"forest\"}", resultSet.getString(3));
-            assertFalse(resultSet.next());
-        }
+        assertEquals(List.of("42 1500000 {\"landuse\":\"forest\"}"), rows);
     }
 
     @Test

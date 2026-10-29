@@ -1,7 +1,6 @@
-package com.github.isuhorukov.osm.pgsnapshot.jdbc;
+package com.github.isuhorukov.osm.pgsnapshot.util;
 
 import com.github.isuhorukov.osm.pgsnapshot.model.Partition;
-import com.github.isuhorukov.osm.pgsnapshot.util.PartitionSplitter;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.openstreetmap.osmosis.osmbinary.Fileformat;

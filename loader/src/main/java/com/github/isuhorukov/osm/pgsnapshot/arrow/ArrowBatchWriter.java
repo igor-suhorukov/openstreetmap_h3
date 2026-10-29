@@ -1,14 +1,11 @@
 package com.github.isuhorukov.osm.pgsnapshot.arrow;
 
-import com.github.isuhorukov.osm.pgsnapshot.ArrowFormat;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
-import org.apache.arrow.vector.RootArrowReader;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.complex.impl.UnionMapWriter;
 import org.apache.arrow.vector.ipc.ArrowFileWriter;
-import org.apache.arrow.vector.ipc.ArrowReader;
 import org.apache.arrow.vector.types.pojo.Schema;
 
 import java.io.File;
@@ -20,13 +17,9 @@ import java.util.Map;
 public abstract class ArrowBatchWriter {
 
     protected final File resultDir;
-    protected final ArrowFormat arrowFormat;
-    protected final ParquetWriter parquetWriter;
 
-    protected ArrowBatchWriter(File resultDir, ArrowFormat arrowFormat, ParquetWriter parquetWriter) {
+    protected ArrowBatchWriter(File resultDir) {
         this.resultDir = resultDir;
-        this.arrowFormat = arrowFormat;
-        this.parquetWriter = parquetWriter;
     }
 
     protected static void writeTagsToArrow(BufferAllocator allocator, UnionMapWriter mapWriter, int idx, Map<String, String> tags) {
@@ -60,12 +53,6 @@ public abstract class ArrowBatchWriter {
         }
     }
 
-    private void saveParquet(BufferAllocator allocator, VectorSchemaRoot vectorSchemaRoot, String fileName) throws IOException {
-        try (ArrowReader reader = RootArrowReader.fromRoot(allocator, vectorSchemaRoot)) {
-            parquetWriter.write(allocator, reader, new File(resultDir, fileName + ".parquet"));
-        }
-    }
-
     protected static void saveArrowIPC(File resultDirectory, VectorSchemaRoot vectorSchemaRoot, String fileName) throws IOException {
         try (
                 FileOutputStream fileOutputStream = new FileOutputStream(new File(resultDirectory, fileName + ".arrow"));
@@ -86,22 +73,9 @@ public abstract class ArrowBatchWriter {
         try (BufferAllocator allocator = new RootAllocator();
              VectorSchemaRoot root = VectorSchemaRoot.create(schema, allocator)) {
             writer.write(allocator, root);
-            dispatch(allocator, root, fileName);
+            saveArrowIPC(resultDir, root, fileName);
         } catch (Exception e) {
             throw new IllegalStateException("Writing Arrow block " + blockNumber + " failed", e);
-        }
-    }
-
-    protected void dispatch(BufferAllocator allocator, VectorSchemaRoot vectorSchemaRoot, String fileName) throws IOException {
-        switch (arrowFormat) {
-            case PARQUET:
-                saveParquet(allocator, vectorSchemaRoot, fileName);
-                break;
-            case ARROW_IPC:
-                saveArrowIPC(resultDir, vectorSchemaRoot, fileName);
-                break;
-            default:
-                throw new IllegalArgumentException(arrowFormat.name());
         }
     }
 }

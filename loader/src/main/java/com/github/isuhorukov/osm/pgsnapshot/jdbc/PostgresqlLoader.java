@@ -11,6 +11,7 @@ import com.github.isuhorukov.osm.pgsnapshot.output.OrderedBlockWriter;
 import com.github.isuhorukov.osm.pgsnapshot.output.ResourceCopier;
 import com.github.isuhorukov.osm.pgsnapshot.output.ResultLayout;
 import com.github.isuhorukov.osm.pgsnapshot.output.StatisticsWriter;
+import com.github.isuhorukov.osm.pgsnapshot.util.PartitionEstimator;
 import com.github.isuhorukov.osm.pgsnapshot.util.PartitionSplitter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

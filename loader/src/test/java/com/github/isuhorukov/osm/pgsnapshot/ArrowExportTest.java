@@ -45,7 +45,6 @@ class ArrowExportTest {
     private static final Path OSMIUM = Paths.get("/usr/bin/osmium");
     private static final String EXPECTED = "/pipeline/arrow_export_expected.txt";
     private static final String SECTION = "== ";
-    private static final String MULTIPOLYGON_PARQUET = "multipolygon.parquet";
     private static final List<String> ENTITIES = List.of(ResultLayout.NODES_DIR, ResultLayout.WAYS_DIR,
             ResultLayout.RELATIONS_DIR);
 
@@ -71,12 +70,10 @@ class ArrowExportTest {
         assertEquals(expected.get(format + " layout"), layout(result));
         if (format == ArrowFormat.PARQUET) {
             assertEquals(expected.get(format + " schema"), parquetSchema(arrow));
-            assertEquals(expected.get("rows"), parquetRows(arrow));
+            assertEquals(expected.get(format + " rows"), parquetRows(arrow));
         } else {
-            assertEquals(expected.get(format + " schema"), ipcSchema(arrow) + "\n" + parquetFileSchema(arrow,
-                    arrow.resolve(MULTIPOLYGON_PARQUET)));
-            assertEquals(expected.get("rows"), ipcRows(arrow) + "\n" + parquetFileRows("multipolygon",
-                    arrow.resolve(MULTIPOLYGON_PARQUET)));
+            assertEquals(expected.get(format + " schema"), ipcSchema(arrow) + "\n" + multipolygonSchema(arrow));
+            assertEquals(expected.get(format + " rows"), ipcRows(arrow) + "\n" + multipolygonRows(arrow));
         }
     }
 
@@ -139,8 +136,24 @@ class ArrowExportTest {
                 schema.add(parquetFileSchema(arrow, file));
             }
         }
-        schema.add(parquetFileSchema(arrow, arrow.resolve(MULTIPOLYGON_PARQUET)));
+        schema.add(multipolygonSchema(arrow));
         return String.join("\n", schema);
+    }
+
+    private static String multipolygonSchema(Path arrow) throws IOException, SQLException {
+        List<String> schema = new ArrayList<>();
+        for (Path file : entityFiles(arrow, ResultLayout.MULTIPOLYGON_DIR)) {
+            schema.add(parquetFileSchema(arrow, file));
+        }
+        return String.join("\n", schema);
+    }
+
+    private static String multipolygonRows(Path arrow) throws IOException, SQLException {
+        List<String> rows = new ArrayList<>();
+        for (Path file : entityFiles(arrow, ResultLayout.MULTIPOLYGON_DIR)) {
+            rows.add(parquetFileRows(ResultLayout.MULTIPOLYGON_DIR, file));
+        }
+        return String.join("\n", rows);
     }
 
     private static String parquetFileSchema(Path arrow, Path file) throws SQLException {
@@ -185,7 +198,7 @@ class ArrowExportTest {
                 rows.add(parquetFileRows(entity, file));
             }
         }
-        rows.add(parquetFileRows("multipolygon", arrow.resolve(MULTIPOLYGON_PARQUET)));
+        rows.add(multipolygonRows(arrow));
         return String.join("\n", rows);
     }
 

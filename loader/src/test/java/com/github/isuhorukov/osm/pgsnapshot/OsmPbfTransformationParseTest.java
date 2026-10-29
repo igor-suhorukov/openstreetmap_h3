@@ -139,6 +139,35 @@ class OsmPbfTransformationParseTest {
     }
 
     @Test
+    void optionsError_spillOptions_validated() {
+        assertEquals("-spill_compression and -spill_zstd_level require -arrow_format",
+                OsmPbfTransformation.optionsError(parse("-spill_compression", "NONE")));
+        assertEquals("-spill_compression and -spill_zstd_level require -arrow_format",
+                OsmPbfTransformation.optionsError(parse("-spill_zstd_level", "3")));
+        assertEquals("-spill_zstd_level requires -spill_compression ZSTD", OsmPbfTransformation.optionsError(
+                parse("-arrow_format", "PARQUET", "-spill_compression", "NONE", "-spill_zstd_level", "3")));
+        assertEquals("-spill_zstd_level must be between -131072 and 22", OsmPbfTransformation.optionsError(
+                parse("-arrow_format", "PARQUET", "-spill_zstd_level", "23")));
+        assertEquals("-spill_zstd_level must be between -131072 and 22", OsmPbfTransformation.optionsError(
+                parse("-arrow_format", "ARROW_IPC", "-spill_zstd_level", "-131073")));
+        assertNull(OsmPbfTransformation.optionsError(parse("-arrow_format", "PARQUET", "-spill_compression", "NONE")));
+        assertNull(OsmPbfTransformation.optionsError(parse("-arrow_format", "ARROW_IPC", "-spill_zstd_level", "-7")));
+        assertNull(OsmPbfTransformation.optionsError(parse("-arrow_format", "PARQUET", "-spill_compression", "ZSTD",
+                "-spill_zstd_level", "22")));
+        assertNull(OsmPbfTransformation.optionsError(parse()));
+    }
+
+    private static CliParameters parse(String... options) {
+        CliParameters parameters = new CliParameters();
+        String[] args = new String[options.length + 2];
+        args[0] = "-source_pbf";
+        args[1] = "a.osm.pbf";
+        System.arraycopy(options, 0, args, 2, options.length);
+        JCommander.newBuilder().addObject(parameters).build().parse(args);
+        return parameters;
+    }
+
+    @Test
     void run_geoParquetVersionWithArrowIpc_invalidArgumentsExitCode() throws Exception {
         StringBuilder stderr = new StringBuilder();
 

@@ -65,7 +65,7 @@ class PipelineOsmiumTest {
         Path pbf = samplePbf("tsv");
 
         assertEquals(0, OsmPbfTransformation.run(new String[]{"-source_pbf", pbf.toString(), "-osmium_docker", "false",
-                "-arrow_format", "PARQUET", "-worker_threads", "2", "-test_tag_value", "v"}));
+                "-arrow_format", "PARQUET", "-spill_compression", "NONE", "-worker_threads", "2", "-test_tag_value", "v"}));
 
         Path result = pbf.resolveSibling("sample_loc_ways");
         assertTrue(Files.isRegularFile(result.resolve("ways/32767.tsv")));
@@ -83,10 +83,11 @@ class PipelineOsmiumTest {
         assertTrue(content(result.resolve("static")).contains("extension_tags from relations"));
         assertEquals(List.of("osm_file_block.tsv", "osm_file_block_content.tsv", "osm_file_statistics.tsv"),
                 fileNames(result.resolve("import_related_metadata")));
-        assertTrue(Files.isRegularFile(result.resolve("arrow/multipolygon.parquet")));
-        assertFalse(fileNames(result.resolve("arrow/nodes")).isEmpty());
-        assertFalse(fileNames(result.resolve("arrow/ways")).isEmpty());
-        assertFalse(fileNames(result.resolve("arrow/relations")).isEmpty());
+        assertEquals(List.of("multipolygon_000.parquet"), fileNames(result.resolve("arrow/multipolygon")));
+        assertEquals(List.of("nodes_000.parquet"), fileNames(result.resolve("arrow/nodes")));
+        assertEquals(List.of("ways_000.parquet", "ways_32767.parquet"), fileNames(result.resolve("arrow/ways")));
+        assertEquals(List.of("relations.parquet"), fileNames(result.resolve("arrow/relations")));
+        assertFalse(Files.exists(result.resolve("arrow/spill")));
     }
 
     @Test
@@ -97,7 +98,8 @@ class PipelineOsmiumTest {
                 "-arrow_format", "ARROW_IPC", "-result_in_tsv", "false", "-parallel_multipolygon_export", "false"}));
 
         Path result = pbf.resolveSibling("sample_loc_ways");
-        assertTrue(Files.isRegularFile(result.resolve("arrow/multipolygon.parquet")));
+        assertEquals(List.of("multipolygon_000.parquet"), fileNames(result.resolve("arrow/multipolygon")));
+        assertFalse(Files.exists(result.resolve("arrow/spill")));
         assertTrue(fileNames(result.resolve("arrow/nodes")).stream().allMatch(name -> name.endsWith(".arrow")));
         assertFalse(fileNames(result.resolve("arrow/ways")).isEmpty());
         assertFalse(Files.exists(result.resolve("multipolygon")));

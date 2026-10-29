@@ -189,6 +189,69 @@ class TsvBlockWriterTest {
     }
 
     @Test
+    void complete_spillChunks_appendedPerCellInBlockOrder() throws Exception {
+        File spillDirectory = spillDirectory();
+        TsvBlockWriter writer = new TsvBlockWriter(saveExecutorService, tempDir.toFile(), spillDirectory, 4,
+                failures::add);
+
+        writer.complete(1, spillBlock(BlockType.WAYS, 1, Map.of((short) 7, chunk("b", 20, 29))));
+        writer.complete(0, spillBlock(BlockType.WAYS, 0, Map.of((short) 7, chunk("a", 1, 9),
+                (short) -3, chunk("c", 5, 5))));
+
+        assertEquals("ab", content(new File(spillDirectory, "ways/" + ResultLayout.spillFileName((short) 7))));
+        assertEquals("c", content(new File(spillDirectory, "ways/" + ResultLayout.spillFileName((short) -3))));
+        assertFalse(new File(tempDir.toFile(), "ways/00007.tsv").exists());
+        assertTrue(failures.isEmpty());
+    }
+
+    @Test
+    void complete_idsGoBackInCell_reportsUnsortedPbf() throws Exception {
+        File spillDirectory = spillDirectory();
+        TsvBlockWriter writer = new TsvBlockWriter(saveExecutorService, tempDir.toFile(), spillDirectory, 4,
+                failures::add);
+
+        writer.complete(0, spillBlock(BlockType.NODES, 0, Map.of((short) 7, chunk("a", 10, 20))));
+        writer.complete(1, spillBlock(BlockType.NODES, 1, Map.of((short) 8, chunk("b", 1, 2),
+                (short) 7, chunk("c", 20, 30))));
+        writer.complete(2, spillBlock(BlockType.WAYS, 2, Map.of((short) 7, chunk("d", 1, 2))));
+
+        assertEquals(1, failures.size());
+        assertEquals("nodes 20 in h3_3 cell 7 follows id 20: the Parquet export needs a PBF sorted by type and id "
+                + "(osmium sort)", failures.get(0).getMessage());
+        assertEquals("a", content(new File(spillDirectory, "nodes/" + ResultLayout.spillFileName((short) 7))));
+        assertFalse(new File(spillDirectory, "nodes/" + ResultLayout.spillFileName((short) 8)).exists());
+        assertEquals("d", content(new File(spillDirectory, "ways/" + ResultLayout.spillFileName((short) 7))));
+    }
+
+    @Test
+    void complete_tsvAndSpill_bothWritten() throws Exception {
+        File spillDirectory = spillDirectory();
+        TsvBlockWriter writer = new TsvBlockWriter(saveExecutorService, tempDir.toFile(), spillDirectory, 4,
+                failures::add);
+
+        writer.complete(0, block(BlockType.RELATIONS, 0, "relation-")
+                .withSpillChunks(Map.of((short) 0, chunk("r", 1, 3))));
+
+        assertEquals("relation-0\n", content(new File(tempDir.toFile(), "relations/00000.tsv")));
+        assertEquals("r", content(new File(spillDirectory, "relations/" + ResultLayout.spillFileName((short) 0))));
+        assertTrue(failures.isEmpty());
+    }
+
+    private File spillDirectory() {
+        File resultDir = tempDir.toFile();
+        ResultLayout.prepareResultDirectories(resultDir, true, true);
+        return new File(resultDir, ResultLayout.ARROW_DIR + "/" + ResultLayout.SPILL_DIR);
+    }
+
+    private static EncodedBlock spillBlock(BlockType type, long blockNumber, Map<Short, SpillChunk> chunks) {
+        return EncodedBlock.encode(type, Collections.emptyMap(), new BlockStat(blockNumber)).withSpillChunks(chunks);
+    }
+
+    private static SpillChunk chunk(String bytes, long firstId, long lastId) {
+        return new SpillChunk(bytes.getBytes(StandardCharsets.UTF_8), firstId, lastId);
+    }
+
+    @Test
     void encode_nonLatinText_utf8Bytes() {
         EncodedBlock encoded = EncodedBlock.encode(BlockType.RELATIONS,
                 Map.of((short) 5, new StringBuilder("ถนน\n")), new BlockStat(0));
@@ -196,6 +259,8 @@ class TsvBlockWriterTest {
         assertArrayEquals("ถนน\n".getBytes(StandardCharsets.UTF_8), encoded.getContents().get((short) 5));
         assertEquals(BlockType.RELATIONS, encoded.getType());
         assertTrue(EncodedBlock.EMPTY.getContents().isEmpty());
+        assertTrue(EncodedBlock.EMPTY.isEmpty());
+        assertFalse(encoded.isEmpty());
     }
 
     @Test

@@ -1,6 +1,5 @@
 package com.github.isuhorukov.osm.pgsnapshot;
 
-import com.github.isuhorukov.osm.pgsnapshot.arrow.DuckDbParquetWriter;
 import com.github.isuhorukov.osm.pgsnapshot.output.ResourceCopier;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
@@ -35,14 +34,10 @@ public class ExternalProcessing {
         this.invokeDockerCommand = invokeDockerCommand;
     }
 
-    public long exportMultipolygons(File sourcePbfFile, File resultDirectory, DuckDbParquetWriter parquetWriter)
-            throws IOException, InterruptedException {
+    public long exportMultipolygons(File sourcePbfFile, File resultDirectory) throws IOException, InterruptedException {
         long osmiumExportStart = System.currentTimeMillis();
         executeMultipolygonExport(sourcePbfFile, resultDirectory.getName(), resultDirectory.getParent(),
                 getIndexType(sourcePbfFile));
-        if (parquetWriter != null) {
-            transformMultipolygonToParquet(resultDirectory, parquetWriter);
-        }
         return System.currentTimeMillis() - osmiumExportStart;
     }
 
@@ -67,17 +62,15 @@ public class ExternalProcessing {
         return splitTime;
     }
 
-    public static void transformMultipolygonToParquet(File resultDirectory, DuckDbParquetWriter parquetWriter)
-            throws IOException {
+    public static String multipolygonQuery(File resultDirectory) throws IOException {
         String multipolygonSourceTsv = resultDirectory.getAbsolutePath() + MULTIPOLYGON_SOURCE_TSV;
-        parquetWriter.writeQuery("SELECT  column2 id, from_hex(column0) wkb," +
+        return "SELECT  column2 id, from_hex(column0) wkb," +
                 "'{'||replace(replace(column3,'\"=>\"','\":\"'),'\\\\','\\')||'}' tags_json FROM read_csv('"
                 + multipolygonSourceTsv +
                 "', HEADER=false, " +
                 "columns=STRUCT_PACK(column0 := 'VARCHAR', column1 := 'VARCHAR', column2 := 'BIGINT', column3 := 'VARCHAR')," +
                 "delim=E'\\t',escape=E'\\\\',quote='',AUTO_DETECT='false'," +
-                csvLineSizeOptions(new File(multipolygonSourceTsv)) + ") where column1='relation'",
-                new File(resultDirectory.getAbsolutePath() + "/arrow/multipolygon.parquet"));
+                csvLineSizeOptions(new File(multipolygonSourceTsv)) + ") where column1='relation'";
     }
 
     static String csvLineSizeOptions(File tsvFile) throws IOException {

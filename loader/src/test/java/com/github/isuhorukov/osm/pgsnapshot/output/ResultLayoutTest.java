@@ -48,6 +48,30 @@ class ResultLayoutTest {
         assertTrue(new File(arrowDir, ResultLayout.NODES_DIR).exists());
         assertTrue(new File(arrowDir, ResultLayout.WAYS_DIR).exists());
         assertTrue(new File(arrowDir, ResultLayout.RELATIONS_DIR).exists());
+        assertTrue(new File(arrowDir, ResultLayout.MULTIPOLYGON_DIR).exists());
+        for (String entityDir : ResultLayout.SPILL_ENTITY_DIRS) {
+            assertTrue(new File(arrowDir, ResultLayout.SPILL_DIR + "/" + entityDir).isDirectory());
+        }
+    }
+
+    @Test
+    void prepareResultDirectories_nonEmptySpillDir_throws() throws IOException {
+        File resultDir = new File(tempDir.toFile(), "out");
+        File spillWaysDir = new File(resultDir, ResultLayout.ARROW_DIR + "/" + ResultLayout.SPILL_DIR + "/"
+                + ResultLayout.WAYS_DIR);
+        spillWaysDir.mkdirs();
+        new File(spillWaysDir, ResultLayout.spillFileName((short) -5)).createNewFile();
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> ResultLayout.prepareResultDirectories(resultDir, false, true));
+
+        assertTrue(exception.getMessage().startsWith("Spill directory contains files "));
+    }
+
+    @Test
+    void spillFileName_negativeCell_keepsSign() {
+        assertEquals("-0005.arrows", ResultLayout.spillFileName((short) -5));
+        assertEquals("25764.arrows", ResultLayout.spillFileName((short) 25764));
     }
 
     @Test

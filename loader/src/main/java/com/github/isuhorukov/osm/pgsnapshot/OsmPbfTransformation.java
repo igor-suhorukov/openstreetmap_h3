@@ -3,6 +3,7 @@ package com.github.isuhorukov.osm.pgsnapshot;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.ParameterDescription;
 import com.beust.jcommander.ParameterException;
+import com.github.luben.zstd.Zstd;
 import com.github.isuhorukov.osm.pgsnapshot.extension.TagExtension;
 import com.github.isuhorukov.osm.pgsnapshot.jdbc.UpdateRefusedException;
 import com.github.isuhorukov.osm.pgsnapshot.pipeline.Pipeline;
@@ -78,6 +79,24 @@ public class OsmPbfTransformation {
         }
         if (parameters.isGeoParquetVersionSet() && parameters.getArrowFormat() != ArrowFormat.PARQUET) {
             return "-geoparquet_version requires -arrow_format PARQUET";
+        }
+        return spillOptionsError(parameters);
+    }
+
+    static String spillOptionsError(CliParameters parameters) {
+        if ((parameters.isSpillCompressionSet() || parameters.isSpillZstdLevelSet()) && !parameters.isSaveArrow()) {
+            return "-spill_compression and -spill_zstd_level require -arrow_format";
+        }
+        if (!parameters.isSpillZstdLevelSet()) {
+            return null;
+        }
+        if (parameters.getSpillCompression() != SpillCompression.ZSTD) {
+            return "-spill_zstd_level requires -spill_compression ZSTD";
+        }
+        int level = parameters.getSpillZstdLevel();
+        if (level < Zstd.minCompressionLevel() || level > Zstd.maxCompressionLevel()) {
+            return "-spill_zstd_level must be between " + Zstd.minCompressionLevel() + " and "
+                    + Zstd.maxCompressionLevel();
         }
         return null;
     }

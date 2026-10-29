@@ -1,10 +1,11 @@
 package com.github.isuhorukov.osm.pgsnapshot.arrow;
 
-import com.github.isuhorukov.osm.pgsnapshot.ArrowFormat;
 import com.github.isuhorukov.osm.pgsnapshot.model.ArrowRelation;
 import com.github.isuhorukov.osm.pgsnapshot.model.ArrowRelationMember;
 import com.github.isuhorukov.osm.pgsnapshot.output.ResultLayout;
 import org.apache.arrow.memory.ArrowBuf;
+import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.MapVector;
@@ -18,8 +19,8 @@ import java.util.List;
 
 public class RelationArrowWriter extends ArrowBatchWriter {
 
-    public RelationArrowWriter(File resultDir, ArrowFormat arrowFormat, ParquetWriter parquetWriter) {
-        super(resultDir, arrowFormat, parquetWriter);
+    public RelationArrowWriter(File resultDir) {
+        super(resultDir);
     }
 
     public void write(List<ArrowRelation> arrowRelations, Long blockNumber) {
@@ -28,65 +29,67 @@ public class RelationArrowWriter extends ArrowBatchWriter {
         }
         Schema schema = ArrowSchemas.getRelationSchema();
         String fileName = String.format("%s/%08d", ResultLayout.RELATIONS_DIR, blockNumber);
-        writeBlock(blockNumber, schema, fileName, (allocator, root) -> {
-            BigIntVector idVector = (BigIntVector) root.getVector("id");
-            MapVector mapVector = (MapVector) root.getVector("tags");
-            ListVector memberIdVector = (ListVector) root.getVector("memberId");
-            ListVector memberTypeVector = (ListVector) root.getVector("memberType");
-            ListVector memberRoleVector = (ListVector) root.getVector("memberRole");
+        writeBlock(blockNumber, schema, fileName, (allocator, root) -> fill(allocator, root, arrowRelations));
+    }
 
-            UnionListWriter memberIdVectorWriter = memberIdVector.getWriter();
-            UnionListWriter memberTypeVectorWriter = memberTypeVector.getWriter();
-            UnionListWriter memberRoleVectorWriter = memberRoleVector.getWriter();
+    static void fill(BufferAllocator allocator, VectorSchemaRoot root, List<ArrowRelation> arrowRelations) {
+        BigIntVector idVector = (BigIntVector) root.getVector("id");
+        MapVector mapVector = (MapVector) root.getVector("tags");
+        ListVector memberIdVector = (ListVector) root.getVector("memberId");
+        ListVector memberTypeVector = (ListVector) root.getVector("memberType");
+        ListVector memberRoleVector = (ListVector) root.getVector("memberRole");
 
-            memberIdVectorWriter.allocate();
-            memberTypeVectorWriter.allocate();
-            memberRoleVectorWriter.allocate();
+        UnionListWriter memberIdVectorWriter = memberIdVector.getWriter();
+        UnionListWriter memberTypeVectorWriter = memberTypeVector.getWriter();
+        UnionListWriter memberRoleVectorWriter = memberRoleVector.getWriter();
 
-            idVector.allocateNew(arrowRelations.size());
-            mapVector.allocateNew();
-            UnionMapWriter mapWriter = mapVector.getWriter();
+        memberIdVectorWriter.allocate();
+        memberTypeVectorWriter.allocate();
+        memberRoleVectorWriter.allocate();
 
-            for (int idx = 0; idx < arrowRelations.size(); idx++) {
-                ArrowRelation arrowRelation = arrowRelations.get(idx);
-                List<ArrowRelationMember> relationMembers = arrowRelation.getRelationMembers();
+        idVector.allocateNew(arrowRelations.size());
+        mapVector.allocateNew();
+        UnionMapWriter mapWriter = mapVector.getWriter();
 
-                idVector.set(idx, arrowRelation.getId());
-                writeTagsToArrow(allocator, mapWriter, idx, arrowRelation.getTags());
+        for (int idx = 0; idx < arrowRelations.size(); idx++) {
+            ArrowRelation arrowRelation = arrowRelations.get(idx);
+            List<ArrowRelationMember> relationMembers = arrowRelation.getRelationMembers();
 
-                memberIdVectorWriter.setPosition(idx);
-                memberTypeVectorWriter.setPosition(idx);
-                memberRoleVectorWriter.setPosition(idx);
-                if (!relationMembers.isEmpty()) {
-                    memberIdVectorWriter.startList();
-                    memberTypeVectorWriter.startList();
-                    memberRoleVectorWriter.startList();
-                    for (ArrowRelationMember arrowRelationMember : relationMembers) {
-                        memberIdVectorWriter.bigInt().writeBigInt(arrowRelationMember.getMemberId());
-                        memberTypeVectorWriter.tinyInt().writeTinyInt((byte) arrowRelationMember.getMemberType());
-                        byte[] roleBytes = arrowRelationMember.getMemberRole().getBytes(StandardCharsets.UTF_8);
-                        try (ArrowBuf roleBytesBuf = allocator.buffer(roleBytes.length)) {
-                            roleBytesBuf.writeBytes(roleBytes);
-                            memberRoleVectorWriter.writeVarChar(0, roleBytes.length, roleBytesBuf);
-                        }
+            idVector.set(idx, arrowRelation.getId());
+            writeTagsToArrow(allocator, mapWriter, idx, arrowRelation.getTags());
+
+            memberIdVectorWriter.setPosition(idx);
+            memberTypeVectorWriter.setPosition(idx);
+            memberRoleVectorWriter.setPosition(idx);
+            if (!relationMembers.isEmpty()) {
+                memberIdVectorWriter.startList();
+                memberTypeVectorWriter.startList();
+                memberRoleVectorWriter.startList();
+                for (ArrowRelationMember arrowRelationMember : relationMembers) {
+                    memberIdVectorWriter.bigInt().writeBigInt(arrowRelationMember.getMemberId());
+                    memberTypeVectorWriter.tinyInt().writeTinyInt((byte) arrowRelationMember.getMemberType());
+                    byte[] roleBytes = arrowRelationMember.getMemberRole().getBytes(StandardCharsets.UTF_8);
+                    try (ArrowBuf roleBytesBuf = allocator.buffer(roleBytes.length)) {
+                        roleBytesBuf.writeBytes(roleBytes);
+                        memberRoleVectorWriter.writeVarChar(0, roleBytes.length, roleBytesBuf);
                     }
-                    memberIdVectorWriter.endList();
-                    memberTypeVectorWriter.endList();
-                    memberRoleVectorWriter.endList();
-                    memberIdVector.setLastSet(idx);
-                    memberTypeVector.setLastSet(idx);
-                    memberRoleVector.setLastSet(idx);
-                } else {
-                    memberIdVectorWriter.setAddVectorAsNullable(true);
-                    memberTypeVectorWriter.setAddVectorAsNullable(true);
-                    memberRoleVectorWriter.setAddVectorAsNullable(true);
                 }
+                memberIdVectorWriter.endList();
+                memberTypeVectorWriter.endList();
+                memberRoleVectorWriter.endList();
+                memberIdVector.setLastSet(idx);
+                memberTypeVector.setLastSet(idx);
+                memberRoleVector.setLastSet(idx);
+            } else {
+                memberIdVectorWriter.setAddVectorAsNullable(true);
+                memberTypeVectorWriter.setAddVectorAsNullable(true);
+                memberRoleVectorWriter.setAddVectorAsNullable(true);
             }
-            memberIdVector.setValueCount(arrowRelations.size());
-            memberTypeVector.setValueCount(arrowRelations.size());
-            memberRoleVector.setValueCount(arrowRelations.size());
-            mapWriter.setValueCount(arrowRelations.size());
-            root.setRowCount(arrowRelations.size());
-        });
+        }
+        memberIdVector.setValueCount(arrowRelations.size());
+        memberTypeVector.setValueCount(arrowRelations.size());
+        memberRoleVector.setValueCount(arrowRelations.size());
+        mapWriter.setValueCount(arrowRelations.size());
+        root.setRowCount(arrowRelations.size());
     }
 }

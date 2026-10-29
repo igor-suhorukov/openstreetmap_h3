@@ -8,6 +8,7 @@ import org.postgresql.PGProperty;
 import java.util.regex.Pattern;
 
 public class CliParameters {
+    public static final int DEFAULT_SPILL_ZSTD_LEVEL = 1;
     private static final Pattern JDBC_URL_SECRET = Pattern.compile(
             "(?i)([?&]" + Pattern.quote(PGProperty.PASSWORD.getName()) + "=)[^&]*");
 
@@ -27,6 +28,10 @@ public class CliParameters {
     private ArrowFormat arrowFormat;
     @Parameter(names = {"-geoparquet_version"}, description = "Way line geometry in Parquet files: V1 - WKB with GeoParquet 1.0.0 metadata (default), BOTH - GeoParquet 1.0.0 metadata and the Parquet GEOMETRY type, V2 - GeoParquet 2.0.0 metadata and the Parquet GEOMETRY type, BLOB - WKB without GeoParquet metadata. Requires -arrow_format PARQUET")
     private GeoParquetVersion geoParquetVersion;
+    @Parameter(names = {"-spill_compression"}, description = "Compression of the intermediate Arrow IPC files that collect rows per H3 cell before Parquet partition files are written: ZSTD (default) or NONE. NONE is a little faster and takes about twice the disk space. Requires -arrow_format")
+    private SpillCompression spillCompression;
+    @Parameter(names = {"-spill_zstd_level"}, description = "ZSTD level of the intermediate Arrow IPC files, from -131072 (fastest) to 22 (smallest), default 1. Requires -spill_compression ZSTD")
+    private Integer spillZstdLevel;
     @Parameter(names = {"-result_in_tsv"}, arity = 1, description = "Save result data in TabSeparatedValue format for PostgreSQL COPY")
     private boolean savePostgresqlTsv = true;
     @Parameter(names = {"-columnar_storage"}, description = "Use columnar storage in PostgreSql tables for nodes/ways/multipolygon")
@@ -59,6 +64,10 @@ public class CliParameters {
     public ArrowFormat getArrowFormat() { return arrowFormat; }
     public GeoParquetVersion getGeoParquetVersion() { return geoParquetVersion != null ? geoParquetVersion : GeoParquetVersion.V1; }
     public boolean isGeoParquetVersionSet() { return geoParquetVersion != null; }
+    public SpillCompression getSpillCompression() { return spillCompression != null ? spillCompression : SpillCompression.ZSTD; }
+    public boolean isSpillCompressionSet() { return spillCompression != null; }
+    public int getSpillZstdLevel() { return spillZstdLevel != null ? spillZstdLevel : DEFAULT_SPILL_ZSTD_LEVEL; }
+    public boolean isSpillZstdLevelSet() { return spillZstdLevel != null; }
     public boolean isSavePostgresqlTsv() { return savePostgresqlTsv || isLoadPostgresqlJdbc(); }
     public boolean isColumnarStorage() { return columnarStorage; }
     public boolean isInvokeDockerCommand() { return invokeDockerCommand; }
@@ -97,6 +106,8 @@ public class CliParameters {
                 .append("preserveAllNodes", preserveAllNodes)
                 .append("arrowFormat", arrowFormat)
                 .append("geoParquetVersion", geoParquetVersion)
+                .append("spillCompression", spillCompression)
+                .append("spillZstdLevel", spillZstdLevel)
                 .append("savePostgresqlTsv", savePostgresqlTsv)
                 .append("columnarStorage", columnarStorage)
                 .append("invokeDockerCommand", invokeDockerCommand)

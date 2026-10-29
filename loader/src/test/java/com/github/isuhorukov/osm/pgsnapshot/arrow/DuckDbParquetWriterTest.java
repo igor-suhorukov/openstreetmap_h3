@@ -118,13 +118,55 @@ class DuckDbParquetWriterTest {
     }
 
     @Test
-    void writeQuery_select_writesResult() throws Exception {
+    void write_orderBy_writesSortedRows() throws Exception {
         File target = tempDir.resolve("it's.parquet").toFile();
 
-        parquetWriter.writeQuery("SELECT 42::BIGINT AS id, 'answer' AS name", target);
+        try (BufferAllocator allocator = new RootAllocator();
+             VectorSchemaRoot root = VectorSchemaRoot.create(SCHEMA, allocator)) {
+            BigIntVector id = (BigIntVector) root.getVector("id");
+            VarCharVector name = (VarCharVector) root.getVector("name");
+            long[] ids = {3, 1, 2};
+            id.allocateNew(ids.length);
+            name.allocateNew(ids.length);
+            for (int row = 0; row < ids.length; row++) {
+                id.set(row, ids[row]);
+                name.setSafe(row, ("name-" + ids[row]).getBytes(StandardCharsets.UTF_8));
+            }
+            root.setRowCount(ids.length);
+            try (ArrowReader reader = RootArrowReader.fromRoot(allocator, root)) {
+                parquetWriter.write(allocator, reader, target, List.of("id"));
+            }
+        }
 
-        assertEquals(List.of("42 answer"), rows(target));
+        assertEquals(List.of("1 name-1", "2 name-2", "3 name-3"), rows(target));
         assertEquals("ZSTD", compression(target));
+    }
+
+    @Test
+    void scan_query_passesAllBatches() throws Exception {
+        List<Long> ids = new ArrayList<>();
+        List<String> names = new ArrayList<>();
+
+        parquetWriter.scan("SELECT range AS id, 'name-' || range AS name FROM range(20000)", batch -> {
+            BigIntVector id = (BigIntVector) batch.getVector("id");
+            VarCharVector name = (VarCharVector) batch.getVector("name");
+            for (int row = 0; row < batch.getRowCount(); row++) {
+                ids.add(id.get(row));
+                names.add(name.getObject(row).toString());
+            }
+        });
+
+        assertEquals(20000, ids.size());
+        assertEquals(19999L, ids.get(19999));
+        assertEquals("name-12345", names.get(12345));
+    }
+
+    @Test
+    void scan_invalidQuery_throwsIOException() {
+        IOException exception = assertThrows(IOException.class,
+                () -> parquetWriter.scan("SELECT * FROM missing_table", batch -> { }));
+
+        assertEquals("Reading SELECT * FROM missing_table failed", exception.getMessage());
     }
 
     @Test

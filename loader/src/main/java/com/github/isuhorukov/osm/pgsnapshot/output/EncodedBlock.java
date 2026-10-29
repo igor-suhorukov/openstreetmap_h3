@@ -9,15 +9,18 @@ import java.util.TreeMap;
 
 public final class EncodedBlock {
 
-    public static final EncodedBlock EMPTY = new EncodedBlock(null, Collections.emptyMap(), null);
+    public static final EncodedBlock EMPTY = new EncodedBlock(null, Collections.emptyMap(), Collections.emptyMap(), null);
 
     private final BlockType type;
     private final Map<Short, byte[]> contents;
+    private final Map<Short, SpillChunk> spillChunks;
     private final BlockStat blockStat;
 
-    private EncodedBlock(BlockType type, Map<Short, byte[]> contents, BlockStat blockStat) {
+    private EncodedBlock(BlockType type, Map<Short, byte[]> contents, Map<Short, SpillChunk> spillChunks,
+                         BlockStat blockStat) {
         this.type = type;
         this.contents = contents;
+        this.spillChunks = spillChunks;
         this.blockStat = blockStat;
     }
 
@@ -26,10 +29,19 @@ public final class EncodedBlock {
         for (Map.Entry<Short, StringBuilder> entry : csvResultPerH33.entrySet()) {
             contents.put(entry.getKey(), entry.getValue().toString().getBytes(StandardCharsets.UTF_8));
         }
-        return new EncodedBlock(type, contents, blockStat);
+        return new EncodedBlock(type, contents, Collections.emptyMap(), blockStat);
+    }
+
+    public EncodedBlock withSpillChunks(Map<Short, SpillChunk> blockSpillChunks) {
+        return new EncodedBlock(type, contents, blockSpillChunks, blockStat);
     }
 
     public BlockType getType() { return type; }
     public Map<Short, byte[]> getContents() { return contents; }
+    public Map<Short, SpillChunk> getSpillChunks() { return spillChunks; }
     public BlockStat getBlockStat() { return blockStat; }
+
+    public boolean isEmpty() {
+        return contents.isEmpty() && spillChunks.isEmpty();
+    }
 }

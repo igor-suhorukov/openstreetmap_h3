@@ -1,8 +1,6 @@
-package com.github.isuhorukov.osm.pgsnapshot.jdbc;
+package com.github.isuhorukov.osm.pgsnapshot.util;
 
 import com.github.isuhorukov.osm.pgsnapshot.model.Partition;
-import com.github.isuhorukov.osm.pgsnapshot.util.CompactH3;
-import com.github.isuhorukov.osm.pgsnapshot.util.PartitionSplitter;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.uber.h3core.H3Core;
 import org.openstreetmap.osmosis.core.container.v0_6.EntityContainer;
@@ -27,7 +25,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-final class PartitionEstimator {
+public final class PartitionEstimator {
 
     private static final Logger log = LoggerFactory.getLogger(PartitionEstimator.class);
 
@@ -45,7 +43,7 @@ final class PartitionEstimator {
     private PartitionEstimator() {
     }
 
-    static List<Partition> estimatePartitions(File pbfFile, double thresholdPercentFromMaxPartition) throws IOException {
+    public static List<Partition> estimatePartitions(File pbfFile, double thresholdPercentFromMaxPartition) throws IOException {
         long start = System.currentTimeMillis();
         Map<Short, Long> nodeCounts = sampleNodeCounts(pbfFile);
         List<Partition> partitions = partitions(nodeCounts, thresholdPercentFromMaxPartition);

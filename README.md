@@ -129,6 +129,15 @@ Usage: <main class> [options]
     -skip_highway
       Skip any ways with 'highway' tag
       Default: false
+    -spill_compression
+      Compression of the intermediate Arrow IPC files that collect rows per H3 
+      cell before Parquet partition files are written: ZSTD (default) or NONE. 
+      NONE is a little faster and takes about twice the disk space. Requires 
+      -arrow_format 
+      Possible Values: [ZSTD, NONE]
+    -spill_zstd_level
+      ZSTD level of the intermediate Arrow IPC files, from -131072 (fastest) 
+      to 22 (smallest), default 1. Requires -spill_compression ZSTD
     -updatable
       Store object versions, line geometry hashes, id indexes and the import 
       journal, so the database can be updated later with -update
@@ -798,6 +807,32 @@ full load of the new PBF:
 
 Parquet export activated with "-arrow_format PARQUET" command line parameter.
 
+Parquet files follow the PostgreSQL partitions by `h3_3`:
+
+| File | Rows |
+|---|---|
+| `arrow/nodes/nodes_NNN.parquet` | nodes of partition NNN |
+| `arrow/ways/ways_NNN.parquet` | ways of partition NNN |
+| `arrow/ways/ways_32767.parquet` | ways whose nodes are in different H3 cells |
+| `arrow/multipolygon/multipolygon_NNN.parquet` | multipolygons of partition NNN |
+| `arrow/multipolygon/multipolygon_32767.parquet` | multipolygons whose vertices are in different H3 cells |
+| `arrow/relations/relations.parquet` | all relations |
+
+Rows of a file are sorted by (`h33`, `id`), so the min/max statistics of files and row groups let readers skip data by
+`h33` and `id`. Partition ranges are estimated from a sample of the PBF before the run, as with `-pg_jdbc_url`; they can
+differ from the ranges of TSV import scripts written in the same run. The `h33` of a multipolygon is the H3 cell of all
+its vertices, or 32767 when the vertices are in different cells (PostgreSQL intersects the polygon with the cell
+boundaries, so rare multipolygons near cell borders get 32767 there).
+
+While PBF blocks are processed, rows are collected per H3 cell in Arrow IPC files in `arrow/spill`; then DuckDB writes
+each partition file and the intermediate files are deleted. `-spill_compression` chooses their compression: `ZSTD`
+(default, level `-spill_zstd_level`, 1 by default) or `NONE`. Thailand takes 1.35 GB of intermediate files with ZSTD
+level 1 and 2.4 GB without compression, for 1.1 GB of Parquet files. The export needs a PBF sorted by type and id
+(`osmium sort`), otherwise it stops with an error.
+
+With `-arrow_format ARROW_IPC` nodes, ways and relations are written in a file per PBF block, and multipolygons in the
+same Parquet partition files.
+
 The `lineStringWkb` column of ways is ISO WKB (little-endian, 2D, longitude and latitude, OGC:CRS84 = EPSG:4326); a way
 of one node is a Point. `-geoparquet_version` chooses how the column is written:
 
@@ -809,7 +844,7 @@ of one node is a Point. `-geoparquet_version` chooses how the column is written:
 | `BLOB` | BYTE_ARRAY | none | any Parquet reader, the column is plain binary |
 
 The file `geo` metadata has the bounding box of the file and the geometry types; CRS is not written, which means
-OGC:CRS84. `bboxWkb` of ways and `wkb` of `multipolygon.parquet` stay plain WKB binary columns. Arrow IPC files have the
+OGC:CRS84. `bboxWkb` of ways and `wkb` of multipolygons stay plain WKB binary columns. Arrow IPC files have the
 same WKB without GeoParquet metadata.
 OpenStreetMap H3 also allows you to convert data to Apache Parquet and process it in Hadoop and Apache Spark/Sedona. In this project, it allows you to do the same as osm-parquetizer but with additional data and collected geo coordinates for ways, as well as enriched h3 geo indexes. The files are successfully uploaded to the DuckDB Geo extension, I checked this and I will tell you the details in the publication.
 
@@ -974,10 +1009,11 @@ root
 ```
 Multipolygon:
 ```
-scala> spark.read.parquet("/home/geo/arrow/multipolygon.parquet").printSchema
+scala> spark.read.parquet("/home/geo/arrow/multipolygon/*.parquet").printSchema
 root
 |-- id: long (nullable = true)
-|-- wkb_hex: string (nullable = true)
+|-- h33: short (nullable = true)
+|-- wkb: binary (nullable = true)
 |-- tags_json: string (nullable = true)
 ```
 

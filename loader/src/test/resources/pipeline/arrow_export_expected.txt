@@ -1,14 +1,16 @@
 == PARQUET layout
-arrow/multipolygon.parquet
-arrow/nodes/00000000.parquet
-arrow/relations/00000002.parquet
-arrow/ways/00000001.parquet
+arrow/multipolygon/multipolygon_001.parquet
+arrow/nodes/nodes_000.parquet
+arrow/nodes/nodes_001.parquet
+arrow/relations/relations.parquet
+arrow/ways/ways_001.parquet
+arrow/ways/ways_32767.parquet
 import_related_metadata/osm_file_block.tsv
 import_related_metadata/osm_file_block_content.tsv
 import_related_metadata/osm_file_statistics.tsv
 static/osmium_export.json
 == PARQUET schema
-nodes/00000000.parquet rows=4 row_groups=1 compression=ZSTD
+nodes/nodes_000.parquet rows=1 row_groups=1 compression=ZSTD
   duckdb_schema null REQUIRED null 6
   id INT64 OPTIONAL INT_64 null
   h33 INT32 OPTIONAL INT_16 null
@@ -19,7 +21,18 @@ nodes/00000000.parquet rows=4 row_groups=1 compression=ZSTD
   key_value null REPEATED null 2
   key BYTE_ARRAY REQUIRED UTF8 null
   value BYTE_ARRAY OPTIONAL UTF8 null
-ways/00000001.parquet rows=7 row_groups=1 compression=ZSTD
+nodes/nodes_001.parquet rows=3 row_groups=1 compression=ZSTD
+  duckdb_schema null REQUIRED null 6
+  id INT64 OPTIONAL INT_64 null
+  h33 INT32 OPTIONAL INT_16 null
+  h38 INT32 OPTIONAL INT_32 null
+  latitude DOUBLE OPTIONAL null null
+  longitude DOUBLE OPTIONAL null null
+  tags null OPTIONAL MAP 1
+  key_value null REPEATED null 2
+  key BYTE_ARRAY REQUIRED UTF8 null
+  value BYTE_ARRAY OPTIONAL UTF8 null
+ways/ways_001.parquet rows=5 row_groups=1 compression=ZSTD
   duckdb_schema null REQUIRED null 19
   id INT64 OPTIONAL INT_64 null
   h33 INT32 OPTIONAL INT_16 null
@@ -47,8 +60,37 @@ ways/00000001.parquet rows=7 row_groups=1 compression=ZSTD
   bboxMaxX DOUBLE OPTIONAL null null
   bboxMinY DOUBLE OPTIONAL null null
   bboxMaxY DOUBLE OPTIONAL null null
-  geo {"version":"1.0.0","primary_column":"lineStringWkb","columns":{"lineStringWkb":{"encoding":"WKB","geometry_types":["Point","LineString"],"bbox":[37.500212700000006,4.165,80.0,55.5111276]}}}
-relations/00000002.parquet rows=3 row_groups=1 compression=ZSTD
+  geo {"version":"1.0.0","primary_column":"lineStringWkb","columns":{"lineStringWkb":{"encoding":"WKB","geometry_types":["Point","LineString"],"bbox":[73.5,4.165,73.512,4.1770000000000005]}}}
+ways/ways_32767.parquet rows=2 row_groups=1 compression=ZSTD
+  duckdb_schema null REQUIRED null 19
+  id INT64 OPTIONAL INT_64 null
+  h33 INT32 OPTIONAL INT_16 null
+  h38 INT32 OPTIONAL INT_32 null
+  latitude DOUBLE OPTIONAL null null
+  longitude DOUBLE OPTIONAL null null
+  tags null OPTIONAL MAP 1
+  key_value null REPEATED null 2
+  key BYTE_ARRAY REQUIRED UTF8 null
+  value BYTE_ARRAY OPTIONAL UTF8 null
+  pointIdxs null OPTIONAL LIST 1
+  list null REPEATED null 1
+  element INT64 OPTIONAL INT_64 null
+  h33Center INT32 OPTIONAL INT_16 null
+  closed BOOLEAN OPTIONAL null null
+  building BOOLEAN OPTIONAL null null
+  highway BOOLEAN OPTIONAL null null
+  scale FLOAT OPTIONAL null null
+  lineStringWkb BYTE_ARRAY OPTIONAL null null
+  bboxWkb BYTE_ARRAY OPTIONAL null null
+  h38Indexes null OPTIONAL LIST 1
+  list null REPEATED null 1
+  element INT32 OPTIONAL INT_32 null
+  bboxMinX DOUBLE OPTIONAL null null
+  bboxMaxX DOUBLE OPTIONAL null null
+  bboxMinY DOUBLE OPTIONAL null null
+  bboxMaxY DOUBLE OPTIONAL null null
+  geo {"version":"1.0.0","primary_column":"lineStringWkb","columns":{"lineStringWkb":{"encoding":"WKB","geometry_types":["LineString"],"bbox":[37.500212700000006,4.180000000000001,80.0,55.5111276]}}}
+relations/relations.parquet rows=3 row_groups=1 compression=ZSTD
   duckdb_schema null REQUIRED null 5
   id INT64 OPTIONAL INT_64 null
   tags null OPTIONAL MAP 1
@@ -64,13 +106,14 @@ relations/00000002.parquet rows=3 row_groups=1 compression=ZSTD
   memberRole null OPTIONAL LIST 1
   list null REPEATED null 1
   element BYTE_ARRAY OPTIONAL UTF8 null
-multipolygon.parquet rows=1 row_groups=1 compression=ZSTD
-  duckdb_schema null REQUIRED null 3
+multipolygon/multipolygon_001.parquet rows=1 row_groups=1 compression=ZSTD
+  duckdb_schema null REQUIRED null 4
   id INT64 OPTIONAL INT_64 null
+  h33 INT32 OPTIONAL INT_16 null
   wkb BYTE_ARRAY OPTIONAL null null
   tags_json BYTE_ARRAY OPTIONAL UTF8 null
 == ARROW_IPC layout
-arrow/multipolygon.parquet
+arrow/multipolygon/multipolygon_001.parquet
 arrow/nodes/00000000.arrow
 arrow/relations/00000002.arrow
 arrow/ways/00000001.arrow
@@ -112,12 +155,29 @@ relations/00000002.arrow rows=3 record_batches=1
   memberId: List<memberId: Int(64, true) not null> not null
   memberType: List<memberType: Int(8, true) not null> not null
   memberRole: List<memberRole: Utf8 not null> not null
-multipolygon.parquet rows=1 row_groups=1 compression=ZSTD
-  duckdb_schema null REQUIRED null 3
+multipolygon/multipolygon_001.parquet rows=1 row_groups=1 compression=ZSTD
+  duckdb_schema null REQUIRED null 4
   id INT64 OPTIONAL INT_64 null
+  h33 INT32 OPTIONAL INT_16 null
   wkb BYTE_ARRAY OPTIONAL null null
   tags_json BYTE_ARRAY OPTIONAL UTF8 null
-== rows
+== PARQUET rows
+nodes id=18 h33=4522 h38=296373559 latitude=55.513000000000005 longitude=37.503 tags={"amenity": "bench"}
+nodes id=11 h33=24898 h38=1631758567 latitude=4.1752 longitude=73.5092 tags={"amenity": "cafe", "description": "x=>y, z", "name": "Cafe \"Reef\"", "name:ru": "Кафе Риф", "note": "a\\b"}
+nodes id=12 h33=24898 h38=1631758811 latitude=4.1765 longitude=73.51050000000001 tags={"shop": "supermarket"}
+nodes id=16 h33=24898 h38=1631758567 latitude=4.176200000000001 longitude=73.5103 tags=null
+ways id=101 h33=24898 h38=1631758567 latitude=4.17525 longitude=73.50925000000001 tags={"building": "yes"} pointIdxs=[1, 2, 3, 4, 1] h33Center=24898 closed=true building=true highway=false scale=39.253628 lineStringWkb=0102000000050000007F6ABC74936052403333333333B31040F853E3A59B6052403333333333B31040F853E3A59B605240C1CAA145B6B310407F6ABC7493605240C1CAA145B6B310407F6ABC74936052403333333333B31040 bboxWkb=010300000001000000050000007F6ABC74936052403333333333B310407F6ABC7493605240C1CAA145B6B31040F853E3A59B605240C1CAA145B6B31040F853E3A59B6052403333333333B310407F6ABC74936052403333333333B31040 h38Indexes=null bboxMinX=73.509 bboxMaxX=73.5095 bboxMinY=4.175 bboxMaxY=4.1755
+ways id=102 h33=24898 h38=1631758811 latitude=4.176500000000001 longitude=73.51050000000001 tags={"highway": "residential", "name": "Majeedhee Magu", "name:ru": "Маджидии Магу"} pointIdxs=[5, 6] h33Center=24898 closed=false building=false highway=true scale=78.507126 lineStringWkb=010200000002000000713D0AD7A36052404E62105839B4104063105839B46052406991ED7C3FB51040 bboxWkb=01030000000100000005000000713D0AD7A36052404E62105839B41040713D0AD7A36052406991ED7C3FB5104063105839B46052406991ED7C3FB5104063105839B46052404E62105839B41040713D0AD7A36052404E62105839B41040 h38Indexes=[1631758567, 1631758811] bboxMinX=73.51 bboxMaxX=73.51100000000001 bboxMinY=4.176 bboxMaxY=4.1770000000000005
+ways id=103 h33=24898 h38=1631758505 latitude=4.171 longitude=73.501 tags=null pointIdxs=[7, 8, 9, 10, 7] h33Center=24898 closed=true building=false highway=false scale=157.01535 lineStringWkb=0102000000050000000000000000605240AE47E17A14AE1040E4A59BC420605240AE47E17A14AE1040E4A59BC420605240E4A59BC420B010400000000000605240E4A59BC420B010400000000000605240AE47E17A14AE1040 bboxWkb=010300000001000000050000000000000000605240AE47E17A14AE10400000000000605240E4A59BC420B01040E4A59BC420605240E4A59BC420B01040E4A59BC420605240AE47E17A14AE10400000000000605240AE47E17A14AE1040 h38Indexes=[1631758505, 1631758563] bboxMinX=73.5 bboxMaxX=73.50200000000001 bboxMinY=4.17 bboxMaxY=4.172000000000001
+ways id=105 h33=24898 h38=1631758567 latitude=4.173 longitude=73.50500000000001 tags={"Building": "yes"} pointIdxs=[15] h33Center=24898 closed=true building=false highway=false scale=0.0 lineStringWkb=0101000000B91E85EB51605240FED478E926B11040 bboxWkb=01030000000100000005000000B91E85EB51605240FED478E926B11040B91E85EB51605240FED478E926B11040B91E85EB51605240FED478E926B11040B91E85EB51605240FED478E926B11040B91E85EB51605240FED478E926B11040 h38Indexes=null bboxMinX=73.50500000000001 bboxMaxX=73.50500000000001 bboxMinY=4.173 bboxMaxY=4.173
+ways id=106 h33=24898 h38=1631758563 latitude=4.165 longitude=73.506 tags={"highway": "footway"} pointIdxs=[19, 20] h33Center=24898 closed=false building=false highway=true scale=666.16473 lineStringWkb=0102000000020000000000000000605240295C8FC2F5A8104054E3A59BC4605240295C8FC2F5A81040 bboxWkb=010300000001000000050000000000000000605240295C8FC2F5A810400000000000605240295C8FC2F5A8104054E3A59BC4605240295C8FC2F5A8104054E3A59BC4605240295C8FC2F5A810400000000000605240295C8FC2F5A81040 h38Indexes=[1631758561, 1631758563] bboxMinX=73.5 bboxMaxX=73.512 bboxMinY=4.165 bboxMaxY=4.165
+ways id=104 h33=32767 h38=1613014281 latitude=7.09 longitude=76.76 tags={"highway": "primary"} pointIdxs=[13, 14] h33Center=24612 closed=false building=false highway=true scale=481108.03 lineStringWkb=010200000002000000E27A14AE47615240B91E85EB51B8104000000000000054400000000000002440 bboxWkb=01030000000100000005000000E27A14AE47615240B91E85EB51B81040E27A14AE476152400000000000002440000000000000544000000000000024400000000000005440B91E85EB51B81040E27A14AE47615240B91E85EB51B81040 h38Indexes=null bboxMinX=73.52000000000001 bboxMaxX=80.0 bboxMinY=4.180000000000001 bboxMaxY=10.0
+ways id=107 h33=32767 h38=293712587 latitude=55.509875 longitude=37.501087150000004 tags={"highway": "service"} pointIdxs=[21, 22] h33Center=4522 closed=false building=false highway=true scale=96.516106 lineStringWkb=0102000000020000009EC541F806C042409F0A13A16CC14B4086EC174740C04240AB01EF891AC14B40 bboxWkb=010300000001000000050000009EC541F806C04240AB01EF891AC14B409EC541F806C042409F0A13A16CC14B4086EC174740C042409F0A13A16CC14B4086EC174740C04240AB01EF891AC14B409EC541F806C04240AB01EF891AC14B40 h38Indexes=[293712587, 296373557] bboxMinX=37.500212700000006 bboxMaxX=37.5019616 bboxMinY=55.5086224 bboxMaxY=55.5111276
+relations id=201 tags={"amenity": "school", "landuse": "residential", "name": "School \"No 1\" \\ back", "name:ru": "Школа", "type": "multipolygon"} memberId=[103] memberType=[87] memberRole=["outer"]
+relations id=202 tags={"route": "bus", "type": "route"} memberId=[16, 102, 201] memberType=[78, 87, 82] memberRole=["stop", "", "sub"]
+relations id=203 tags={"name": "Empty", "type": "site"} memberId=null memberType=null memberRole=null
+multipolygon id=201 h33=24898 wkb=0106000020E6100000010000000103000020E610000001000000050000000000000000605240AE47E17A14AE1040E3A59BC420605240AE47E17A14AE1040E3A59BC420605240E3A59BC420B010400000000000605240E3A59BC420B010400000000000605240AE47E17A14AE1040 tags_json="{\"landuse\":\"residential\",\"amenity\":\"school\",\"name\":\"School \\\"No 1\\\" \\\\ back\",\"name:ru\":\"Школа\"}"
+== ARROW_IPC rows
 nodes id=11 h33=24898 h38=1631758567 latitude=4.1752 longitude=73.5092 tags={"amenity": "cafe", "description": "x=>y, z", "name": "Cafe \"Reef\"", "name:ru": "Кафе Риф", "note": "a\\b"}
 nodes id=12 h33=24898 h38=1631758811 latitude=4.1765 longitude=73.51050000000001 tags={"shop": "supermarket"}
 nodes id=16 h33=24898 h38=1631758567 latitude=4.176200000000001 longitude=73.5103 tags=null
@@ -132,4 +192,4 @@ ways id=107 h33=32767 h38=293712587 latitude=55.509875 longitude=37.501087150000
 relations id=201 tags={"amenity": "school", "landuse": "residential", "name": "School \"No 1\" \\ back", "name:ru": "Школа", "type": "multipolygon"} memberId=[103] memberType=[87] memberRole=["outer"]
 relations id=202 tags={"route": "bus", "type": "route"} memberId=[16, 102, 201] memberType=[78, 87, 82] memberRole=["stop", "", "sub"]
 relations id=203 tags={"name": "Empty", "type": "site"} memberId=null memberType=null memberRole=null
-multipolygon id=201 wkb=0106000020E6100000010000000103000020E610000001000000050000000000000000605240AE47E17A14AE1040E3A59BC420605240AE47E17A14AE1040E3A59BC420605240E3A59BC420B010400000000000605240E3A59BC420B010400000000000605240AE47E17A14AE1040 tags_json="{\"landuse\":\"residential\",\"amenity\":\"school\",\"name\":\"School \\\"No 1\\\" \\\\ back\",\"name:ru\":\"Школа\"}"
+multipolygon id=201 h33=24898 wkb=0106000020E6100000010000000103000020E610000001000000050000000000000000605240AE47E17A14AE1040E3A59BC420605240AE47E17A14AE1040E3A59BC420605240E3A59BC420B010400000000000605240E3A59BC420B010400000000000605240AE47E17A14AE1040 tags_json="{\"landuse\":\"residential\",\"amenity\":\"school\",\"name\":\"School \\\"No 1\\\" \\\\ back\",\"name:ru\":\"Школа\"}"

@@ -1,6 +1,7 @@
 package com.github.isuhorukov.osm.pgsnapshot.output;
 
 import java.io.File;
+import java.util.List;
 
 public class ResultLayout {
 
@@ -13,6 +14,9 @@ public class ResultLayout {
     public static final String ARROW_DIR = "arrow";
     public static final String IMPORT_RELATED_METADATA_DIR = "import_related_metadata";
     public static final String STATIC_DIR = "static";
+    public static final String SPILL_DIR = "spill";
+    public static final String SPILL_FILE_EXTENSION = ".arrows";
+    public static final List<String> SPILL_ENTITY_DIRS = List.of(NODES_DIR, WAYS_DIR, RELATIONS_DIR, MULTIPOLYGON_DIR);
 
     private ResultLayout() {
     }
@@ -45,15 +49,31 @@ public class ResultLayout {
         }
         new File(resultDir, IMPORT_RELATED_METADATA_DIR).mkdirs();
         if (saveArrow) {
-            File arrowDir = new File(resultDir, ARROW_DIR);
-            arrowDir.mkdir();
-            new File(arrowDir, NODES_DIR).mkdir();
-            new File(arrowDir, WAYS_DIR).mkdir();
-            new File(arrowDir, RELATIONS_DIR).mkdir();
+            prepareArrowDirectories(new File(resultDir, ARROW_DIR));
         }
         File staticDir = new File(resultDir, STATIC_DIR);
         staticDir.mkdir();
         return resultDir;
+    }
+
+    private static void prepareArrowDirectories(File arrowDir) {
+        arrowDir.mkdir();
+        new File(arrowDir, NODES_DIR).mkdir();
+        new File(arrowDir, WAYS_DIR).mkdir();
+        new File(arrowDir, RELATIONS_DIR).mkdir();
+        new File(arrowDir, MULTIPOLYGON_DIR).mkdir();
+        File spillDir = new File(arrowDir, SPILL_DIR);
+        for (String entityDir : SPILL_ENTITY_DIRS) {
+            File spillEntityDir = new File(spillDir, entityDir);
+            if (spillEntityDir.exists() && spillEntityDir.list().length > 0) {
+                throw new IllegalArgumentException("Spill directory contains files " + spillEntityDir.getAbsolutePath());
+            }
+            spillEntityDir.mkdirs();
+        }
+    }
+
+    public static String spillFileName(short h33) {
+        return String.format("%05d", h33) + SPILL_FILE_EXTENSION;
     }
 
     public static File checkAndMakeMultipolygonDirectory(File resultDir) {

@@ -12,6 +12,10 @@ import java.util.*;
 public class ArrowSchemas {
 
     public static final String LINE_STRING_WKB = "lineStringWkb";
+    public static final String ID = "id";
+    public static final String H33 = "h33";
+    public static final String WKB = "wkb";
+    public static final String TAGS_JSON = "tags_json";
 
     private ArrowSchemas() {
     }
@@ -56,6 +60,14 @@ public class ArrowSchemas {
             ));
         }
         return new Schema(schemaFields);
+    }
+
+    public static Schema getMultipolygonSchema() {
+        return new Schema(Arrays.asList(
+                new Field(ID, FieldType.notNullable(new ArrowType.Int(64, true)), null),
+                new Field(H33, FieldType.notNullable(new ArrowType.Int(16, true)), null),
+                new Field(WKB, FieldType.notNullable(new ArrowType.Binary()), null),
+                new Field(TAGS_JSON, FieldType.nullable(new ArrowType.Utf8()), null)));
     }
 
     public static Schema getRelationSchema() {

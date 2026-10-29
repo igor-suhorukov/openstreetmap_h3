@@ -62,7 +62,7 @@ public abstract class OrderedBlockWriter {
         EncodedBlock block = readyBlock.block;
         long saveStartTime = System.currentTimeMillis();
         try {
-            if (!block.getContents().isEmpty()) {
+            if (!block.isEmpty()) {
                 write(block);
             }
         } catch (ExecutionException e) {
