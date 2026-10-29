@@ -44,13 +44,13 @@ public final class ArrowIpcWriter implements PartitionWriter {
     }
 
     @Override
-    public void write(BufferAllocator allocator, ArrowReader reader, File target, List<String> orderBy)
-            throws IOException {
+    public void write(BufferAllocator allocator, ArrowReader reader, File target, List<String> orderBy,
+                      Map<String, String> metadata) throws IOException {
         if (!orderBy.isEmpty()) {
             throw new IllegalArgumentException("Arrow IPC files are written in the reader order, not by " + orderBy);
         }
         VectorSchemaRoot batches = reader.getVectorSchemaRoot();
-        Map<String, String> footerMetadata = new HashMap<>();
+        Map<String, String> footerMetadata = new HashMap<>(metadata);
         BatchStatistics statistics = new BatchStatistics();
         try (VectorSchemaRoot root = new VectorSchemaRoot(geoArrowSchema(batches.getSchema()),
                 batches.getFieldVectors(), 0);

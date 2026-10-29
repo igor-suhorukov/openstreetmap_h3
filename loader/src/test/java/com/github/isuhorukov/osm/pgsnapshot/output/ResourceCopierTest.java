@@ -1,5 +1,6 @@
 package com.github.isuhorukov.osm.pgsnapshot.output;
 
+import com.github.isuhorukov.osm.pgsnapshot.admin.AdminColumns;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -289,5 +290,41 @@ class ResourceCopierTest {
             hex.append(String.format("%02x", b));
         }
         return hex.toString();
+    }
+
+    @Test
+    void copyResourcesAndImportScripts_adminColumns_addedToTablesCopyAndDirectoryScript() throws IOException {
+        File resultDir = prepareImportDirs();
+
+        ResourceCopier.copyResources(resultDir, false, false, AdminColumns.UNITS_AND_SHARES);
+        ResourceCopier.copyImportScripts(resultDir, false, false, AdminColumns.UNITS_AND_SHARES);
+
+        File staticDir = new File(resultDir, ResultLayout.STATIC_DIR);
+        String init = Files.readString(new File(staticDir, "database_init.sql").toPath());
+        assertTrue(init.contains("    id bigint NOT NULL,\n    admin_units bigint[],\n    admin_unit_shares real[]\n) PARTITION BY"),
+                init);
+        assertTrue(init.contains("h3_3_multi_regions smallint[], admin_units bigint[], admin_unit_shares real[]);"));
+        assertTrue(init.contains("COMMENT ON COLUMN multipolygon.admin_unit_shares IS"));
+        assertFalse(init.contains("${admin") || init.contains("${preimport"));
+        assertTrue(Files.readString(new File(staticDir, "multipolygon_insert.sql").toPath())
+                .contains("h3_3_multi_regions,admin_units,admin_unit_shares\n"));
+        String ways32767 = Files.readString(new File(new File(resultDir, ResultLayout.SQL_DIR), "ways_32767_import.sql").toPath());
+        assertTrue(ways32767.contains("h3_3_multi_regions,tags,admin_units,admin_unit_shares) FROM"), ways32767);
+        assertTrue(ways32767.contains("h3.h3_3_multi_regions,admin_units,admin_unit_shares  from"), ways32767);
+        String directory = Files.readString(new File(new File(resultDir, ResultLayout.SQL_FINALIZE_DIR),
+                ResourceCopier.ADMIN_UNITS_IMPORT_SQL).toPath());
+        assertTrue(directory.contains("FROM '/input/admin_units/unit.tsv'"));
+        assertTrue(directory.contains("COMMENT ON TABLE admin.unit_region IS"));
+    }
+
+    @Test
+    void copyImportScripts_withoutAdminColumns_noDirectoryScript() throws IOException {
+        File resultDir = prepareImportDirs();
+
+        ResourceCopier.copyImportScripts(resultDir, false, false, AdminColumns.NONE);
+
+        assertFalse(new File(new File(resultDir, ResultLayout.SQL_FINALIZE_DIR), ResourceCopier.ADMIN_UNITS_IMPORT_SQL)
+                .exists());
+        assertFalse(ResourceCopier.multipolygonInsertScript().contains("${"));
     }
 }

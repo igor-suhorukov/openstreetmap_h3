@@ -1,10 +1,13 @@
 package com.github.isuhorukov.osm.pgsnapshot;
 
 import com.beust.jcommander.Parameter;
+import com.github.isuhorukov.osm.pgsnapshot.admin.AdminOptions;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 import org.postgresql.PGProperty;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Pattern;
 
 public class CliParameters {
@@ -56,6 +59,28 @@ public class CliParameters {
     private boolean updatable = false;
     @Parameter(names = {"-update"}, description = "Update a database loaded with -updatable from a newer PBF: only new, changed and deleted objects are written. Requires -pg_jdbc_url")
     private boolean update = false;
+    @Parameter(names = {"-admin_units"}, description = "Build the directory of administrative units (boundary=administrative relations with admin_level) from the PBF and write the column admin_units bigint[] with the ids of the leaf units of buildings, POIs, address points, stops and platforms, parking, toilets, ATMs, fuel stations, protected areas and places. Works with TSV files and -arrow_format")
+    private boolean adminUnits = false;
+    @Parameter(names = {"-admin_unit_shares"}, description = "Also write the column admin_unit_shares real[] with the shares of the object in the units of admin_units. Requires -admin_units")
+    private boolean adminUnitShares = false;
+    @Parameter(names = {"-admin_units_export"}, description = "Directory for the admin unit directory without other data: admin_units.jsonl, admin_units.geojsonl, admin_regions.geojsonl, admin_units.parquet, admin_regions.parquet and admin_units_state.json. Requires -admin_units")
+    private String adminUnitsExport;
+    @Parameter(names = {"-admin_units_only"}, description = "Only build and export the admin unit directory, without nodes, ways and multipolygons. Requires -admin_units and -admin_units_export")
+    private boolean adminUnitsOnly = false;
+    @Parameter(names = {"-admin_units_cache"}, description = "Directory that keeps the built admin unit directory between loads; it is reused while the boundaries and the directory parameters stay the same. Requires -admin_units")
+    private String adminUnitsCache;
+    @Parameter(names = {"-name_lang"}, description = "Comma separated order of languages for the admin unit name: name:<language> for each language, 'name' for the plain name tag; default name,en. Requires -admin_units")
+    private String nameLang;
+    @Parameter(names = {"-parent_share"}, description = "Minimal share of the unit area inside its geometric parent, default 0.9. Requires -admin_units")
+    private Double parentShare;
+    @Parameter(names = {"-subarea_share"}, description = "Minimal share of the unit area inside the parent of its subarea link, default 0.5. Requires -admin_units")
+    private Double subareaShare;
+    @Parameter(names = {"-min_share"}, description = "A unit is kept for an area or line if the object share in it is at least this value (default 0.01) or the piece is at least -min_area_m2 or -min_length_m. Requires -admin_units")
+    private Double minShare;
+    @Parameter(names = {"-min_area_m2"}, description = "Minimal area of an object piece in a unit, square meters, default 10000. Requires -admin_units")
+    private Double minAreaM2;
+    @Parameter(names = {"-min_length_m"}, description = "Minimal length of a line piece in a unit, meters, default 100. Requires -admin_units")
+    private Double minLengthM;
     @Parameter(names = {"-help", "--help"}, help = true, description = "Information about command line parameters")
     private boolean help;
 
@@ -86,6 +111,34 @@ public class CliParameters {
     public String getPostgresqlJdbcUrl() { return postgresqlJdbcUrl; }
     public boolean isUpdate() { return update; }
     public boolean isHelp() { return help; }
+    public boolean isAdminUnits() { return adminUnits; }
+    public boolean isAdminUnitShares() { return adminUnitShares; }
+    public String getAdminUnitsExport() { return adminUnitsExport; }
+    public boolean isAdminUnitsOnly() { return adminUnitsOnly; }
+    public String getAdminUnitsCache() { return adminUnitsCache; }
+    public List<String> getNameLang() {
+        if (nameLang == null) {
+            return AdminOptions.DEFAULT_NAME_LANG;
+        }
+        List<String> languages = new ArrayList<>();
+        for (String language : nameLang.split(",")) {
+            if (!language.trim().isEmpty()) {
+                languages.add(language.trim());
+            }
+        }
+        return languages;
+    }
+    public double getParentShare() { return parentShare != null ? parentShare : AdminOptions.DEFAULT_PARENT_SHARE; }
+    public double getSubareaShare() { return subareaShare != null ? subareaShare : AdminOptions.DEFAULT_SUBAREA_SHARE; }
+    public double getMinShare() { return minShare != null ? minShare : AdminOptions.DEFAULT_MIN_SHARE; }
+    public double getMinAreaM2() { return minAreaM2 != null ? minAreaM2 : AdminOptions.DEFAULT_MIN_AREA_M2; }
+    public double getMinLengthM() { return minLengthM != null ? minLengthM : AdminOptions.DEFAULT_MIN_LENGTH_M; }
+
+    public boolean isAdminUnitsOptionSet() {
+        return adminUnitShares || adminUnitsExport != null || adminUnitsOnly || adminUnitsCache != null
+                || nameLang != null || parentShare != null || subareaShare != null || minShare != null
+                || minAreaM2 != null || minLengthM != null;
+    }
 
     public boolean isSaveArrow() {
         return arrowFormat != null;
@@ -128,6 +181,17 @@ public class CliParameters {
                 .append("postgresqlJdbcUrl", maskPassword(postgresqlJdbcUrl))
                 .append("updatable", updatable)
                 .append("update", update)
+                .append("adminUnits", adminUnits)
+                .append("adminUnitShares", adminUnitShares)
+                .append("adminUnitsExport", adminUnitsExport)
+                .append("adminUnitsOnly", adminUnitsOnly)
+                .append("adminUnitsCache", adminUnitsCache)
+                .append("nameLang", nameLang)
+                .append("parentShare", parentShare)
+                .append("subareaShare", subareaShare)
+                .append("minShare", minShare)
+                .append("minAreaM2", minAreaM2)
+                .append("minLengthM", minLengthM)
                 .toString();
     }
 }

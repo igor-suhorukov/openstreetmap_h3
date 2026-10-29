@@ -1,6 +1,7 @@
 package com.github.isuhorukov.osm.pgsnapshot.arrow;
 
 import com.github.isuhorukov.osm.pgsnapshot.IpcCompression;
+import com.github.isuhorukov.osm.pgsnapshot.admin.AdminColumns;
 import com.github.isuhorukov.osm.pgsnapshot.model.ArrowMultipolygon;
 import com.github.isuhorukov.osm.pgsnapshot.model.ArrowNodeOrWay;
 import com.github.isuhorukov.osm.pgsnapshot.model.ArrowRelation;
@@ -43,15 +44,29 @@ public final class ArrowSpill {
     private static final short RELATIONS_CELL = 0;
 
     private final CompressionCodec codec;
+    private final AdminColumns adminColumns;
 
     public ArrowSpill(CompressionCodec codec) {
+        this(codec, AdminColumns.NONE);
+    }
+
+    public ArrowSpill(CompressionCodec codec, AdminColumns adminColumns) {
         this.codec = codec;
+        this.adminColumns = adminColumns;
     }
 
     public static ArrowSpill of(IpcCompression compression, int zstdLevel) {
+        return of(compression, zstdLevel, AdminColumns.NONE);
+    }
+
+    public static ArrowSpill of(IpcCompression compression, int zstdLevel, AdminColumns adminColumns) {
         return new ArrowSpill(compression == IpcCompression.ZSTD
                 ? CommonsCompressionFactory.INSTANCE.createCodec(CompressionUtil.CodecType.ZSTD, zstdLevel)
-                : NoCompressionCodec.INSTANCE);
+                : NoCompressionCodec.INSTANCE, adminColumns);
+    }
+
+    public AdminColumns getAdminColumns() {
+        return adminColumns;
     }
 
     public Map<Short, SpillChunk> encode(List<ArrowNodeOrWay> arrowNodeOrWays, List<ArrowRelation> arrowRelations,
@@ -84,7 +99,7 @@ public final class ArrowSpill {
             }
             cellItems.add(item);
         }
-        Schema schema = ArrowSchemas.getNodesOrWaysSchema(isWays);
+        Schema schema = ArrowSchemas.getNodesOrWaysSchema(isWays, adminColumns);
         try (BufferAllocator allocator = new RootAllocator()) {
             for (Map.Entry<Short, List<ArrowNodeOrWay>> cell : byCell.entrySet()) {
                 List<ArrowNodeOrWay> cellItems = cell.getValue();
@@ -119,9 +134,10 @@ public final class ArrowSpill {
             byCell.computeIfAbsent(multipolygon.getH33(), h33 -> new ArrayList<>()).add(multipolygon);
         }
         Map<Short, byte[]> chunks = new TreeMap<>();
+        Schema schema = ArrowSchemas.getMultipolygonSchema(adminColumns);
         try (BufferAllocator allocator = new RootAllocator()) {
             for (Map.Entry<Short, List<ArrowMultipolygon>> cell : byCell.entrySet()) {
-                try (VectorSchemaRoot root = VectorSchemaRoot.create(ArrowSchemas.getMultipolygonSchema(), allocator)) {
+                try (VectorSchemaRoot root = VectorSchemaRoot.create(schema, allocator)) {
                     MultipolygonArrowWriter.fill(allocator, root, cell.getValue());
                     chunks.put(cell.getKey(), recordBatch(root));
                 }

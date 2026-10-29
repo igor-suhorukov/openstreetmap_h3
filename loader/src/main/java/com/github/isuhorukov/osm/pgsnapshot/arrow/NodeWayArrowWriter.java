@@ -32,6 +32,7 @@ public final class NodeWayArrowWriter {
         mapVector.allocateNew();
         UnionMapWriter mapWriter = mapVector.getWriter();
         WayColumnVectors wayVectors = isWays ? new WayColumnVectors(root, size) : null;
+        AdminArrowColumns adminColumns = AdminArrowColumns.of(root);
 
         for (int idx = 0; idx < size; idx++) {
             ArrowNodeOrWay item = arrowNodeOrWays.get(idx);
@@ -44,8 +45,14 @@ public final class NodeWayArrowWriter {
             if (wayVectors != null) {
                 wayVectors.writeElement(idx, item);
             }
+            if (adminColumns != null) {
+                adminColumns.write(idx, item.getAdminBinding());
+            }
         }
         mapWriter.setValueCount(size);
+        if (adminColumns != null) {
+            adminColumns.setValueCount(size);
+        }
         if (wayVectors != null) {
             wayVectors.finalizeValueCounts(size);
         }

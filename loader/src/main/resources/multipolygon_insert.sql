@@ -10,7 +10,7 @@ ST_Envelope(polygon) as bbox,
 p.id,
 (replace(replace(boundingradius,'(','{'),')','}')::text[])[1]::geometry(Point,4326) centre,
 polygon,
-h3_3_multi_regions
+h3_3_multi_regions${multipolygon_admin_columns}
 
 from preimport_multipolygon p inner join preimport_circle_multipolygon c on c.id=p.id order by 1;
 drop table preimport_circle_multipolygon;

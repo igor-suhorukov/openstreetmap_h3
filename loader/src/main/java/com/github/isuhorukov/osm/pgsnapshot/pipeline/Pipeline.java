@@ -5,6 +5,10 @@ import com.github.isuhorukov.osm.pgsnapshot.CliParameters;
 import com.github.isuhorukov.osm.pgsnapshot.ExternalProcessing;
 import com.github.isuhorukov.osm.pgsnapshot.PipedProcess;
 import com.github.isuhorukov.osm.pgsnapshot.Splitter;
+import com.github.isuhorukov.osm.pgsnapshot.admin.AdminBinder;
+import com.github.isuhorukov.osm.pgsnapshot.admin.AdminColumns;
+import com.github.isuhorukov.osm.pgsnapshot.admin.AdminUnits;
+import com.github.isuhorukov.osm.pgsnapshot.arrow.AdminDirectoryArrow;
 import com.github.isuhorukov.osm.pgsnapshot.arrow.ArrowIpcWriter;
 import com.github.isuhorukov.osm.pgsnapshot.arrow.ArrowSchemas;
 import com.github.isuhorukov.osm.pgsnapshot.arrow.ArrowSpill;
@@ -78,7 +82,9 @@ public class Pipeline {
         log.info("{}", parameters);
         initTagExtensions();
         ExternalProcessing externalProcessing = new ExternalProcessing(parameters.isInvokeDockerCommand());
-        if (parameters.isUpdate()) {
+        if (parameters.isAdminUnitsOnly()) {
+            exportAdminUnitsOnly(externalProcessing, sourcePbfFile, commandStartTime);
+        } else if (parameters.isUpdate()) {
             updatePostgresql(externalProcessing, sourcePbfFile, commandStartTime);
         } else if (parameters.isLoadPostgresqlJdbc()) {
             loadPostgresql(externalProcessing, sourcePbfFile, commandStartTime);
@@ -97,7 +103,7 @@ public class Pipeline {
             long processingStartTime = System.currentTimeMillis();
             ProcessedBlocks processedBlocks = processBlocks(externalProcessing, sourcePbfFile, null,
                     updater.blockWriter(maxBlocksInFlight(), this::recordFailure), processingStartTime,
-                    updater.getStoredVersions());
+                    updater.getStoredVersions(), null);
             StatisticsWriter.printProcessingStatistics(processedBlocks.blockStatistics, processedBlocks.blockCount,
                     System.currentTimeMillis() - processingStartTime, processedBlocks.multipolygonCount());
             updater.finishDelta();
@@ -130,7 +136,7 @@ public class Pipeline {
                     parameters.isParallelMultipolygonExport())) {
                 processedBlocks = processBlocks(externalProcessing, sourcePbfFile, null,
                         loader.blockWriter(maxBlocksInFlight(), this::recordFailure), processingStartTime,
-                        StoredVersions.NONE);
+                        StoredVersions.NONE, null);
                 dataProcessingTime = System.currentTimeMillis() - processingStartTime;
                 StatisticsWriter.printProcessingStatistics(processedBlocks.blockStatistics, processedBlocks.blockCount,
                         dataProcessingTime, processedBlocks.multipolygonCount());
@@ -146,42 +152,94 @@ public class Pipeline {
         }
     }
 
+    private void exportAdminUnitsOnly(ExternalProcessing externalProcessing, File sourcePbfFile,
+                                      long commandStartTime) throws IOException, InterruptedException {
+        AdminUnits adminUnits = AdminUnits.prepare(parameters, externalProcessing, sourcePbfFile);
+        try (DuckDbParquetWriter exportWriter = exportParquetWriter()) {
+            new AdminUnitsOutput(adminUnits, importStateJson(sourcePbfFile))
+                    .export(new File(parameters.getAdminUnitsExport()), exportWriter)
+                    .write();
+        }
+        log.info("admin unit directory exported in {} ms", System.currentTimeMillis() - commandStartTime);
+    }
+
     private void saveFiles(ExternalProcessing externalProcessing, File sourcePbfFile, long commandStartTime)
             throws IOException, InterruptedException {
         File resultDirectory = prepareResultDirectory(sourcePbfFile);
+        AdminUnits adminUnits = parameters.isAdminUnits()
+                ? AdminUnits.prepare(parameters, externalProcessing, sourcePbfFile) : null;
+        String importState = parameters.isSaveArrow() || adminUnits != null ? importStateJson(sourcePbfFile) : null;
         List<Partition> partitions = parameters.isSaveArrow()
                 ? PartitionEstimator.estimatePartitions(sourcePbfFile, parameters.getThresholdPercentFromMaxPartition())
                 : Collections.emptyList();
         try (DuckDbParquetWriter parquetWriter = parameters.isSaveArrow()
                 ? DuckDbParquetWriter.open(parameters.getGeoParquetVersion(), parameters.getParquetCompression(),
-                Set.of(ArrowSchemas.LINE_STRING_WKB, ArrowSchemas.WKB))
+                Set.of(ArrowSchemas.LINE_STRING_WKB, ArrowSchemas.WKB, AdminDirectoryArrow.GEOM))
                 : null) {
             PartitionFiles partitionFiles = parquetWriter != null
-                    ? partitionFiles(new File(resultDirectory, ResultLayout.ARROW_DIR), partitions, parquetWriter)
+                    ? partitionFiles(new File(resultDirectory, ResultLayout.ARROW_DIR), partitions, parquetWriter,
+                    importState, adminUnits)
                     : null;
             try {
-                saveFiles(externalProcessing, sourcePbfFile, resultDirectory, partitionFiles, commandStartTime);
+                saveFiles(externalProcessing, sourcePbfFile, resultDirectory, partitionFiles, adminUnits,
+                        commandStartTime);
             } finally {
                 if (partitionFiles != null) {
                     partitionFiles.deleteSpill();
                 }
             }
+            if (adminUnits != null) {
+                saveAdminUnits(adminUnits, resultDirectory, partitionFiles, importState,
+                        parameters.getArrowFormat() == ArrowFormat.PARQUET ? parquetWriter : null);
+            }
         }
     }
 
+    private void saveAdminUnits(AdminUnits adminUnits, File resultDirectory, PartitionFiles partitionFiles,
+                                String importState, DuckDbParquetWriter parquetWriter)
+            throws IOException, InterruptedException {
+        long start = System.currentTimeMillis();
+        AdminUnitsOutput output = new AdminUnitsOutput(adminUnits, importState);
+        if (parameters.isSavePostgresqlTsv()) {
+            output.database(new File(resultDirectory, AdminUnits.OUTPUT_DIRECTORY));
+        }
+        if (partitionFiles != null) {
+            output.arrow(partitionFiles.getBlockWriter(),
+                    new File(partitionFiles.getArrowDirectory(), AdminUnits.OUTPUT_DIRECTORY));
+        }
+        try (DuckDbParquetWriter exportWriter = parameters.getAdminUnitsExport() != null && parquetWriter == null
+                ? exportParquetWriter() : null) {
+            if (parameters.getAdminUnitsExport() != null) {
+                output.export(new File(parameters.getAdminUnitsExport()),
+                        parquetWriter != null ? parquetWriter : exportWriter);
+            }
+            output.write();
+        }
+        if (log.isInfoEnabled()) {
+            log.info("admin unit directory written in {} ms: {}", System.currentTimeMillis() - start,
+                    adminUnits.reportMetadataJson());
+        }
+    }
+
+    private DuckDbParquetWriter exportParquetWriter() throws IOException {
+        return DuckDbParquetWriter.open(parameters.getGeoParquetVersion(), parameters.getParquetCompression(),
+                Set.of(AdminDirectoryArrow.GEOM));
+    }
+
     private void saveFiles(ExternalProcessing externalProcessing, File sourcePbfFile, File resultDirectory,
-                           PartitionFiles partitionFiles, long commandStartTime)
+                           PartitionFiles partitionFiles, AdminUnits adminUnits, long commandStartTime)
             throws IOException, InterruptedException {
         boolean saveImportScripts = !parameters.isCollectOnlyStat() && parameters.isSavePostgresqlTsv();
         boolean exportMultipolygons = saveImportScripts || parameters.isSaveArrow();
+        AdminBinder adminBinder = adminUnits != null ? adminUnits.getBinder() : null;
 
         long processingStartTime = System.currentTimeMillis();
         try (MultipolygonExport multipolygonExport = MultipolygonExport.start(
                 () -> exportMultipolygons(externalProcessing, sourcePbfFile, resultDirectory, saveImportScripts,
-                        partitionFiles),
+                        partitionFiles, adminBinder),
                 exportMultipolygons && parameters.isParallelMultipolygonExport())) {
             ProcessedBlocks processedBlocks = processBlocksToFiles(externalProcessing, sourcePbfFile, resultDirectory,
-                    partitionFiles, processingStartTime);
+                    partitionFiles, processingStartTime, adminBinder);
             long multipolygonCount = processedBlocks.multipolygonCount();
             long dataProcessingTime = System.currentTimeMillis() - processingStartTime;
             StatisticsWriter.printProcessingStatistics(processedBlocks.blockStatistics, processedBlocks.blockCount,
@@ -209,22 +267,31 @@ public class Pipeline {
     }
 
     private PartitionFiles partitionFiles(File arrowDirectory, List<Partition> partitions,
-                                          DuckDbParquetWriter parquetWriter) throws IOException {
-        ArrowSpill arrowSpill = ArrowSpill.of(parameters.getSpillCompression(), parameters.getSpillZstdLevel());
+                                          DuckDbParquetWriter parquetWriter, String importState,
+                                          AdminUnits adminUnits) throws IOException {
+        ArrowSpill arrowSpill = ArrowSpill.of(parameters.getSpillCompression(), parameters.getSpillZstdLevel(),
+                adminUnits != null ? adminUnits.getColumns() : AdminColumns.NONE);
+        Map<String, String> relationMetadata = Map.of(ImportState.METADATA_KEY, importState);
+        Map<String, String> dataMetadata = new TreeMap<>(relationMetadata);
+        if (adminUnits != null) {
+            dataMetadata.put(AdminUnits.METADATA_KEY, adminUnits.metadataJson());
+        }
         if (parameters.getArrowFormat() == ArrowFormat.ARROW_IPC) {
             return new PartitionFiles(arrowDirectory, partitions, arrowSpill,
-                    new ArrowIpcWriter(parameters.getArrowIpcCompression(), Set.of(ArrowSchemas.LINE_STRING_WKB)),
-                    parquetWriter.arrowIpcWriter(parameters.getArrowIpcCompression()));
+                    new ArrowIpcWriter(parameters.getArrowIpcCompression(),
+                            Set.of(ArrowSchemas.LINE_STRING_WKB, AdminDirectoryArrow.GEOM)),
+                    parquetWriter.arrowIpcWriter(parameters.getArrowIpcCompression()), dataMetadata, relationMetadata);
         }
-        return new PartitionFiles(arrowDirectory, partitions, arrowSpill, parquetWriter, parquetWriter);
+        return new PartitionFiles(arrowDirectory, partitions, arrowSpill, parquetWriter, parquetWriter, dataMetadata,
+                relationMetadata);
     }
 
     private long exportMultipolygons(ExternalProcessing externalProcessing, File sourcePbfFile, File resultDirectory,
-                                     boolean saveTsv, PartitionFiles partitionFiles)
+                                     boolean saveTsv, PartitionFiles partitionFiles, AdminBinder adminBinder)
             throws IOException, InterruptedException {
         long start = System.currentTimeMillis();
         MultipolygonBatchProcessor processor = new MultipolygonBatchProcessor(multipolygonTags, saveTsv,
-                partitionFiles != null ? partitionFiles.getArrowSpill() : null, GeometryH33.instance());
+                partitionFiles != null ? partitionFiles.getArrowSpill() : null, GeometryH33.instance(), adminBinder);
         try (PipedProcess export = externalProcessing.startMultipolygonExport(sourcePbfFile);
              OutputStream tsvOutput = saveTsv
                      ? new BufferedOutputStream(new FileOutputStream(new File(resultDirectory,
@@ -266,6 +333,11 @@ public class Pipeline {
                 ImportState.parametersJson(parameters, tagExtensions));
     }
 
+    private String importStateJson(File sourcePbfFile) throws IOException {
+        return ImportState.json(ImportState.LOAD, sourcePbfFile, ReplicationHeader.read(sourcePbfFile),
+                ImportState.parametersJson(parameters, tagExtensions));
+    }
+
     private void initTagExtensions() throws IOException {
         for (TagExtension tagExtension : tagExtensions) {
             log.info("Tag extension {}", tagExtension.getName());
@@ -280,7 +352,8 @@ public class Pipeline {
 
         ResourceCopier.copyOsmiumSettings(resultDirectory);
         if (parameters.isSavePostgresqlTsv()) {
-            ResourceCopier.copyResources(resultDirectory, parameters.isColumnarStorage(), parameters.isUpdatable());
+            ResourceCopier.copyResources(resultDirectory, parameters.isColumnarStorage(), parameters.isUpdatable(),
+                    adminColumns());
             DirectoryPostgresqlResources postgresqlResources = new DirectoryPostgresqlResources(resultDirectory);
             for (TagExtension tagExtension : tagExtensions) {
                 tagExtension.writePostgresqlResources(postgresqlResources);
@@ -289,13 +362,17 @@ public class Pipeline {
         return resultDirectory;
     }
 
+    private AdminColumns adminColumns() {
+        return AdminColumns.of(parameters.isAdminUnits(), parameters.isAdminUnitShares());
+    }
+
     private int maxBlocksInFlight() {
         return Math.max(1, parameters.getWorkers()) * BLOCKS_IN_FLIGHT_PER_WORKER;
     }
 
     private ProcessedBlocks processBlocksToFiles(ExternalProcessing externalProcessing, File sourcePbfFile,
                                                  File resultDirectory, PartitionFiles partitionFiles,
-                                                 long processingStartTime)
+                                                 long processingStartTime, AdminBinder adminBinder)
             throws IOException, InterruptedException {
         ExecutorService saveExecutorService = getExecutorService(parameters.getWorkers());
         File spillDirectory = partitionFiles != null ? partitionFiles.getSpillDirectory() : null;
@@ -303,7 +380,7 @@ public class Pipeline {
         try {
             return processBlocks(externalProcessing, sourcePbfFile, arrowSpill, new TsvBlockWriter(
                     saveExecutorService, resultDirectory, spillDirectory, maxBlocksInFlight(), this::recordFailure),
-                    processingStartTime, StoredVersions.NONE);
+                    processingStartTime, StoredVersions.NONE, adminBinder);
         } finally {
             saveExecutorService.shutdownNow();
         }
@@ -311,11 +388,12 @@ public class Pipeline {
 
     private ProcessedBlocks processBlocks(ExternalProcessing externalProcessing, File sourcePbfFile,
                                           ArrowSpill arrowSpill, OrderedBlockWriter blockWriter,
-                                          long processingStartTime, StoredVersions storedVersions)
+                                          long processingStartTime, StoredVersions storedVersions,
+                                          AdminBinder adminBinder)
             throws IOException, InterruptedException {
         final H3Core h3Core = H3Core.newInstance();
-        ThreadLocal<BlockProcessor> blockProcessors =
-                ThreadLocal.withInitial(() -> new BlockProcessor(parameters, h3Core, tagExtensions, storedVersions));
+        ThreadLocal<BlockProcessor> blockProcessors = ThreadLocal.withInitial(
+                () -> new BlockProcessor(parameters, h3Core, tagExtensions, storedVersions, adminBinder));
 
         ExecutorService executorService = getExecutorService(parameters.getWorkers());
 
@@ -343,8 +421,9 @@ public class Pipeline {
             throws IOException, InterruptedException {
         PartitioningScriptWriter.savePartitioningScripts(resultDirectory, parameters.getScriptCount(),
                 parameters.getThresholdPercentFromMaxPartition(), blockStatistics, parameters.isColumnarStorage(),
-                parameters.isUpdatable());
-        ResourceCopier.copyImportScripts(resultDirectory, parameters.isColumnarStorage(), parameters.isUpdatable());
+                parameters.isUpdatable(), adminColumns());
+        ResourceCopier.copyImportScripts(resultDirectory, parameters.isColumnarStorage(), parameters.isUpdatable(),
+                adminColumns());
         return externalProcessing.splitMultipolygonsAndWriteScripts(resultDirectory, parameters.getScriptCount(),
                 multipolygonCount);
     }

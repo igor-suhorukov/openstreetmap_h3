@@ -46,7 +46,13 @@ public class PartitionSplitter {
 
     public static int createNodesScript(File resultDirectory, int scriptCount, List<Partition> partitions,
                                         boolean storeColumnar, boolean updatable) {
-        return createImportScript(resultDirectory, scriptCount, partitions, storeColumnar, NODES, nodeColumns(updatable));
+        return createNodesScript(resultDirectory, scriptCount, partitions, storeColumnar, updatable, "");
+    }
+
+    public static int createNodesScript(File resultDirectory, int scriptCount, List<Partition> partitions,
+                                        boolean storeColumnar, boolean updatable, String extraColumns) {
+        return createImportScript(resultDirectory, scriptCount, partitions, storeColumnar, NODES,
+                nodeColumns(updatable) + extraColumns);
     }
 
     public static int createWaysScript(File resultDirectory, int scriptCount, List<Partition> partitions, boolean storeColumnar) {
@@ -55,7 +61,13 @@ public class PartitionSplitter {
 
     public static int createWaysScript(File resultDirectory, int scriptCount, List<Partition> partitions,
                                        boolean storeColumnar, boolean updatable) {
-        return createImportScript(resultDirectory, scriptCount, partitions, storeColumnar, WAYS, wayColumns(updatable));
+        return createWaysScript(resultDirectory, scriptCount, partitions, storeColumnar, updatable, "");
+    }
+
+    public static int createWaysScript(File resultDirectory, int scriptCount, List<Partition> partitions,
+                                       boolean storeColumnar, boolean updatable, String extraColumns) {
+        return createImportScript(resultDirectory, scriptCount, partitions, storeColumnar, WAYS,
+                wayColumns(updatable) + extraColumns);
     }
 
     private static int createImportScript(File resultDirectory, int scriptCount, List<Partition> partitions,

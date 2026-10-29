@@ -1,5 +1,6 @@
 package com.github.isuhorukov.osm.pgsnapshot.model;
 
+import com.github.isuhorukov.osm.pgsnapshot.admin.AdminBinding;
 import org.openstreetmap.osmosis.core.domain.v0_6.Tag;
 
 import java.util.Collection;
@@ -23,6 +24,7 @@ public class ArrowNodeOrWay {
     private final byte[] lineStringWkb;
     private final int[] h38Indexes;
     private final byte[] bboxWkb;
+    private final AdminBinding adminBinding;
 
     public ArrowNodeOrWay(long id, short h33, int h38, double latitude, double longitude, Collection<Tag> entityTags) {
         this(new Builder(id, h33, h38, latitude, longitude, entityTags));
@@ -46,6 +48,7 @@ public class ArrowNodeOrWay {
         this.lineStringWkb = builder.lineStringWkb;
         this.h38Indexes = builder.h38Indexes;
         this.bboxWkb = builder.bboxWkb;
+        this.adminBinding = builder.adminBinding;
     }
 
     public long getId() {
@@ -124,6 +127,10 @@ public class ArrowNodeOrWay {
         return bboxWkb;
     }
 
+    public AdminBinding getAdminBinding() {
+        return adminBinding;
+    }
+
     public static class Builder {
         private final long id;
         private final short h33;
@@ -142,6 +149,7 @@ public class ArrowNodeOrWay {
         private byte[] lineStringWkb;
         private int[] h38Indexes;
         private byte[] bboxWkb;
+        private AdminBinding adminBinding;
 
         public Builder(long id, short h33, int h38, double latitude, double longitude,
                        java.util.Collection<org.openstreetmap.osmosis.core.domain.v0_6.Tag> entityTags) {
@@ -164,6 +172,7 @@ public class ArrowNodeOrWay {
         public Builder lineStringWkb(byte[] v){ this.lineStringWkb = v;  return this; }
         public Builder h38Indexes(int[] v)    { this.h38Indexes = v;     return this; }
         public Builder bboxWkb(byte[] v)      { this.bboxWkb = v;        return this; }
+        public Builder adminBinding(AdminBinding v) { this.adminBinding = v; return this; }
 
         public ArrowNodeOrWay build() {
             return new ArrowNodeOrWay(this);

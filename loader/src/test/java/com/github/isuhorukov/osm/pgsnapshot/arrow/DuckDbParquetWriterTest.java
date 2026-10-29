@@ -377,4 +377,11 @@ class DuckDbParquetWriterTest {
     private static String literal(File file) {
         return "'" + file.getAbsolutePath().replace("'", "''") + "'";
     }
+
+    @Test
+    void kvMetadata_sortedKeysAndQuotedValues() {
+        assertEquals("", DuckDbParquetWriter.kvMetadata(Map.of()));
+        assertEquals(", KV_METADATA {'a:b': '{\"x\":\"it''s\"}', 'c': 'd'}",
+                DuckDbParquetWriter.kvMetadata(Map.of("c", "d", "a:b", "{\"x\":\"it's\"}")));
+    }
 }

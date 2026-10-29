@@ -86,7 +86,66 @@ public class OsmPbfTransformation {
         if (parameters.isArrowIpcCompressionSet() && parameters.getArrowFormat() != ArrowFormat.ARROW_IPC) {
             return "-arrow_ipc_compression requires -arrow_format ARROW_IPC";
         }
+        String adminUnitsOptionsError = adminUnitsOptionsError(parameters);
+        if (adminUnitsOptionsError != null) {
+            return adminUnitsOptionsError;
+        }
         return spillOptionsError(parameters);
+    }
+
+    static String adminUnitsOptionsError(CliParameters parameters) {
+        if (!parameters.isAdminUnits()) {
+            return parameters.isAdminUnitsOptionSet()
+                    ? "-admin_unit_shares, -admin_units_export, -admin_units_only, -admin_units_cache, -name_lang, "
+                    + "-parent_share, -subarea_share, -min_share, -min_area_m2 and -min_length_m require -admin_units"
+                    : null;
+        }
+        String combinationError = adminUnitsCombinationError(parameters);
+        return combinationError != null ? combinationError : adminUnitsValueError(parameters);
+    }
+
+    private static String adminUnitsCombinationError(CliParameters parameters) {
+        if (parameters.isLoadPostgresqlJdbc() || parameters.isUpdate()) {
+            return "-admin_units is supported with TSV files and -arrow_format, not with -pg_jdbc_url or -update yet";
+        }
+        if (parameters.isUpdatable()) {
+            return "-admin_units can't be combined with -updatable: -update doesn't keep admin_units current yet";
+        }
+        if (parameters.isCollectOnlyStat()) {
+            return "-admin_units can't be combined with -collect_only_statistics";
+        }
+        if (parameters.isAdminUnitsOnly() && parameters.getAdminUnitsExport() == null) {
+            return "-admin_units_only requires -admin_units_export";
+        }
+        return null;
+    }
+
+    private static String adminUnitsValueError(CliParameters parameters) {
+        if (parameters.getNameLang().isEmpty()) {
+            return "-name_lang must list at least one language";
+        }
+        if (!isPositiveShare(parameters.getParentShare()) || !isPositiveShare(parameters.getSubareaShare())) {
+            return "-parent_share and -subarea_share must be greater than 0 and at most 1";
+        }
+        if (!isShare(parameters.getMinShare())) {
+            return "-min_share must be between 0 and 1";
+        }
+        if (!isNonNegative(parameters.getMinAreaM2()) || !isNonNegative(parameters.getMinLengthM())) {
+            return "-min_area_m2 and -min_length_m must not be negative";
+        }
+        return null;
+    }
+
+    private static boolean isPositiveShare(double value) {
+        return value > 0 && value <= 1;
+    }
+
+    private static boolean isShare(double value) {
+        return value >= 0 && value <= 1;
+    }
+
+    private static boolean isNonNegative(double value) {
+        return value >= 0;
     }
 
     static String spillOptionsError(CliParameters parameters) {

@@ -38,19 +38,37 @@ public final class PartitionFiles {
     private final ArrowSpill arrowSpill;
     private final PartitionWriter blockWriter;
     private final PartitionWriter multipolygonWriter;
+    private final Map<String, String> dataMetadata;
+    private final Map<String, String> relationMetadata;
 
     public PartitionFiles(File arrowDirectory, List<Partition> partitions, ArrowSpill arrowSpill,
                           PartitionWriter blockWriter, PartitionWriter multipolygonWriter) {
+        this(arrowDirectory, partitions, arrowSpill, blockWriter, multipolygonWriter, Map.of(), Map.of());
+    }
+
+    public PartitionFiles(File arrowDirectory, List<Partition> partitions, ArrowSpill arrowSpill,
+                          PartitionWriter blockWriter, PartitionWriter multipolygonWriter,
+                          Map<String, String> dataMetadata, Map<String, String> relationMetadata) {
         this.arrowDirectory = arrowDirectory;
         this.spillDirectory = new File(arrowDirectory, ResultLayout.SPILL_DIR);
         this.partitions = List.copyOf(partitions);
         this.arrowSpill = arrowSpill;
         this.blockWriter = blockWriter;
         this.multipolygonWriter = multipolygonWriter;
+        this.dataMetadata = Map.copyOf(dataMetadata);
+        this.relationMetadata = Map.copyOf(relationMetadata);
     }
 
     public File getSpillDirectory() {
         return spillDirectory;
+    }
+
+    public File getArrowDirectory() {
+        return arrowDirectory;
+    }
+
+    public PartitionWriter getBlockWriter() {
+        return blockWriter;
     }
 
     public ArrowSpill getArrowSpill() {
@@ -61,14 +79,14 @@ public final class PartitionFiles {
         long start = System.currentTimeMillis();
         List<PartitionFile> files = new ArrayList<>();
         files.addAll(partitionFiles(ResultLayout.NODES_DIR, PartitionSplitter.NODES,
-                ArrowSchemas.getNodesOrWaysSchema(false), false, blockWriter));
+                ArrowSchemas.getNodesOrWaysSchema(false, arrowSpill.getAdminColumns()), false, blockWriter));
         files.addAll(partitionFiles(ResultLayout.WAYS_DIR, PartitionSplitter.WAYS,
-                ArrowSchemas.getNodesOrWaysSchema(true), true, blockWriter));
+                ArrowSchemas.getNodesOrWaysSchema(true, arrowSpill.getAdminColumns()), true, blockWriter));
         List<File> relationSpill = new ArrayList<>(spillFiles(ResultLayout.RELATIONS_DIR).values());
         if (!relationSpill.isEmpty()) {
             files.add(new PartitionFile(new File(new File(arrowDirectory, ResultLayout.RELATIONS_DIR),
                     ResultLayout.RELATIONS_DIR + blockWriter.fileExtension()), ArrowSchemas.getRelationSchema(),
-                    relationSpill, blockWriter));
+                    relationSpill, blockWriter, relationMetadata));
         }
         files.sort(Comparator.comparingLong(PartitionFile::getSpilledBytes).reversed());
         List<Future<?>> writes = new ArrayList<>();
@@ -93,7 +111,7 @@ public final class PartitionFiles {
     public void writeMultipolygons() throws IOException {
         long start = System.currentTimeMillis();
         List<PartitionFile> files = partitionFiles(ResultLayout.MULTIPOLYGON_DIR, MULTIPOLYGON,
-                ArrowSchemas.getMultipolygonSchema(), true, multipolygonWriter);
+                ArrowSchemas.getMultipolygonSchema(arrowSpill.getAdminColumns()), true, multipolygonWriter);
         for (PartitionFile file : files) {
             write(file, MULTIPOLYGON_ORDER);
         }
@@ -123,14 +141,14 @@ public final class PartitionFiles {
             if (!partitionCells.isEmpty()) {
                 files.add(new PartitionFile(new File(targetDirectory,
                         PartitionSplitter.partitionTableName(tableName, partition.getId()) + writer.fileExtension()),
-                        schema, new ArrayList<>(partitionCells.values()), writer));
+                        schema, new ArrayList<>(partitionCells.values()), writer, dataMetadata));
                 partitionCells.clear();
             }
         }
         File multipleCells = multipleCellsPartition ? cells.remove(GeometryH33.MULTIPLE_CELLS) : null;
         if (multipleCells != null) {
             files.add(new PartitionFile(new File(targetDirectory, tableName + "_" + GeometryH33.MULTIPLE_CELLS
-                    + writer.fileExtension()), schema, List.of(multipleCells), writer));
+                    + writer.fileExtension()), schema, List.of(multipleCells), writer, dataMetadata));
         }
         if (!cells.isEmpty()) {
             throw new IllegalStateException("No partition for " + entityDir + " with h3_3 " + cells.keySet());
@@ -157,7 +175,7 @@ public final class PartitionFiles {
         try (BufferAllocator allocator = new RootAllocator();
              ArrowReader reader = new CellBatchReader(allocator, file.schema, file.spillFiles,
                      CellBatchReader.MAX_BATCH_ROWS)) {
-            file.writer.write(allocator, reader, file.target, orderBy);
+            file.writer.write(allocator, reader, file.target, orderBy, file.metadata);
         }
         for (File spillFile : file.spillFiles) {
             delete(spillFile);
@@ -205,13 +223,16 @@ public final class PartitionFiles {
         private final Schema schema;
         private final List<File> spillFiles;
         private final PartitionWriter writer;
+        private final Map<String, String> metadata;
         private final long spilledBytes;
 
-        private PartitionFile(File target, Schema schema, List<File> spillFiles, PartitionWriter writer) {
+        private PartitionFile(File target, Schema schema, List<File> spillFiles, PartitionWriter writer,
+                              Map<String, String> metadata) {
             this.target = target;
             this.schema = schema;
             this.spillFiles = spillFiles;
             this.writer = writer;
+            this.metadata = metadata;
             this.spilledBytes = spillFiles.stream().mapToLong(File::length).sum();
         }
 

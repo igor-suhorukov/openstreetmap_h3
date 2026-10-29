@@ -117,4 +117,18 @@ class ImportStateTest {
 
         assertEquals("load\n", Files.readString(tempDir.resolve("import_related_metadata/osm_import_state.tsv")));
     }
+
+    @Test
+    void json_replicationFieldsAndParameters() {
+        ReplicationHeader replication = new ReplicationHeader(Instant.parse("2026-09-04T20:21:02Z"), 4881L,
+                "https://download.geofabrik.de/asia/thailand-updates");
+
+        assertEquals("{\"operation\":\"load\",\"source_pbf\":\"thailand.osm.pbf\","
+                        + "\"replication_timestamp\":\"2026-09-04T20:21:02Z\",\"replication_sequence\":4881,"
+                        + "\"replication_url\":\"https://download.geofabrik.de/asia/thailand-updates\",\"parameters\":{}}",
+                ImportState.json(ImportState.LOAD, new File("/data/thailand.osm.pbf"), replication, "{}"));
+        assertEquals("{\"operation\":\"load\",\"source_pbf\":\"a.osm.pbf\",\"replication_timestamp\":null,"
+                        + "\"replication_sequence\":null,\"replication_url\":null,\"parameters\":{\"x\":1}}",
+                ImportState.json(ImportState.LOAD, new File("a.osm.pbf"), ReplicationHeader.NONE, "{\"x\":1}"));
+    }
 }

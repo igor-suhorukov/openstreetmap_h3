@@ -1,5 +1,6 @@
 package com.github.isuhorukov.osm.pgsnapshot.output;
 
+import com.github.isuhorukov.osm.pgsnapshot.admin.AdminColumns;
 import com.github.isuhorukov.osm.pgsnapshot.util.PartitionSplitter;
 import org.apache.commons.io.IOUtils;
 
@@ -28,6 +29,7 @@ public class ResourceCopier {
     public static final String UPDATE_MULTIPOLYGON_SQL = "update_multipolygon.sql";
     public static final String UPDATE_AFFECTED_RELATIONS_SQL = "update_affected_relations.sql";
     public static final String UPDATE_AREA_RELATIONS_SQL = "update_area_relations.sql";
+    public static final String ADMIN_UNITS_IMPORT_SQL = "admin_units_import.sql";
     private static final String UPDATABLE_SCHEMA_SQL = "updatable_schema.sql";
     private static final String OSM_IMPORT_STATE_SQL = "osm_import_state.sql";
     private static final String SUBSTITUTE = "${substitute}";
@@ -46,11 +48,16 @@ public class ResourceCopier {
     }
 
     public static void copyResources(File resultDir, boolean columnarStorage, boolean updatable) throws IOException {
+        copyResources(resultDir, columnarStorage, updatable, AdminColumns.NONE);
+    }
+
+    public static void copyResources(File resultDir, boolean columnarStorage, boolean updatable,
+                                     AdminColumns adminColumns) throws IOException {
         File staticDir = new File(resultDir, ResultLayout.STATIC_DIR);
         copyResource("/" + H3_POLY_TSV_GZ, new File(staticDir, H3_POLY_TSV_GZ));
-        write(new File(staticDir, DATABASE_INIT_SQL), databaseInitScript(columnarStorage, updatable));
+        write(new File(staticDir, DATABASE_INIT_SQL), databaseInitScript(columnarStorage, updatable, adminColumns));
         write(new File(staticDir, MULTIPOLYGON_SQL), multipolygonScript(columnarStorage));
-        write(new File(staticDir, MULTIPOLYGON_INSERT_SQL), multipolygonInsertScript());
+        write(new File(staticDir, MULTIPOLYGON_INSERT_SQL), multipolygonInsertScript(adminColumns));
         write(new File(staticDir, DATABASE_AFTER_INIT_SQL), databaseAfterInitScript(updatable));
     }
 
@@ -59,13 +66,21 @@ public class ResourceCopier {
     }
 
     public static void copyImportScripts(File resultDir, boolean columnarStorage, boolean updatable) throws IOException {
+        copyImportScripts(resultDir, columnarStorage, updatable, AdminColumns.NONE);
+    }
+
+    public static void copyImportScripts(File resultDir, boolean columnarStorage, boolean updatable,
+                                         AdminColumns adminColumns) throws IOException {
         File sqlDir = new File(resultDir, ResultLayout.SQL_DIR);
         File sqlFinalizeDir = new File(resultDir, ResultLayout.SQL_FINALIZE_DIR);
         write(new File(sqlDir, RELATIONS_IMPORT_SQL), relationsImportScript(updatable));
-        write(new File(sqlDir, WAYS_32767_IMPORT_SQL), ways32767ImportScript(columnarStorage, updatable));
+        write(new File(sqlDir, WAYS_32767_IMPORT_SQL), ways32767ImportScript(columnarStorage, updatable, adminColumns));
         write(new File(sqlFinalizeDir, WAYS_DEFAULT_PARTITION_SQL), waysDefaultPartitionScript(updatable));
         write(new File(sqlFinalizeDir, NODES_ANALYZE_SQL), nodesAnalyzeScript(updatable));
         copyResource("/" + MULTIPOLYGON_IMPORT_SQL, new File(sqlFinalizeDir, MULTIPOLYGON_IMPORT_SQL));
+        if (adminColumns.isEnabled()) {
+            copyResource("/" + ADMIN_UNITS_IMPORT_SQL, new File(sqlFinalizeDir, ADMIN_UNITS_IMPORT_SQL));
+        }
     }
 
     public static String databaseInitScript(boolean columnarStorage) throws IOException {
@@ -73,10 +88,18 @@ public class ResourceCopier {
     }
 
     public static String databaseInitScript(boolean columnarStorage, boolean updatable) throws IOException {
+        return databaseInitScript(columnarStorage, updatable, AdminColumns.NONE);
+    }
+
+    public static String databaseInitScript(boolean columnarStorage, boolean updatable, AdminColumns adminColumns)
+            throws IOException {
         Map<String, String> substitutes = new LinkedHashMap<>();
         substitutes.put(SUBSTITUTE, columnarStorage
                 ? "CREATE EXTENSION citus;\nALTER SYSTEM SET columnar.compression TO 'none';\nSELECT pg_reload_conf();" : "");
         substitutes.put("${updatable_schema}", updatable ? "\n" + resource("/" + UPDATABLE_SCHEMA_SQL).trim() : "");
+        substitutes.put("${admin_columns}", adminColumns.columnDefinitions());
+        substitutes.put("${preimport_admin_columns}", adminColumns.inlineColumnDefinitions());
+        substitutes.put("${admin_comments}", adminColumns.columnComments());
         return resourceWithSubstitutes("/" + DATABASE_INIT_SQL, substitutes);
     }
 
@@ -91,7 +114,12 @@ public class ResourceCopier {
     }
 
     public static String multipolygonInsertScript() throws IOException {
-        return resource("/" + MULTIPOLYGON_INSERT_SQL);
+        return multipolygonInsertScript(AdminColumns.NONE);
+    }
+
+    public static String multipolygonInsertScript(AdminColumns adminColumns) throws IOException {
+        return resourceWithSubstitutes("/" + MULTIPOLYGON_INSERT_SQL,
+                Collections.singletonMap("${multipolygon_admin_columns}", adminColumns.copyColumns()));
     }
 
     public static String relationsImportScript(boolean updatable) throws IOException {
@@ -107,10 +135,16 @@ public class ResourceCopier {
     }
 
     public static String ways32767ImportScript(boolean columnarStorage, boolean updatable) throws IOException {
+        return ways32767ImportScript(columnarStorage, updatable, AdminColumns.NONE);
+    }
+
+    public static String ways32767ImportScript(boolean columnarStorage, boolean updatable, AdminColumns adminColumns)
+            throws IOException {
         Map<String, String> substitutes = new LinkedHashMap<>();
         substitutes.put(SUBSTITUTE, columnarStorage ? "SELECT alter_table_set_access_method('ways_32767', 'columnar');" : "");
-        substitutes.put("${way_columns}", PartitionSplitter.wayColumns(updatable));
+        substitutes.put("${way_columns}", PartitionSplitter.wayColumns(updatable) + adminColumns.copyColumns());
         substitutes.put("${way_version_columns}", updatable ? PartitionSplitter.WAY_VERSION_COLUMNS : "");
+        substitutes.put("${way_admin_columns}", adminColumns.copyColumns());
         substitutes.put("${way_version_not_null}", updatable
                 ? "\nalter table ways_32767 alter COLUMN version set NOT NULL;"
                 + "\nalter table ways_32767 alter COLUMN geom_hash set NOT NULL;" : "");

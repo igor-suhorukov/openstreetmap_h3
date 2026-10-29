@@ -1,5 +1,6 @@
 package com.github.isuhorukov.osm.pgsnapshot;
 
+import com.github.isuhorukov.osm.pgsnapshot.admin.AdminBinding;
 import net.postgis.jdbc.geometry.LineString;
 import net.postgis.jdbc.geometry.Point;
 import net.postgis.jdbc.geometry.Polygon;
@@ -24,6 +25,7 @@ public final class WaySerializeData {
     private final Collection<Tag> tags;
     private final int version;
     private final long geomHash;
+    private final AdminBinding adminBinding;
 
     private WaySerializeData(Builder b) {
         this.h33 = b.h33;
@@ -41,6 +43,7 @@ public final class WaySerializeData {
         this.tags = b.tags;
         this.version = b.version;
         this.geomHash = b.geomHash;
+        this.adminBinding = b.adminBinding;
     }
 
     public static final class Builder {
@@ -59,6 +62,7 @@ public final class WaySerializeData {
         private Collection<Tag> tags;
         private int version;
         private long geomHash;
+        private AdminBinding adminBinding;
 
         public Builder h33(short v)                              { h33 = v; return this; }
         public Builder id(long v)                                { id = v; return this; }
@@ -75,6 +79,7 @@ public final class WaySerializeData {
         public Builder tags(Collection<Tag> v)                   { tags = v; return this; }
         public Builder version(int v)                            { version = v; return this; }
         public Builder geomHash(long v)                          { geomHash = v; return this; }
+        public Builder adminBinding(AdminBinding v)              { adminBinding = v; return this; }
 
         public WaySerializeData build()                          { return new WaySerializeData(this); }
     }
@@ -94,4 +99,5 @@ public final class WaySerializeData {
     public Collection<Tag> getTags()                    { return tags; }
     public int getVersion()                             { return version; }
     public long getGeomHash()                           { return geomHash; }
+    public AdminBinding getAdminBinding()               { return adminBinding; }
 }

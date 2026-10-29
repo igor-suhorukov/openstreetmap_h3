@@ -23,14 +23,21 @@ final class MultipolygonArrowWriter {
         MapVector tagsVector = (MapVector) root.getVector(ArrowSchemas.TAGS);
         root.allocateNew();
         UnionMapWriter mapWriter = tagsVector.getWriter();
+        AdminArrowColumns adminColumns = AdminArrowColumns.of(root);
         for (int idx = 0; idx < multipolygons.size(); idx++) {
             ArrowMultipolygon multipolygon = multipolygons.get(idx);
             idVector.setSafe(idx, multipolygon.getId());
             h33Vector.setSafe(idx, multipolygon.getH33());
             wkbVector.setSafe(idx, multipolygon.getWkb());
             ArrowTags.write(allocator, mapWriter, idx, multipolygon.getTags());
+            if (adminColumns != null) {
+                adminColumns.write(idx, multipolygon.getAdminBinding());
+            }
         }
         mapWriter.setValueCount(multipolygons.size());
+        if (adminColumns != null) {
+            adminColumns.setValueCount(multipolygons.size());
+        }
         root.setRowCount(multipolygons.size());
     }
 }

@@ -1,5 +1,7 @@
 package com.github.isuhorukov.osm.pgsnapshot;
 
+import com.github.isuhorukov.osm.pgsnapshot.admin.AdminBinding;
+import com.github.isuhorukov.osm.pgsnapshot.admin.AdminColumns;
 import com.github.isuhorukov.osm.pgsnapshot.model.statistics.BlockStat;
 import com.github.isuhorukov.osm.pgsnapshot.model.statistics.PbfStatistics;
 import com.github.isuhorukov.osm.pgsnapshot.model.statistics.Stat;
@@ -17,16 +19,27 @@ public class Serializer {
 
     private final BinaryWriter binaryWriter = new BinaryWriter();
     private final boolean versions;
+    private final AdminColumns adminColumns;
 
     public Serializer() {
         this(false);
     }
 
     public Serializer(boolean versions) {
+        this(versions, AdminColumns.NONE);
+    }
+
+    public Serializer(boolean versions, AdminColumns adminColumns) {
         this.versions = versions;
+        this.adminColumns = adminColumns;
     }
 
     public void serializeNode(StringBuilder csvString, short h33, int h38, Node node, Collection<Tag> tags) {
+        serializeNode(csvString, h33, h38, node, tags, null);
+    }
+
+    public void serializeNode(StringBuilder csvString, short h33, int h38, Node node, Collection<Tag> tags,
+                              AdminBinding adminBinding) {
         csvString.append(h33).append("\t").append(h38).append('\t').append(node.getId()).append("\t")
                 .append(binaryWriter.writeHexed(getPoint(node.getLatitude(), node.getLongitude())));
         csvString.append("\t");
@@ -34,6 +47,7 @@ public class Serializer {
         if (versions) {
             csvString.append('\t').append(node.getVersion());
         }
+        AdminBinding.appendTsv(csvString, adminBinding, adminColumns);
         csvString.append("\n");
     }
 
@@ -79,6 +93,7 @@ public class Serializer {
         if (versions) {
             csvString.append('\t').append(w.getVersion()).append('\t').append(w.getGeomHash());
         }
+        AdminBinding.appendTsv(csvString, w.getAdminBinding(), adminColumns);
         csvString.append("\n");
     }
 

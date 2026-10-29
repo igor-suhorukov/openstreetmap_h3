@@ -155,6 +155,51 @@ Usage: <main class> [options]
       Update a database loaded with -updatable from a newer PBF: only new, 
       changed and deleted objects are written. Requires -pg_jdbc_url
       Default: false
+    -admin_units
+      Build the directory of administrative units (boundary=administrative 
+      relations with admin_level) from the PBF and write the column 
+      admin_units bigint[] with the ids of the leaf units of buildings, POIs, 
+      address points, stops and platforms, parking, toilets, ATMs, fuel 
+      stations, protected areas and places. Works with TSV files and 
+      -arrow_format
+      Default: false
+    -admin_unit_shares
+      Also write the column admin_unit_shares real[] with the shares of the 
+      object in the units of admin_units. Requires -admin_units
+      Default: false
+    -admin_units_cache
+      Directory that keeps the built admin unit directory between loads; it 
+      is reused while the boundaries and the directory parameters stay the 
+      same. Requires -admin_units
+    -admin_units_export
+      Directory for the admin unit directory without other data: 
+      admin_units.jsonl, admin_units.geojsonl, admin_regions.geojsonl, 
+      admin_units.parquet, admin_regions.parquet and admin_units_state.json. 
+      Requires -admin_units
+    -admin_units_only
+      Only build and export the admin unit directory, without nodes, ways and 
+      multipolygons. Requires -admin_units and -admin_units_export
+      Default: false
+    -min_area_m2
+      Minimal area of an object piece in a unit, square meters, default 10000. 
+      Requires -admin_units
+    -min_length_m
+      Minimal length of a line piece in a unit, meters, default 100. Requires 
+      -admin_units
+    -min_share
+      A unit is kept for an area or line if the object share in it is at 
+      least this value (default 0.01) or the piece is at least -min_area_m2 or 
+      -min_length_m. Requires -admin_units
+    -name_lang
+      Comma separated order of languages for the admin unit name: 
+      name:<language> for each language, 'name' for the plain name tag; 
+      default name,en. Requires -admin_units
+    -parent_share
+      Minimal share of the unit area inside its geometric parent, default 0.9. 
+      Requires -admin_units
+    -subarea_share
+      Minimal share of the unit area inside the parent of its subarea link, 
+      default 0.5. Requires -admin_units
     -worker_threads
       Worker threads count for data processing
       Default: 4
@@ -818,6 +863,107 @@ full load of the new PBF:
 | The same PBF again | 0.4 s | 0 |
 
 `-updatable` makes the initial load about 1–2 s longer and the database 8.5% larger (3,066 MB instead of 2,826 MB).
+
+## Administrative units (`-admin_units`)
+
+`-admin_units` builds a directory of administrative units from the PBF and binds buildings, POIs and some other objects
+to their leaf units in the new column `admin_units`. It works with TSV files and `-arrow_format`; `-pg_jdbc_url`,
+`-update` and `-updatable` are not supported yet. The design, the decisions and the measurements are in
+`admin_units/PLAN.md`.
+
+Before the PBF blocks are read, osmium extracts the boundaries into a temporary directory next to the PBF:
+`tags-filter r/boundary=administrative`, `export` of their polygons and `cat` of the relations to OPL. The directory is
+built in Java:
+- a unit is a `boundary=administrative` relation with a numeric `admin_level`, its key is the relation id. Relations
+  without an assembled polygon, for example foreign units cut by the extract, stay in the directory as parents;
+- the parent is the deepest lower level unit that holds at least `-parent_share` (0.9) of the unit area. The `subarea`
+  member of the parent relation is used where geometry is not enough: the parent holds at least `-subarea_share` (0.5)
+  of the unit, or one of them has no polygon. A deeper candidate wins, on the same level the `subarea` link. A link
+  with less than 0.5 of the area is ignored;
+- for levels that cut across the hierarchy (municipalities, level 7 in Thailand) the parent level is the most common
+  parent level of the confirmed `subarea` links of the country, and geometry picks the unit of that level;
+- the own territory of a unit is the unit minus its descendants. It is cut into pieces of at most 256 vertices along
+  lines of the 1e-7 degree OSM grid and kept in a compact in-memory index: integer coordinates and a packed Hilbert
+  R-tree (37 MB for Thailand). All overlays are snap-rounded to the OSM grid.
+
+The leaf units of an object are the units whose own territory contains it. The column is filled only for buildings
+(ways, multipolygons and nodes with `building`), POIs (`is.poi` of the `poi-organicmaps` extension), address points
+(`addr:housenumber`), `public_transport=platform|stop_position`, `railway=platform|train_station_entrance`,
+`highway=platform`, `amenity=parking|toilets|atm|fuel`, `boundary=national_park|protected_area`,
+`leisure=nature_reserve` and `place=*`. Administrative boundaries themselves (`boundary=administrative|land_area`) and
+rivers (`waterway=river|riverbank`, `natural=water` with `water=river`) always get `NULL`, as all other objects and the
+objects outside all units.
+
+| Column | PostgreSQL | Parquet, Arrow IPC | Content |
+|---|---|---|---|
+| `admin_units` | `bigint[]` | `list<int64>` | relation ids of the leaf units: the primary unit first, then by descending share |
+| `admin_unit_shares` (with `-admin_unit_shares`) | `real[]` | `list<float32>` | share of the object in each unit, same order and length |
+
+- A node gets every own territory that contains it, a node exactly on the common boundary of two units gets both:
+  points are compared in integer 1e-7 degree coordinates. The primary unit is the one with the higher `admin_level`,
+  then the smaller area, then the smaller id; the share of a node is 1.
+- A closed way (4 points or more) and a multipolygon get area shares, an open line gets length shares. A unit is kept
+  if the share is at least `-min_share` (0.01) or the piece is at least `-min_area_m2` (1 ha) or `-min_length_m`
+  (100 m). Shares are not normalized: a sum below 1 means that a part of the object is outside all units. The primary
+  unit is the one with the largest share, then the higher `admin_level`.
+- Two units for one object come from overlapping branches (a municipality and a tambon), from a child that sticks out
+  of its parent and from objects on or across boundaries.
+
+The directory is written after all objects are bound:
+
+| Output | Files |
+|---|---|
+| TSV files | `admin_units/unit.tsv`, `unit_region.tsv` and `state.tsv`; `sql_finalize/admin_units_import.sql` loads them into `admin.unit`, `admin.unit_region` and `admin.state` |
+| `-arrow_format` | `arrow/admin_units/admin_units` and `arrow/admin_units/admin_regions` with the extension of the format; Parquet geometry follows `-geoparquet_version`, Arrow IPC marks `geom` as `geoarrow.wkb` |
+| `-admin_units_export <dir>` | `admin_units.jsonl` (one unit per line, no geometry), `admin_units.geojsonl` and `admin_regions.geojsonl` (GeoJSONSeq), `admin_units.parquet`, `admin_regions.parquet` and `admin_units_state.json` |
+
+`admin_units` (table `admin.unit`) has `id`, `admin_level`, `parent_id`, `parent_source` (`G` geometry, `S` `subarea`),
+`parent_share`, `path` (ids from the root to the unit), `depth`, `children`, `name` (in the order of `-name_lang`,
+default `name,en`; then `name`, `int_name` and the first `name:*`), `names` (all `name`, `name:*`, `*_name` and
+`*_name:*` tags), `tags`, `h3_3`, `geom` (the unit polygon), `area_m2` and `own_area_m2` (spherical areas).
+`admin_regions` (table `admin.unit_region`) has the pieces of the own territories: `unit_id`, `part_no`, `admin_level`
+and `geom`. A program without a database finds the leaf unit of a point by testing these pieces and needs no
+hierarchy; only the loader index gives the exact boundary rule above, a test on `double` coordinates puts a point on a
+boundary on one side.
+
+`h3_3` of a unit is the sorted list of the `h3_3` cells (including 32767) of the objects bound to the unit or to its
+descendants. A query for a subtree reads only these partitions:
+```sql
+SELECT count(*) FROM ways w, admin.unit u
+WHERE u.id = 1908828 AND w.h3_3 = ANY (u.h3_3)
+  AND w.admin_units && ARRAY(SELECT id FROM admin.unit WHERE path @> ARRAY[1908828::bigint]);
+```
+```sql
+WITH u AS (SELECT list(id) ids FROM 'arrow/admin_units/admin_units.parquet' WHERE list_contains(path, 1908828)),
+     c AS (SELECT unnest(h3_3) h33 FROM 'arrow/admin_units/admin_units.parquet' WHERE id = 1908828)
+SELECT w.id FROM 'arrow/ways/*.parquet' w, u
+WHERE w.h33 IN (SELECT h33 FROM c) AND list_has_any(w.admin_units, u.ids);
+```
+
+Every Parquet and Arrow IPC file, with or without `-admin_units`, has the key `openstreetmap_h3:import_state` in its
+metadata (Parquet key-value metadata, Arrow IPC footer): the operation, the PBF name, the replication timestamp,
+sequence and URL of the PBF header and the load parameters, as in `osm_import_state`. With `-admin_units` the files
+with the column and the directory files also have the key `openstreetmap_h3:admin_units`: key and rules versions, the
+directory fingerprint, the column names and the directory and binding parameters; the directory files and
+`admin.state.parameters` add a report (units, regions, bound objects, objects with several units and outside all
+units by kind). The run time is not written, so two runs on the same PBF give byte-identical files. Equal fingerprints
+of a data file and a directory file mean the same directory:
+```sql
+SELECT count(*) files, count(DISTINCT decode(value)::JSON->>'fingerprint') fingerprints
+FROM parquet_kv_metadata('arrow/*/*.parquet') WHERE decode(key) = 'openstreetmap_h3:admin_units';
+```
+
+The fingerprint is the SHA-256 of the extracted relations and polygons, `-name_lang`, `-parent_share`,
+`-subarea_share` and the format and rules versions. `-admin_units_cache <dir>` keeps the built directory in
+`admin_index.bin` and reuses it while the fingerprint stays the same; osmium still extracts the boundaries.
+`-admin_units_only` with `-admin_units_export` only builds and exports the directory.
+
+Thailand (2025-05 PBF, 2,381 units, 16 worker threads, TSV and Parquet): the boundary extraction takes 3.0 s, the
+directory 9.5 s or 0.1 s from the cache (36 MB), the binding adds about 0.8 s to the block processing and the directory
+files 0.8 s. The load takes 21.4 s with the cache and 31.1 s the first time instead of 16.9 s without `-admin_units`;
+with `-admin_unit_shares` and `-admin_units_export` 22.5 s with the cache. 207,903 nodes (18,638 with two units or more), 1,181,425 ways (153,965) and
+2,738 multipolygons (388) get `admin_units`; 148,159 of 1,133,408 bound buildings (13%) have two units or more, mostly
+where a municipality overlaps a tambon. The other columns and files are the same as without `-admin_units`.
 
 ## Apache Parquet export
 

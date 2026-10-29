@@ -1,5 +1,6 @@
 package com.github.isuhorukov.osm.pgsnapshot.arrow;
 
+import com.github.isuhorukov.osm.pgsnapshot.admin.AdminColumns;
 import org.apache.arrow.vector.complex.MapVector;
 import org.apache.arrow.vector.types.FloatingPointPrecision;
 import org.apache.arrow.vector.types.pojo.ArrowType;
@@ -21,6 +22,10 @@ public class ArrowSchemas {
     }
 
     public static Schema getNodesOrWaysSchema(boolean isWays) {
+        return getNodesOrWaysSchema(isWays, AdminColumns.NONE);
+    }
+
+    public static Schema getNodesOrWaysSchema(boolean isWays, AdminColumns adminColumns) {
         Map<String, String> idMetadata = null;
         Map<String, String> h33Metadata = null;
         Map<String, String> h38Metadata = null;
@@ -54,15 +59,39 @@ public class ArrowSchemas {
                     , new Field("bboxMaxY", FieldType.notNullable(new ArrowType.FloatingPoint(FloatingPointPrecision.DOUBLE)), null)
             ));
         }
+        schemaFields.addAll(adminFields(adminColumns));
         return new Schema(schemaFields);
     }
 
     public static Schema getMultipolygonSchema() {
-        return new Schema(Arrays.asList(
+        return getMultipolygonSchema(AdminColumns.NONE);
+    }
+
+    public static Schema getMultipolygonSchema(AdminColumns adminColumns) {
+        List<Field> fields = new ArrayList<>(Arrays.asList(
                 new Field(ID, FieldType.notNullable(new ArrowType.Int(64, true)), null),
                 new Field(H33, FieldType.notNullable(new ArrowType.Int(16, true)), null),
                 new Field(WKB, FieldType.notNullable(new ArrowType.Binary()), null),
                 tagsField()));
+        fields.addAll(adminFields(adminColumns));
+        return new Schema(fields);
+    }
+
+    static List<Field> adminFields(AdminColumns adminColumns) {
+        List<Field> fields = new ArrayList<>();
+        if (adminColumns.isEnabled()) {
+            fields.add(listField(AdminColumns.UNITS_COLUMN, "unit_id", new ArrowType.Int(64, true), true));
+        }
+        if (adminColumns.hasShares()) {
+            fields.add(listField(AdminColumns.SHARES_COLUMN, "share",
+                    new ArrowType.FloatingPoint(FloatingPointPrecision.SINGLE), true));
+        }
+        return fields;
+    }
+
+    static Field listField(String name, String elementName, ArrowType elementType, boolean nullable) {
+        return new Field(name, nullable ? FieldType.nullable(new ArrowType.List()) : FieldType.notNullable(new ArrowType.List()),
+                Collections.singletonList(new Field(elementName, FieldType.notNullable(elementType), null)));
     }
 
     public static Schema getRelationSchema() {
@@ -85,9 +114,13 @@ public class ArrowSchemas {
     }
 
     private static Field tagsField() {
+        return mapField(TAGS);
+    }
+
+    static Field mapField(String name) {
         FieldType entryType = new FieldType(false, ArrowType.Struct.INSTANCE, null, null);
         FieldType stringType = new FieldType(false, new ArrowType.Utf8(), null, null);
-        return new Field(TAGS, FieldType.nullable(new ArrowType.Map(true)),
+        return new Field(name, FieldType.nullable(new ArrowType.Map(true)),
                 Collections.singletonList(new Field(MapVector.KEY_NAME, entryType,
                         Arrays.asList(new Field(MapVector.KEY_NAME, stringType, null),
                                 new Field(MapVector.VALUE_NAME, stringType, null)))));

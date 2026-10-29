@@ -63,6 +63,11 @@ public final class BatchStatistics {
     }
 
     public static void addToFooter(BufferAllocator allocator, File file) throws IOException {
+        addToFooter(allocator, file, Map.of());
+    }
+
+    public static void addToFooter(BufferAllocator allocator, File file, Map<String, String> extraMetadata)
+            throws IOException {
         try (FileChannel channel = FileChannel.open(file.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE)) {
             long footerStart = footerStart(channel);
             BatchStatistics statistics = new BatchStatistics();
@@ -74,6 +79,7 @@ public final class BatchStatistics {
                     statistics.add(root);
                 }
                 Map<String, String> metadata = new HashMap<>(reader.getMetaData());
+                metadata.putAll(extraMetadata);
                 metadata.put(METADATA_KEY, statistics.toJson());
                 ArrowFooter footer = new ArrowFooter(root.getSchema(), reader.getDictionaryBlocks(), recordBlocks,
                         metadata);

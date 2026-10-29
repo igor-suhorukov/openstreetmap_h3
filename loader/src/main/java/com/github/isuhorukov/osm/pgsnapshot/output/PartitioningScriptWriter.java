@@ -1,5 +1,6 @@
 package com.github.isuhorukov.osm.pgsnapshot.output;
 
+import com.github.isuhorukov.osm.pgsnapshot.admin.AdminColumns;
 import com.github.isuhorukov.osm.pgsnapshot.model.Partition;
 import com.github.isuhorukov.osm.pgsnapshot.model.statistics.BlockStat;
 import com.github.isuhorukov.osm.pgsnapshot.model.table.StatType;
@@ -32,6 +33,14 @@ public class PartitioningScriptWriter {
                                                double thresholdPercentFromMaxPartition,
                                                List<BlockStat> blockStatistics, boolean storeColumnar,
                                                boolean updatable) {
+        savePartitioningScripts(resultDirectory, scriptCount, thresholdPercentFromMaxPartition, blockStatistics,
+                storeColumnar, updatable, AdminColumns.NONE);
+    }
+
+    public static void savePartitioningScripts(File resultDirectory, int scriptCount,
+                                               double thresholdPercentFromMaxPartition,
+                                               List<BlockStat> blockStatistics, boolean storeColumnar,
+                                               boolean updatable, AdminColumns adminColumns) {
         List<TableStat> tableStat = blockStatistics.stream().map(statItem -> {
             if (statItem.getRelationCount() > 0) {
                 return null;
@@ -72,8 +81,10 @@ public class PartitioningScriptWriter {
         double avgWayPartitionSizeMb = partitionsWay.stream().map(Partition::getSerializedSize)
                 .collect(Collectors.averagingLong(Long::longValue)) / 1000000;
         log.info("{} {} {}", partitionsWay.size(), minWayPartitionSizeMb, avgWayPartitionSizeMb);
-        PartitionSplitter.createNodesScript(resultDirectory, scriptCount, partitionsNode, storeColumnar, updatable);
-        PartitionSplitter.createWaysScript(resultDirectory, scriptCount, partitionsWay, storeColumnar, updatable);
+        PartitionSplitter.createNodesScript(resultDirectory, scriptCount, partitionsNode, storeColumnar, updatable,
+                adminColumns.copyColumns());
+        PartitionSplitter.createWaysScript(resultDirectory, scriptCount, partitionsWay, storeColumnar, updatable,
+                adminColumns.copyColumns());
         PartitionSplitter.createMultipolygonScript(resultDirectory, partitionsWay, storeColumnar);
     }
 }

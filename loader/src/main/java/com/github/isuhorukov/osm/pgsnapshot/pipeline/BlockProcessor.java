@@ -3,6 +3,9 @@ package com.github.isuhorukov.osm.pgsnapshot.pipeline;
 import com.github.isuhorukov.osm.pgsnapshot.CliParameters;
 import com.github.isuhorukov.osm.pgsnapshot.Serializer;
 import com.github.isuhorukov.osm.pgsnapshot.WaySerializeData;
+import com.github.isuhorukov.osm.pgsnapshot.admin.AdminBinder;
+import com.github.isuhorukov.osm.pgsnapshot.admin.AdminBinding;
+import com.github.isuhorukov.osm.pgsnapshot.admin.AdminColumns;
 import com.github.isuhorukov.osm.pgsnapshot.extension.TagExtension;
 import com.github.isuhorukov.osm.pgsnapshot.model.ArrowNodeOrWay;
 import com.github.isuhorukov.osm.pgsnapshot.model.ArrowRelation;
@@ -37,6 +40,7 @@ public class BlockProcessor {
     private final Serializer serializer;
     private final List<TagExtension> tagExtensions;
     private final StoredVersions storedVersions;
+    private final AdminBinder adminBinder;
 
     public BlockProcessor(CliParameters parameters, H3Core h3Core) {
         this(parameters, h3Core, Collections.emptyList());
@@ -48,14 +52,21 @@ public class BlockProcessor {
 
     public BlockProcessor(CliParameters parameters, H3Core h3Core, List<TagExtension> tagExtensions,
                           StoredVersions storedVersions) {
+        this(parameters, h3Core, tagExtensions, storedVersions, null);
+    }
+
+    public BlockProcessor(CliParameters parameters, H3Core h3Core, List<TagExtension> tagExtensions,
+                          StoredVersions storedVersions, AdminBinder adminBinder) {
         this.parameters = parameters;
         this.h3Core = h3Core;
         this.tagExtensions = tagExtensions;
         this.storedVersions = storedVersions;
+        this.adminBinder = adminBinder;
         this.geometryFactory = new GeometryFactory();
         this.memberTypeValueMapper = new MemberTypeValueMapper();
         this.wkbWriter = new WKBWriter(2, ByteOrderValues.LITTLE_ENDIAN);
-        this.serializer = new Serializer(parameters.isUpdatable());
+        this.serializer = new Serializer(parameters.isUpdatable(),
+                adminBinder != null ? adminBinder.getColumns() : AdminColumns.NONE);
         try {
             this.geodeticCalculator = new GeodeticCalculator(CRS.decode("EPSG:" + Serializer.SRID));
         } catch (FactoryException e) {
@@ -126,12 +137,14 @@ public class BlockProcessor {
 
         if (!parameters.isCollectOnlyStat()) {
             int h38 = CompactH3.serialize8(h3Core.latLngToCell(latitude, longitude, 8));
+            AdminBinding adminBinding = bindNode(h33, longitude, latitude, tags);
             if (parameters.isSaveArrow()) {
-                result.getArrowNodeOrWays().add(new ArrowNodeOrWay(id, h33, h38, latitude, longitude, tags));
+                result.getArrowNodeOrWays().add(new ArrowNodeOrWay.Builder(id, h33, h38, latitude, longitude, tags)
+                        .adminBinding(adminBinding).build());
             }
             if (parameters.isSavePostgresqlTsv()) {
                 StringBuilder resultBuilder = result.getCsvResultPerH33().computeIfAbsent(h33, key -> new StringBuilder());
-                serializer.serializeNode(resultBuilder, h33, h38, entity, tags);
+                serializer.serializeNode(resultBuilder, h33, h38, entity, tags, adminBinding);
             }
         }
     }
@@ -180,6 +193,7 @@ public class BlockProcessor {
         if (!parameters.isCollectOnlyStat()) {
             WayGeometry geom = WayGeometry.from(entity, h3Core, geometryFactory,
                     geodeticCalculator, parameters.isScaleApproximation(), wkbWriter);
+            AdminBinding adminBinding = bindWay(h33, wayNodes, tags);
 
             if (parameters.isSaveArrow()) {
                 int[] h38Idxs = !geom.getWayIntersectionH38Indexes().isEmpty()
@@ -196,6 +210,7 @@ public class BlockProcessor {
                         .h33Center(geom.getH33Center())
                         .lineStringWkb(geom.getLineStringWkb())
                         .bboxWkb(geom.getBboxWkb())
+                        .adminBinding(adminBinding)
                         .build();
                 result.getArrowNodeOrWays().add(arrowNodeOrWay);
             }
@@ -211,10 +226,19 @@ public class BlockProcessor {
                         .bboxGeometry(geom.getBboxGeometry()).lineString(geom.getLineString())
                         .tags(tags)
                         .version(version).geomHash(geomHash)
+                        .adminBinding(adminBinding)
                         .build();
                 serializer.serializeWay(resultBuilder, wayData);
             }
         }
+    }
+
+    private AdminBinding bindNode(short h33, double longitude, double latitude, Collection<Tag> tags) {
+        return adminBinder != null ? adminBinder.node(h33, longitude, latitude, tags) : null;
+    }
+
+    private AdminBinding bindWay(short h33, List<WayNode> wayNodes, Collection<Tag> tags) {
+        return adminBinder != null ? adminBinder.way(h33, wayNodes, tags) : null;
     }
 
     private boolean isSkipped(Way entity) {

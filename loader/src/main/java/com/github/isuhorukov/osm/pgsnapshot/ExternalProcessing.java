@@ -90,6 +90,31 @@ public class ExternalProcessing {
         return command;
     }
 
+    public void extractAdminBoundaries(File sourcePbfFile, File outputPbfFile)
+            throws IOException, InterruptedException {
+        try (PipedProcess filter = PipedProcess.start(adminBoundariesCommand(sourcePbfFile, outputPbfFile),
+                sourcePbfFile.getAbsoluteFile().getParentFile())) {
+            filter.waitForSuccess();
+        }
+    }
+
+    List<String> adminBoundariesCommand(File sourcePbfFile, File outputPbfFile) {
+        List<String> command = osmiumCommand(sourcePbfFile, false, outputPbfFile.getAbsoluteFile().getParent());
+        Collections.addAll(command, "tags-filter", sourcePbfFile.getAbsolutePath(), "r/boundary=administrative",
+                "--overwrite", "-v", "-f", "pbf", "-o", outputPbfFile.getAbsolutePath());
+        return command;
+    }
+
+    public PipedProcess startRelationsOpl(File pbfFile) throws IOException {
+        return PipedProcess.start(relationsOplCommand(pbfFile), pbfFile.getAbsoluteFile().getParentFile());
+    }
+
+    List<String> relationsOplCommand(File pbfFile) {
+        List<String> command = osmiumCommand(pbfFile, false);
+        Collections.addAll(command, "cat", pbfFile.getAbsolutePath(), "-t", "relation", "-f", "opl", "-o", "-");
+        return command;
+    }
+
     public void extractRelations(File sourcePbfFile, Collection<Long> relationIds, File outputPbfFile)
             throws IOException, InterruptedException {
         StringBuilder ids = new StringBuilder();

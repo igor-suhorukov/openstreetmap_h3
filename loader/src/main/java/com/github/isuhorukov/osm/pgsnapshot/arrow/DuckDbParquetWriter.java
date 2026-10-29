@@ -20,7 +20,9 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 public final class DuckDbParquetWriter implements PartitionWriter, Closeable {
@@ -60,13 +62,31 @@ public final class DuckDbParquetWriter implements PartitionWriter, Closeable {
     }
 
     @Override
-    public void write(BufferAllocator allocator, ArrowReader reader, File target, List<String> orderBy)
-            throws IOException {
+    public void write(BufferAllocator allocator, ArrowReader reader, File target, List<String> orderBy,
+                      Map<String, String> metadata) throws IOException {
         String geoParquet = geoParquetVersion.isGeometry()
                 ? ", GEOPARQUET_VERSION '" + geoParquetVersion.name() + "'" : "";
         copy(allocator, reader, target, select(reader.getVectorSchemaRoot().getSchema(),
                 geoParquetVersion.isGeometry() ? PARQUET_GEOMETRY : null, orderBy),
-                "FORMAT 'PARQUET', CODEC '" + compression.name() + "'" + geoParquet);
+                "FORMAT 'PARQUET', CODEC '" + compression.name() + "'" + geoParquet + kvMetadata(metadata));
+    }
+
+    static String kvMetadata(Map<String, String> metadata) {
+        if (metadata.isEmpty()) {
+            return "";
+        }
+        StringBuilder options = new StringBuilder(", KV_METADATA {");
+        boolean first = true;
+        for (Map.Entry<String, String> entry : new TreeMap<>(metadata).entrySet()) {
+            options.append(first ? "" : ", ").append(literal(entry.getKey())).append(": ")
+                    .append(literal(entry.getValue()));
+            first = false;
+        }
+        return options.append('}').toString();
+    }
+
+    private static String literal(String value) {
+        return "'" + value.replace("'", "''") + "'";
     }
 
     public PartitionWriter arrowIpcWriter(IpcCompression ipcCompression) throws IOException {
@@ -86,11 +106,11 @@ public final class DuckDbParquetWriter implements PartitionWriter, Closeable {
             }
 
             @Override
-            public void write(BufferAllocator allocator, ArrowReader reader, File target, List<String> orderBy)
-                    throws IOException {
+            public void write(BufferAllocator allocator, ArrowReader reader, File target, List<String> orderBy,
+                              Map<String, String> metadata) throws IOException {
                 copy(allocator, reader, target, select(reader.getVectorSchemaRoot().getSchema(), ARROW_IPC_GEOMETRY,
                         orderBy), options);
-                BatchStatistics.addToFooter(allocator, target);
+                BatchStatistics.addToFooter(allocator, target, metadata);
             }
         };
     }

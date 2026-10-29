@@ -225,4 +225,29 @@ class ExternalProcessingTest {
         String content = Files.readString(script.toPath());
         assertTrue(content.contains("/input/multipolygon/multipolygon_aa"));
     }
+
+    @Test
+    void adminPrepassCommands_localOsmium_filterBoundariesAndRelationsToOpl() {
+        File sourcePbf = new File(tempDir.toFile(), "test.osm.pbf");
+        File adminPbf = new File(tempDir.toFile(), "prepass/admin.osm.pbf");
+        ExternalProcessing externalProcessing = new ExternalProcessing(false);
+
+        assertEquals(List.of("/usr/bin/osmium", "tags-filter", sourcePbf.getAbsolutePath(), "r/boundary=administrative",
+                "--overwrite", "-v", "-f", "pbf", "-o", adminPbf.getAbsolutePath()),
+                externalProcessing.adminBoundariesCommand(sourcePbf, adminPbf));
+        assertEquals(List.of("/usr/bin/osmium", "cat", adminPbf.getAbsolutePath(), "-t", "relation", "-f", "opl",
+                "-o", "-"), externalProcessing.relationsOplCommand(adminPbf));
+    }
+
+    @Test
+    void adminBoundariesCommand_docker_mountsPrepassDirectory() {
+        File sourcePbf = new File(tempDir.toFile(), "test.osm.pbf");
+        File adminPbf = new File(tempDir.toFile(), "prepass/admin.osm.pbf");
+        String prepass = adminPbf.getAbsoluteFile().getParent();
+
+        List<String> command = new ExternalProcessing(true).adminBoundariesCommand(sourcePbf, adminPbf);
+
+        assertTrue(command.containsAll(List.of("-v", prepass + ":" + prepass)), command.toString());
+        assertEquals("tags-filter", command.get(command.indexOf("/usr/bin/osmium") + 1));
+    }
 }

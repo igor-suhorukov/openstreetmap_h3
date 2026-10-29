@@ -26,7 +26,7 @@ CREATE TABLE nodes (
     h3_8 integer NOT NULL,
     tags hstore,
     geom  geometry(Point,4326) NOT NULL,
-    id bigint NOT NULL
+    id bigint NOT NULL${admin_columns}
 ) PARTITION BY RANGE (h3_3);
 
 CREATE TABLE ways (
@@ -43,7 +43,7 @@ CREATE TABLE ways (
     linestring geometry(LINESTRING,4326) NOT NULL,
     points bigint[],
     h3_8_regions integer[],
-    h3_3_multi_regions smallint[]
+    h3_3_multi_regions smallint[]${admin_columns}
 ) PARTITION BY RANGE (h3_3);
 --Alignment Padding: reordered by dba utility advise - closed,h3_3,scale,tags,bbox,centre,p.id,linestring,points
 
@@ -70,10 +70,10 @@ CREATE TABLE multipolygon(
     id bigint NOT NULL,
     centre geometry(Point,4326) NOT NULL,
     polygon geometry(MULTIPOLYGON,4326) NOT NULL,
-    h3_3_multi_regions smallint[]
+    h3_3_multi_regions smallint[]${admin_columns}
 ) PARTITION BY RANGE (h3_3);
 \i /input/static/multipolygon_tables.sql
-CREATE UNLOGGED TABLE preimport_multipolygon(polygon geometry(MULTIPOLYGON,4326), osm_type text, id bigint, tags hstore, h3_3 smallint NOT NULL, h3_3_multi_regions smallint[]);${updatable_schema}
+CREATE UNLOGGED TABLE preimport_multipolygon(polygon geometry(MULTIPOLYGON,4326), osm_type text, id bigint, tags hstore, h3_3 smallint NOT NULL, h3_3_multi_regions smallint[]${preimport_admin_columns});${updatable_schema}
 
 
 create table h3_3_bounds_complex(id smallint, h3_0 smallint, h3_1 smallint, h3_2 smallint, bbox geometry(Geometry,4326), bounds geometry(Geometry,4326));
@@ -189,7 +189,7 @@ COMMENT ON COLUMN multipolygon.bbox IS 'Geometry column storing the bounding box
 COMMENT ON COLUMN multipolygon.id IS 'Unique identifier for each multipolygon corresponding to the OpenStreetMap relation ID';
 COMMENT ON COLUMN multipolygon.centre IS 'Geometry column storing the geographic center of the multipolygon as a Point in WGS 84 coordinate system (SRID 4326)';
 COMMENT ON COLUMN multipolygon.polygon IS 'Geometry column storing the multipolygon geometry as a MultiPolygon in WGS 84 coordinate system (SRID 4326)';
-COMMENT ON COLUMN multipolygon.h3_3_multi_regions IS 'Array of H3 index regions at resolution level 3 that the multipolygon intersects in smallint representation';
+COMMENT ON COLUMN multipolygon.h3_3_multi_regions IS 'Array of H3 index regions at resolution level 3 that the multipolygon intersects in smallint representation';${admin_comments}
 COMMENT ON VIEW geometry_global_view IS 'View combining geometry data from nodes, ways, and multipolygons with a unified schema';
 COMMENT ON COLUMN geometry_global_view.id IS 'Unique identifier for the geometry, corresponding to the original table (nodes, ways, or multipolygon)';
 COMMENT ON COLUMN geometry_global_view.h3_3 IS 'H3 index resolution for spatial partitioning, level 3, from the original table encoded as smallint. To decode it to H3 bigint value use function: to_full_from_short_h3_3()';

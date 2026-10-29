@@ -19,6 +19,7 @@ import java.util.TreeSet;
 public final class ImportState {
 
     public static final String OSM_IMPORT_STATE_TSV = "osm_import_state.tsv";
+    public static final String METADATA_KEY = "openstreetmap_h3:import_state";
     public static final String LOAD = "load";
     public static final String UPDATE = "update";
 
@@ -58,6 +59,27 @@ public final class ImportState {
         row.append('\t');
         HStoreFormatSerializer.escapeString(row, parametersJson);
         return row.append('\n').toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    public static String json(String operation, File sourcePbf, ReplicationHeader replication, String parametersJson) {
+        StringBuilder json = new StringBuilder("{\"operation\":");
+        jsonString(json, operation);
+        json.append(",\"source_pbf\":");
+        jsonString(json, sourcePbf.getName());
+        json.append(",\"replication_timestamp\":");
+        if (replication.getTimestamp() != null) {
+            jsonString(json, replication.getTimestamp().toString());
+        } else {
+            json.append("null");
+        }
+        json.append(",\"replication_sequence\":").append(replication.getSequence())
+                .append(",\"replication_url\":");
+        if (replication.getBaseUrl() != null) {
+            jsonString(json, replication.getBaseUrl());
+        } else {
+            json.append("null");
+        }
+        return json.append(",\"parameters\":").append(parametersJson).append('}').toString();
     }
 
     public static void write(File resultDirectory, byte[] tsv) throws IOException {

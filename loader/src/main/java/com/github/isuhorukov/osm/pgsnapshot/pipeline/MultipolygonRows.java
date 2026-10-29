@@ -1,5 +1,7 @@
 package com.github.isuhorukov.osm.pgsnapshot.pipeline;
 
+import com.github.isuhorukov.osm.pgsnapshot.admin.AdminBinding;
+import com.github.isuhorukov.osm.pgsnapshot.admin.AdminColumns;
 import com.github.isuhorukov.osm.pgsnapshot.util.GeometryH33;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.io.ParseException;
@@ -276,6 +278,11 @@ public final class MultipolygonRows {
         }
 
         ByteBuffer importRows(MultipolygonTags multipolygonTags, short[][] cells) {
+            return importRows(multipolygonTags, cells, null, AdminColumns.NONE);
+        }
+
+        ByteBuffer importRows(MultipolygonTags multipolygonTags, short[][] cells, AdminBinding[] bindings,
+                              AdminColumns adminColumns) {
             ByteArrayOutputStream rows = new ByteArrayOutputStream(length + length / 8 + size * CELL_COLUMNS_BYTES);
             for (int row = 0; row < size; row++) {
                 byte[] tags = multipolygonTags.isEmpty() ? MultipolygonTags.UNCHANGED
@@ -287,13 +294,13 @@ public final class MultipolygonRows {
                 } else {
                     rows.write(bytes, starts[row], ends[row] - starts[row]);
                 }
-                byte[] cellColumns = cellColumns(cells[row]);
+                byte[] cellColumns = cellColumns(cells[row], bindings != null ? bindings[row] : null, adminColumns);
                 rows.write(cellColumns, 0, cellColumns.length);
             }
             return ByteBuffer.wrap(rows.toByteArray());
         }
 
-        private static byte[] cellColumns(short[] cells) {
+        private static byte[] cellColumns(short[] cells, AdminBinding binding, AdminColumns adminColumns) {
             StringBuilder columns = new StringBuilder(CELL_COLUMNS_BYTES).append('\t').append(GeometryH33.h33(cells))
                     .append('\t');
             if (cells.length > 1) {
@@ -305,6 +312,7 @@ public final class MultipolygonRows {
             } else {
                 columns.append("\\N");
             }
+            AdminBinding.appendTsv(columns, binding, adminColumns);
             return columns.append('\n').toString().getBytes(StandardCharsets.US_ASCII);
         }
     }
