@@ -19,6 +19,7 @@ import com.github.isuhorukov.osm.pgsnapshot.model.statistics.MultipolygonTime;
 import com.github.isuhorukov.osm.pgsnapshot.model.statistics.PbfStatistics;
 import com.github.isuhorukov.osm.pgsnapshot.output.*;
 import com.github.isuhorukov.osm.pgsnapshot.pbfextractor.ReplicationHeader;
+import com.github.isuhorukov.osm.pgsnapshot.util.GeometryH33;
 import com.github.isuhorukov.osm.pgsnapshot.util.PartitionEstimator;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.uber.h3core.H3Core;
@@ -223,8 +224,7 @@ public class Pipeline {
             throws IOException, InterruptedException {
         long start = System.currentTimeMillis();
         MultipolygonBatchProcessor processor = new MultipolygonBatchProcessor(multipolygonTags, saveTsv,
-                partitionFiles != null ? partitionFiles.getArrowSpill() : null,
-                partitionFiles != null ? H3Core.newInstance() : null);
+                partitionFiles != null ? partitionFiles.getArrowSpill() : null, GeometryH33.instance());
         try (PipedProcess export = externalProcessing.startMultipolygonExport(sourcePbfFile);
              OutputStream tsvOutput = saveTsv
                      ? new BufferedOutputStream(new FileOutputStream(new File(resultDirectory,

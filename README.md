@@ -540,6 +540,11 @@ Every load (here and with `-pg_jdbc_url`) creates the unique indexes `idx_nodes_
 the partition key, so PostgreSQL can't create `UNIQUE (id)`; a foreign key of another table references `(id, h3_3)`:
 `FOREIGN KEY (way_id, way_h3_3) REFERENCES ways (id, h3_3)`. The loader writes each object once, so `id` alone is
 unique as well.
+
+The loader computes `h3_3` and `h3_3_multi_regions` of multipolygons in Java in every mode: the H3 cells whose
+boundaries the polygon intersects. Cell edges are densified along great circles every 5 km, as in `h3_3_bounds_complex`
+(the algorithm of PostGIS `ST_Segmentize(geography, 5000)`), while the edges of the polygon stay straight in degrees. One
+cell gives its id, several cells give 32767 and their sorted list in `h3_3_multi_regions`.
 ```
 docker run --name postgis14-thailand --memory=12g --memory-swap=12g --memory-swappiness 0 --shm-size=1g -v /home/acc/dev/map/database/thailand:/var/lib/postgresql/data -v /home/acc/dev/map/thailand/thailand-latest_loc_ways:/input -e POSTGRES_PASSWORD=osmworld -e LD_LIBRARY_PATH=/usr/lib/jvm/java-11-openjdk-amd64/lib/server/ -d -p 5432:5432 -p 5005:5005 5d411c3be57f -c checkpoint_timeout='15 min' -c checkpoint_completion_target=0.9 -c shared_buffers='4096 MB' -c wal_buffers=-1 -c bgwriter_delay=200ms -c bgwriter_lru_maxpages=100 -c bgwriter_lru_multiplier=2.0 -c bgwriter_flush_after=0 -c max_wal_size='32768 MB' -c min_wal_size='16384 MB'
 
@@ -826,14 +831,13 @@ Parquet files follow the PostgreSQL partitions by `h3_3`:
 | `arrow/ways/ways_NNN.parquet` | ways of partition NNN |
 | `arrow/ways/ways_32767.parquet` | ways whose nodes are in different H3 cells |
 | `arrow/multipolygon/multipolygon_NNN.parquet` | multipolygons of partition NNN |
-| `arrow/multipolygon/multipolygon_32767.parquet` | multipolygons whose vertices are in different H3 cells |
+| `arrow/multipolygon/multipolygon_32767.parquet` | multipolygons that intersect several H3 cells |
 | `arrow/relations/relations.parquet` | all relations |
 
 Rows of a file are sorted by (`h33`, `id`), so the min/max statistics of files and row groups let readers skip data by
 `h33` and `id`. Partition ranges are estimated from a sample of the PBF before the run, as with `-pg_jdbc_url`; they can
-differ from the ranges of TSV import scripts written in the same run. The `h33` of a multipolygon is the H3 cell of all
-its vertices, or 32767 when the vertices are in different cells (PostgreSQL intersects the polygon with the cell
-boundaries, so rare multipolygons near cell borders get 32767 there).
+differ from the ranges of TSV import scripts written in the same run. The `h33` of a multipolygon is the H3 cell it
+intersects, or 32767 when it intersects several cells: the same value as `h3_3` of the `multipolygon` table.
 
 While PBF blocks are processed, rows are collected per H3 cell in Arrow IPC files in `arrow/spill`; then DuckDB writes
 each partition file and the intermediate files are deleted. Multipolygon rows of `osmium export` are processed in

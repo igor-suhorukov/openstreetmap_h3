@@ -60,7 +60,7 @@ class PartitionFilesTest {
     private static final List<Partition> PARTITIONS = List.of(
             new Partition(0, (short) PartitionSplitter.LOWER_H3_3_BOUND, (short) 0, 0),
             new Partition(1, (short) 0, (short) PartitionSplitter.HIGH_H3_3_BOUND, 0));
-    private static final short PHUKET = h33(7.88, 98.30);
+    private static final short CHIANG_MAI = h33(18.79, 98.99);
     private static final short BANGKOK = h33(13.75, 100.50);
     private static final GeometryFactory GEOMETRY_FACTORY = new GeometryFactory();
     private static final ArrowSpill SPILL = ArrowSpill.of(IpcCompression.ZSTD, 1);
@@ -138,21 +138,21 @@ class PartitionFilesTest {
                         0)), SPILL, new ArrowIpcWriter(IpcCompression.ZSTD, Set.of(ArrowSchemas.LINE_STRING_WKB)),
                 parquetWriter.arrowIpcWriter(IpcCompression.ZSTD));
 
-        partitionFiles.appendMultipolygons(SPILL.encodeMultipolygons(List.of(multipolygon(30, PHUKET),
-                multipolygon(10, PHUKET), multipolygon(20, GeometryH33.MULTIPLE_CELLS))));
+        partitionFiles.appendMultipolygons(SPILL.encodeMultipolygons(List.of(multipolygon(30, CHIANG_MAI),
+                multipolygon(10, CHIANG_MAI), multipolygon(20, GeometryH33.MULTIPLE_CELLS))));
         partitionFiles.writeMultipolygons();
 
         assertEquals(List.of("multipolygon_000.arrow", "multipolygon_32767.arrow"),
                 fileNames(ResultLayout.MULTIPOLYGON_DIR));
-        File phuketFile = new File(arrowDir, "multipolygon/multipolygon_000.arrow");
-        assertEquals(List.of("batch", PHUKET + " 10", PHUKET + " 30"), ipcBatches(phuketFile));
+        File cellFile = new File(arrowDir, "multipolygon/multipolygon_000.arrow");
+        assertEquals(List.of("batch", CHIANG_MAI + " 10", CHIANG_MAI + " 30"), ipcBatches(cellFile));
         assertEquals(List.of("batch", "32767 20"), ipcBatches(new File(arrowDir, "multipolygon/multipolygon_32767.arrow")));
-        assertEquals("{\"version\":1,\"batches\":[{\"rows\":2,\"id\":[10,30],\"h33\":[" + PHUKET + "," + PHUKET + "]}]}",
-                footerMetadata(phuketFile).get(BatchStatistics.METADATA_KEY));
+        assertEquals("{\"version\":1,\"batches\":[{\"rows\":2,\"id\":[10,30],\"h33\":[" + CHIANG_MAI + "," + CHIANG_MAI + "]}]}",
+                footerMetadata(cellFile).get(BatchStatistics.METADATA_KEY));
         assertEquals(ArrowIpcWriter.GEOARROW_WKB,
-                ipcField(phuketFile, ArrowSchemas.WKB).getMetadata().get(ArrowIpcWriter.EXTENSION_NAME));
+                ipcField(cellFile, ArrowSchemas.WKB).getMetadata().get(ArrowIpcWriter.EXTENSION_NAME));
         assertEquals("tags: Map(false)<entries: Struct<key: Utf8 not null, value: Utf8> not null>",
-                ipcField(phuketFile, ArrowSchemas.TAGS).toString());
+                ipcField(cellFile, ArrowSchemas.TAGS).toString());
     }
 
     @Test
@@ -190,22 +190,22 @@ class PartitionFilesTest {
                 new Partition(0, (short) PartitionSplitter.LOWER_H3_3_BOUND, (short) PartitionSplitter.HIGH_H3_3_BOUND,
                         0)), SPILL, parquetWriter, parquetWriter);
 
-        partitionFiles.appendMultipolygons(SPILL.encodeMultipolygons(List.of(multipolygon(30, PHUKET),
+        partitionFiles.appendMultipolygons(SPILL.encodeMultipolygons(List.of(multipolygon(30, CHIANG_MAI),
                 multipolygon(10, BANGKOK), multipolygon(20, GeometryH33.MULTIPLE_CELLS))));
-        partitionFiles.appendMultipolygons(SPILL.encodeMultipolygons(List.of(multipolygon(5, PHUKET),
+        partitionFiles.appendMultipolygons(SPILL.encodeMultipolygons(List.of(multipolygon(5, CHIANG_MAI),
                 multipolygon(40, GeometryH33.MULTIPLE_CELLS))));
         partitionFiles.writeMultipolygons();
 
         assertEquals(List.of("multipolygon_000.parquet", "multipolygon_32767.parquet"),
                 fileNames(ResultLayout.MULTIPOLYGON_DIR));
-        List<String> expected = Stream.of(PHUKET + " 5", PHUKET + " 30", BANGKOK + " 10")
+        List<String> expected = Stream.of(CHIANG_MAI + " 5", CHIANG_MAI + " 30", BANGKOK + " 10")
                 .sorted((a, b) -> Short.compare(Short.parseShort(a.split(" ")[0]), Short.parseShort(b.split(" ")[0])))
                 .collect(Collectors.toList());
         assertEquals(expected, rows("multipolygon/multipolygon_000.parquet", "h33, id"));
         assertEquals(List.of("32767 20", "32767 40"), rows("multipolygon/multipolygon_32767.parquet", "h33, id"));
         assertEquals(List.of("{id=30, name=multipolygon 30}"), rows("multipolygon/multipolygon_000.parquet", "tags",
                 "id = 30"));
-        assertEquals(List.of("POLYGON ((98.3 7.88, 98.301 7.88, 98.301 7.881, 98.3 7.881, 98.3 7.88))"),
+        assertEquals(List.of("POLYGON ((98.99 18.79, 98.991 18.79, 98.991 18.791, 98.99 18.791, 98.99 18.79))"),
                 rows("multipolygon/multipolygon_000.parquet", "ST_AsText(wkb)", "id = 30"));
         assertTrue(geoMetadata("multipolygon/multipolygon_000.parquet").contains(
                 "\"primary_column\":\"wkb\",\"columns\":{\"wkb\":{\"encoding\":\"WKB\",\"geometry_types\":[\"Polygon\"]"));
@@ -267,7 +267,7 @@ class PartitionFilesTest {
     }
 
     private static ArrowMultipolygon multipolygon(long id, short h33) {
-        return new ArrowMultipolygon(id, h33, square(98.30, 7.88, 0.001),
+        return new ArrowMultipolygon(id, h33, square(98.99, 18.79, 0.001),
                 List.of(new Tag("name", "multipolygon " + id), new Tag("id", String.valueOf(id))));
     }
 

@@ -319,10 +319,10 @@ public class OsmPbfTransformationTest {
                         collect(Collectors.joining("\n")));
         assertEquals("osmium_export.json 134\n" +
                         "multipolygon_tables.sql 385\n" +
-                        "multipolygon_insert.sql 2059\n" +
+                        "multipolygon_insert.sql 1500\n" +
                         "multipolygon.sql 456\n" +
                         "h3_poly.tsv.gz 3315290\n" +
-                        "database_init.sql 12199\n" +
+                        "database_init.sql 12254\n" +
                         "database_after_init.sql 4876",
                 Arrays.stream(Objects.requireNonNull(
                                 Arrays.stream(files).filter(file -> "static".equals(file.getName())).

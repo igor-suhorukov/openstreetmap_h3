@@ -199,6 +199,7 @@ class PostgresqlUpdateTest {
                         + "|| coalesce(h3_3_multi_regions::text, 'null'), ',' ORDER BY id) FROM ways"));
         assertEquals("401 4481 null", query("osm_edge_update", "SELECT string_agg(id || ' ' || h3_3 || ' ' "
                 + "|| coalesce(h3_3_multi_regions::text, 'null'), ',' ORDER BY id) FROM multipolygon"));
+        assertEquals("0", query("osm_edge_update", PostgresqlJdbcLoadTest.MULTIPOLYGONS_WITH_OTHER_CELLS_THAN_CELL_BOUNDS));
     }
 
     @Test

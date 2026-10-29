@@ -53,6 +53,12 @@ class PostgresqlJdbcLoadTest {
             "SELECT string_agg(c.relname, ',' ORDER BY c.relname) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
                     + "WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p', 'v') AND c.relname !~ '_[0-9]{3}$'");
 
+    static final String MULTIPOLYGONS_WITH_OTHER_CELLS_THAN_CELL_BOUNDS = "SELECT count(*)::text FROM multipolygon m "
+            + "CROSS JOIN LATERAL (SELECT CASE WHEN count(*) = 1 THEN min(b.id) ELSE 32767 END h3_3, "
+            + "CASE WHEN count(*) > 1 THEN array_agg(b.id ORDER BY b.id) END h3_3_multi_regions FROM (SELECT DISTINCT h.id "
+            + "FROM h3_3_bounds_complex h WHERE ST_Intersects(h.bounds, m.polygon)) b) c "
+            + "WHERE m.h3_3 IS DISTINCT FROM c.h3_3 OR m.h3_3_multi_regions IS DISTINCT FROM c.h3_3_multi_regions";
+
     private static GenericContainer<?> postgis;
 
     @TempDir
@@ -222,6 +228,7 @@ class PostgresqlJdbcLoadTest {
                             + "|| coalesce(h3_3_multi_regions::text, 'null'), ',' ORDER BY id) FROM ways"), database);
             assertEquals("401 4481 null", query(database, "SELECT string_agg(id || ' ' || h3_3 || ' ' "
                     + "|| coalesce(h3_3_multi_regions::text, 'null'), ',' ORDER BY id) FROM multipolygon"), database);
+            assertEquals("0", query(database, MULTIPOLYGONS_WITH_OTHER_CELLS_THAN_CELL_BOUNDS), database);
         }
         assertEquals("4481", query("osm_edge_jdbc", "SELECT string_agg(id::text, ',') FROM h3_3_bounds_complex "
                 + "WHERE ST_Covers(bounds, ST_SetSRID(ST_MakePoint(37.5019616, 55.5086224), 4326))"));

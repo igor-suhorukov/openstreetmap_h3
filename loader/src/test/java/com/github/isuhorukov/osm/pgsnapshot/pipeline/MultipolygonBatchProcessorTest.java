@@ -42,13 +42,13 @@ import static org.junit.jupiter.api.Assertions.*;
 class MultipolygonBatchProcessorTest {
 
     private static final GeometryFactory GEOMETRY_FACTORY = new GeometryFactory();
-    private static final Geometry PHUKET_SQUARE = multipolygon(98.30, 7.88, 0.001);
-    private static final Geometry LARGE_SQUARE = multipolygon(98.0, 7.5, 5.0);
+    private static final Geometry CHIANG_MAI_SQUARE = multipolygon(98.99, 18.79, 0.001);
+    private static final Geometry LARGE_SQUARE = multipolygon(97.0, 16.0, 5.0);
     private static final MultipolygonTags TEST_TAGS = MultipolygonTags.of(List.of(new TestTagExtension("test", "is.test", "v")));
     private static final ArrowSpill SPILL = ArrowSpill.of(IpcCompression.NONE, 0);
 
     private static H3Core h3Core;
-    private static short phuket;
+    private static short chiangMai;
 
     @TempDir
     Path tempDir;
@@ -56,7 +56,7 @@ class MultipolygonBatchProcessorTest {
     @BeforeAll
     static void createH3() throws IOException {
         h3Core = H3Core.newInstance();
-        phuket = CompactH3.serialize3(h3Core.latLngToCell(7.88, 98.30, 3));
+        chiangMai = CompactH3.serialize3(h3Core.latLngToCell(18.79, 98.99, 3));
     }
 
     private static Geometry multipolygon(double longitude, double latitude, double size) {
@@ -78,10 +78,10 @@ class MultipolygonBatchProcessorTest {
     }
 
     private static String osmiumOutput() {
-        return ewkbHex(PHUKET_SQUARE) + "\tway\t7\t\"building\"=>\"yes\"\n"
-                + ewkbHex(PHUKET_SQUARE) + "\trelation\t30\t\"amenity\"=>\"school\",\"name\"=>\"a\\tb\"\n"
+        return ewkbHex(CHIANG_MAI_SQUARE) + "\tway\t7\t\"building\"=>\"yes\"\n"
+                + ewkbHex(CHIANG_MAI_SQUARE) + "\trelation\t30\t\"amenity\"=>\"school\",\"name\"=>\"a\\tb\"\n"
                 + ewkbHex(LARGE_SQUARE) + "\trelation\t20\t\"landuse\"=>\"forest\",\"empty\"=>\"\"\n"
-                + ewkbHex(PHUKET_SQUARE) + "\trelation\t10\t\n";
+                + ewkbHex(CHIANG_MAI_SQUARE) + "\trelation\t10\t\n";
     }
 
     private static List<MultipolygonBatchProcessor.Result> process(MultipolygonBatchProcessor processor, String rows)
@@ -99,35 +99,42 @@ class MultipolygonBatchProcessorTest {
     @Test
     void process_tsvAndArrow_enrichedRowsAndIsoWkbChunksPerCell() throws IOException {
         List<MultipolygonBatchProcessor.Result> results = process(
-                new MultipolygonBatchProcessor(TEST_TAGS, true, SPILL, h3Core), osmiumOutput());
+                new MultipolygonBatchProcessor(TEST_TAGS, true, SPILL, GeometryH33.instance()), osmiumOutput());
 
         assertEquals(1, results.size());
         ByteArrayOutputStream expectedTsv = new ByteArrayOutputStream();
         MultipolygonRows.copyRelations(new ByteArrayInputStream(osmiumOutput().getBytes(StandardCharsets.UTF_8)),
                 expectedTsv::write, TEST_TAGS, 0);
         assertEquals(expectedTsv.toString(StandardCharsets.UTF_8), text(results.get(0).getTsvRows()));
+        assertTrue(text(results.get(0).getTsvRows()).contains("\trelation\t30\t\"amenity\"=>\"school\",\"name\"=>\"a\\tb\","
+                + "\"is.test\"=>\"v-Relation\"\t" + chiangMai + "\t\\N\n"));
+        assertTrue(text(results.get(0).getTsvRows()).contains("\trelation\t20\t\"landuse\"=>\"forest\",\"empty\"=>\"\"\t32767\t{"));
         Map<Short, byte[]> chunks = results.get(0).getSpillChunks();
-        assertEquals(List.of(phuket, GeometryH33.MULTIPLE_CELLS), new ArrayList<>(chunks.keySet()));
-        assertEquals(List.of("30 " + phuket + " " + WKBWriter.toHex(isoWkb(PHUKET_SQUARE))
+        assertEquals(List.of(chiangMai, GeometryH33.MULTIPLE_CELLS), new ArrayList<>(chunks.keySet()));
+        assertEquals(List.of("30 " + chiangMai + " " + WKBWriter.toHex(isoWkb(CHIANG_MAI_SQUARE))
                         + " {amenity=school, is.test=v-Relation, name=a\tb}",
-                "10 " + phuket + " " + WKBWriter.toHex(isoWkb(PHUKET_SQUARE)) + " {}"), rows(chunks.get(phuket)));
+                "10 " + chiangMai + " " + WKBWriter.toHex(isoWkb(CHIANG_MAI_SQUARE)) + " {}"), rows(chunks.get(chiangMai)));
         assertEquals(List.of("20 32767 " + WKBWriter.toHex(isoWkb(LARGE_SQUARE)) + " {landuse=forest}"),
                 rows(chunks.get(GeometryH33.MULTIPLE_CELLS)));
     }
 
     @Test
-    void process_tsvOnly_noChunks() throws IOException {
+    void process_tsvOnly_rowsWithCellsNoChunks() throws IOException {
         List<MultipolygonBatchProcessor.Result> results = process(
-                new MultipolygonBatchProcessor(MultipolygonTags.NONE, true, null, null), osmiumOutput());
+                new MultipolygonBatchProcessor(MultipolygonTags.NONE, true, null, GeometryH33.instance()), osmiumOutput());
 
-        assertEquals(osmiumOutput().substring(osmiumOutput().indexOf('\n') + 1), text(results.get(0).getTsvRows()));
+        ByteArrayOutputStream expectedTsv = new ByteArrayOutputStream();
+        MultipolygonRows.copyRelations(new ByteArrayInputStream(osmiumOutput().getBytes(StandardCharsets.UTF_8)),
+                expectedTsv::write, MultipolygonTags.NONE, 0);
+        assertEquals(expectedTsv.toString(StandardCharsets.UTF_8), text(results.get(0).getTsvRows()));
+        assertTrue(text(results.get(0).getTsvRows()).endsWith("\trelation\t10\t\t" + chiangMai + "\t\\N\n"));
         assertEquals(Map.of(), results.get(0).getSpillChunks());
     }
 
     @Test
     void process_arrowOnly_noTsvRows() throws IOException {
         List<MultipolygonBatchProcessor.Result> results = process(
-                new MultipolygonBatchProcessor(TEST_TAGS, false, SPILL, h3Core), osmiumOutput());
+                new MultipolygonBatchProcessor(TEST_TAGS, false, SPILL, GeometryH33.instance()), osmiumOutput());
 
         assertNull(results.get(0).getTsvRows());
         assertEquals(2, results.get(0).getSpillChunks().size());
@@ -135,7 +142,7 @@ class MultipolygonBatchProcessorTest {
 
     @Test
     void process_invalidGeometry_throwsWithRelationId() {
-        MultipolygonBatchProcessor processor = new MultipolygonBatchProcessor(TEST_TAGS, false, SPILL, h3Core);
+        MultipolygonBatchProcessor processor = new MultipolygonBatchProcessor(TEST_TAGS, false, SPILL, GeometryH33.instance());
 
         assertEquals("Invalid WKB of multipolygon 77", assertThrows(IllegalStateException.class,
                 () -> process(processor, "010203\trelation\t77\t\n")).getMessage());
@@ -149,7 +156,7 @@ class MultipolygonBatchProcessorTest {
     void hexBytes_upperAndLowerCaseDigits_decoded() {
         byte[] hex = "09afAF".getBytes(StandardCharsets.US_ASCII);
 
-        assertArrayEquals(new byte[]{0x09, (byte) 0xaf, (byte) 0xaf}, MultipolygonBatchProcessor.hexBytes(hex, 0, 6, 1));
+        assertArrayEquals(new byte[]{0x09, (byte) 0xaf, (byte) 0xaf}, MultipolygonRows.hexBytes(hex, 0, 6, 1));
     }
 
     private List<String> rows(byte[] chunk) throws IOException {

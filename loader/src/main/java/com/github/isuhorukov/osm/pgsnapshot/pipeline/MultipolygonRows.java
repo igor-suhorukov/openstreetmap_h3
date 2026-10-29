@@ -1,5 +1,10 @@
 package com.github.isuhorukov.osm.pgsnapshot.pipeline;
 
+import com.github.isuhorukov.osm.pgsnapshot.util.GeometryH33;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.io.ParseException;
+import org.locationtech.jts.io.WKBReader;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -34,6 +39,7 @@ public final class MultipolygonRows {
     private static final int BATCHES_IN_FLIGHT_PER_WORKER = 2;
     private static final byte[] RELATION_COLUMN = "relation\t".getBytes(StandardCharsets.US_ASCII);
     private static final int BUFFER_SIZE = 1 << 20;
+    private static final int CELL_COLUMNS_BYTES = 16;
 
     private final InputStream osmiumOutput;
     private final int maxBatchBytes;
@@ -54,7 +60,9 @@ public final class MultipolygonRows {
     public static <E extends Exception> long copyRelations(InputStream osmiumOutput, Sink<E> sink,
                                                            MultipolygonTags multipolygonTags, int workers)
             throws IOException, E {
-        return processRelations(osmiumOutput, workers, batch -> batch.enrichedRows(multipolygonTags),
+        GeometryH33 geometryH33 = GeometryH33.instance();
+        return processRelations(osmiumOutput, workers,
+                batch -> batch.importRows(multipolygonTags, geometryH33.cells(batch.geometries())),
                 rows -> sink.write(rows.array(), rows.arrayOffset() + rows.position(), rows.remaining()));
     }
 
@@ -169,6 +177,30 @@ public final class MultipolygonRows {
         return true;
     }
 
+    static byte[] hexBytes(byte[] row, int start, int end, long id) {
+        if ((end - start) % 2 != 0) {
+            throw new IllegalStateException("Odd length of hex WKB of multipolygon " + id);
+        }
+        byte[] bytes = new byte[(end - start) / 2];
+        for (int i = 0; i < bytes.length; i++) {
+            bytes[i] = (byte) (hexDigit(row[start + 2 * i], id) << 4 | hexDigit(row[start + 2 * i + 1], id));
+        }
+        return bytes;
+    }
+
+    private static int hexDigit(byte digit, long id) {
+        if (digit >= '0' && digit <= '9') {
+            return digit - '0';
+        }
+        if (digit >= 'A' && digit <= 'F') {
+            return digit - 'A' + 10;
+        }
+        if (digit >= 'a' && digit <= 'f') {
+            return digit - 'a' + 10;
+        }
+        throw new IllegalStateException("Invalid hex WKB of multipolygon " + id);
+    }
+
     static int indexOf(byte[] buffer, int from, int to, byte value) {
         for (int i = from; i < to; i++) {
             if (buffer[i] == value) {
@@ -224,29 +256,56 @@ public final class MultipolygonRows {
             return ends[row];
         }
 
-        ByteBuffer enrichedRows(MultipolygonTags multipolygonTags) {
-            if (multipolygonTags.isEmpty()) {
-                return ByteBuffer.wrap(bytes, 0, length);
-            }
-            ByteArrayOutputStream enriched = null;
-            int copied = 0;
+        Geometry[] geometries() {
+            WKBReader wkbReader = new WKBReader();
+            Geometry[] geometries = new Geometry[size];
             for (int row = 0; row < size; row++) {
-                byte[] tags = multipolygonTags.enrichedTags(bytes, starts[row], ends[row]);
+                geometries[row] = geometry(row, wkbReader);
+            }
+            return geometries;
+        }
+
+        private Geometry geometry(int row, WKBReader wkbReader) {
+            long id = MultipolygonTags.relationId(bytes, starts[row], ends[row]);
+            int wkbEnd = indexOf(bytes, starts[row], ends[row], (byte) '\t');
+            try {
+                return wkbReader.read(hexBytes(bytes, starts[row], wkbEnd, id));
+            } catch (ParseException e) {
+                throw new IllegalStateException("Invalid WKB of multipolygon " + id, e);
+            }
+        }
+
+        ByteBuffer importRows(MultipolygonTags multipolygonTags, short[][] cells) {
+            ByteArrayOutputStream rows = new ByteArrayOutputStream(length + length / 8 + size * CELL_COLUMNS_BYTES);
+            for (int row = 0; row < size; row++) {
+                byte[] tags = multipolygonTags.isEmpty() ? MultipolygonTags.UNCHANGED
+                        : multipolygonTags.enrichedTags(bytes, starts[row], ends[row]);
                 if (tags.length > 0) {
-                    if (enriched == null) {
-                        enriched = new ByteArrayOutputStream(length + length / 8);
-                    }
                     int tagsStart = MultipolygonTags.tagsStart(bytes, starts[row], ends[row]);
-                    enriched.write(bytes, copied, tagsStart - copied);
-                    enriched.write(tags, 0, tags.length);
-                    copied = ends[row];
+                    rows.write(bytes, starts[row], tagsStart - starts[row]);
+                    rows.write(tags, 0, tags.length);
+                } else {
+                    rows.write(bytes, starts[row], ends[row] - starts[row]);
                 }
+                byte[] cellColumns = cellColumns(cells[row]);
+                rows.write(cellColumns, 0, cellColumns.length);
             }
-            if (enriched == null) {
-                return ByteBuffer.wrap(bytes, 0, length);
+            return ByteBuffer.wrap(rows.toByteArray());
+        }
+
+        private static byte[] cellColumns(short[] cells) {
+            StringBuilder columns = new StringBuilder(CELL_COLUMNS_BYTES).append('\t').append(GeometryH33.h33(cells))
+                    .append('\t');
+            if (cells.length > 1) {
+                columns.append('{');
+                for (int i = 0; i < cells.length; i++) {
+                    columns.append(i == 0 ? "" : ",").append(cells[i]);
+                }
+                columns.append('}');
+            } else {
+                columns.append("\\N");
             }
-            enriched.write(bytes, copied, length - copied);
-            return ByteBuffer.wrap(enriched.toByteArray());
+            return columns.append('\n').toString().getBytes(StandardCharsets.US_ASCII);
         }
     }
 

@@ -1,5 +1,6 @@
 package com.github.isuhorukov.osm.pgsnapshot.pipeline;
 
+import com.github.isuhorukov.osm.pgsnapshot.util.GeometryH33;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -19,22 +20,44 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static com.github.isuhorukov.osm.pgsnapshot.pipeline.MultipolygonFixtures.cell;
+import static com.github.isuhorukov.osm.pgsnapshot.pipeline.MultipolygonFixtures.ewkbHex;
+import static com.github.isuhorukov.osm.pgsnapshot.pipeline.MultipolygonFixtures.square;
 import static org.junit.jupiter.api.Assertions.*;
 
 class MultipolygonRowsTest {
 
-    private static final String OSMIUM_OUTPUT = "0106A\tway\t1\t\"amenity\"=>\"cafe\"\n"
-            + "0106B\trelation\t2\t\"landuse\"=>\"forest\"\n"
-            + "0106C\trelation\t3\t\"amenity\"=>\"school\"\n"
-            + "0106D\trelation\t4\t\n"
-            + "0106E\trelation\t5\t\"amenity\"=>\"cafe\",\"name\"=>\"a\\tb\"";
+    private static final String CHIANG_MAI = ewkbHex(square(98.99, 18.79, 0.001));
+    private static final String BANGKOK = ewkbHex(square(100.50, 13.75, 0.001));
+    private static final String ACROSS_CELLS = ewkbHex(square(98.0, 18.0, 2.0));
+    private static final short CHIANG_MAI_CELL = cell(18.79, 98.99);
+    private static final short BANGKOK_CELL = cell(13.75, 100.50);
 
-    private static final String ENRICHED_RELATIONS = "0106B\trelation\t2\t\"landuse\"=>\"forest\"\n"
-            + "0106C\trelation\t3\t\"amenity\"=>\"school\",\"is.test\"=>\"v-Relation\"\n"
-            + "0106D\trelation\t4\t\n"
-            + "0106E\trelation\t5\t\"amenity\"=>\"cafe\",\"name\"=>\"a\\tb\",\"is.test\"=>\"v-Relation\"";
+    private static final String OSMIUM_OUTPUT = CHIANG_MAI + "\tway\t1\t\"amenity\"=>\"cafe\"\n"
+            + CHIANG_MAI + "\trelation\t2\t\"landuse\"=>\"forest\"\n"
+            + ACROSS_CELLS + "\trelation\t3\t\"amenity\"=>\"school\"\n"
+            + BANGKOK + "\trelation\t4\t\n"
+            + CHIANG_MAI + "\trelation\t5\t\"amenity\"=>\"cafe\",\"name\"=>\"a\\tb\"";
 
     private static final MultipolygonTags TEST_TAGS = MultipolygonTags.of(List.of(new TestTagExtension("test", "is.test", "v")));
+
+    private static String acrossCellsColumns() {
+        short[] cells = GeometryH33.instance().cells(square(98.0, 18.0, 2.0));
+        StringBuilder regions = new StringBuilder();
+        for (short cell : cells) {
+            regions.append(regions.length() == 0 ? "{" : ",").append(cell);
+        }
+        return "\t32767\t" + regions + "}\n";
+    }
+
+    private static String importRows(boolean enriched) {
+        String extensionTag = enriched ? ",\"is.test\"=>\"v-Relation\"" : "";
+        return CHIANG_MAI + "\trelation\t2\t\"landuse\"=>\"forest\"\t" + CHIANG_MAI_CELL + "\t\\N\n"
+                + ACROSS_CELLS + "\trelation\t3\t\"amenity\"=>\"school\"" + extensionTag + acrossCellsColumns()
+                + BANGKOK + "\trelation\t4\t\t" + BANGKOK_CELL + "\t\\N\n"
+                + CHIANG_MAI + "\trelation\t5\t\"amenity\"=>\"cafe\",\"name\"=>\"a\\tb\"" + extensionTag + "\t"
+                + CHIANG_MAI_CELL + "\t\\N\n";
+    }
 
     private static InputStream input(String content) {
         return new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
@@ -43,7 +66,7 @@ class MultipolygonRowsTest {
     private static String rows(int count) {
         StringBuilder rows = new StringBuilder();
         for (int id = 1; id <= count; id++) {
-            rows.append("0106").append("AB".repeat(id % 7)).append('\t').append(id % 5 == 0 ? "way" : "relation")
+            rows.append(id % 7 == 0 ? BANGKOK : CHIANG_MAI).append('\t').append(id % 5 == 0 ? "way" : "relation")
                     .append('\t').append(id).append('\t')
                     .append(id % 3 == 0 ? "\"amenity\"=>\"cafe\"" : "\"landuse\"=>\"forest\"").append('\n');
         }
@@ -60,12 +83,12 @@ class MultipolygonRowsTest {
 
     @ParameterizedTest
     @ValueSource(ints = {0, 1, 4})
-    void copyRelations_extensionTags_appendedToMatchingRelationRows(int workers) throws IOException {
+    void copyRelations_extensionTags_appendedToMatchingRelationRowsWithCells(int workers) throws IOException {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
 
         assertEquals(4, MultipolygonRows.copyRelations(input(OSMIUM_OUTPUT), output::write, TEST_TAGS, workers));
 
-        assertEquals(ENRICHED_RELATIONS, output.toString(StandardCharsets.UTF_8));
+        assertEquals(importRows(true), output.toString(StandardCharsets.UTF_8));
     }
 
     @Test
@@ -80,18 +103,18 @@ class MultipolygonRowsTest {
 
         assertEquals(4, MultipolygonRows.copyRelations(smallReads, output::write, TEST_TAGS, 2));
 
-        assertEquals(ENRICHED_RELATIONS, output.toString(StandardCharsets.UTF_8));
+        assertEquals(importRows(true), output.toString(StandardCharsets.UTF_8));
     }
 
     @ParameterizedTest
     @ValueSource(ints = {0, 3})
-    void copyRelations_noMultipolygonTags_relationRowsUnchanged(int workers) throws IOException {
+    void copyRelations_noMultipolygonTags_relationRowsWithCells(int workers) throws IOException {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
 
         assertEquals(4, MultipolygonRows.copyRelations(input(OSMIUM_OUTPUT), output::write, MultipolygonTags.NONE,
                 workers));
 
-        assertEquals(OSMIUM_OUTPUT.substring(OSMIUM_OUTPUT.indexOf("0106B")), output.toString(StandardCharsets.UTF_8));
+        assertEquals(importRows(false), output.toString(StandardCharsets.UTF_8));
     }
 
     @Test
@@ -105,7 +128,8 @@ class MultipolygonRowsTest {
         assertEquals(16_000, rows);
         assertEquals(rows, MultipolygonRows.copyRelations(input(osmiumOutput), parallel::write, TEST_TAGS, 4));
         assertEquals(oneThread.toString(StandardCharsets.UTF_8), parallel.toString(StandardCharsets.UTF_8));
-        assertTrue(oneThread.toString(StandardCharsets.UTF_8).contains("\t3\t\"amenity\"=>\"cafe\",\"is.test\"=>\"v-Relation\"\n"));
+        assertTrue(oneThread.toString(StandardCharsets.UTF_8)
+                .contains("\t3\t\"amenity\"=>\"cafe\",\"is.test\"=>\"v-Relation\"\t" + CHIANG_MAI_CELL + "\t\\N\n"));
     }
 
     @Test

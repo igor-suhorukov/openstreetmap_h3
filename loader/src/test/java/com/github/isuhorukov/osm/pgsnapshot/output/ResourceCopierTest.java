@@ -74,7 +74,10 @@ class ResourceCopierTest {
         String multipolygon = Files.readString(
                 new File(new File(resultDir, ResultLayout.STATIC_DIR), "multipolygon_insert.sql").toPath());
         assertTrue(multipolygon.contains("\ntags,\n"));
-        assertTrue(multipolygon.contains("c.id=h.id order by 1;"));
+        assertTrue(multipolygon.contains("select\nh3_3,\n"));
+        assertTrue(multipolygon.contains("\nh3_3_multi_regions\n"));
+        assertTrue(multipolygon.contains("c.id=p.id order by 1;"));
+        assertFalse(multipolygon.contains("h3_3_bounds_complex"));
         assertFalse(multipolygon.contains("from relations"));
         assertFalse(multipolygon.contains("${"));
     }
@@ -165,9 +168,9 @@ class ResourceCopierTest {
 
         assertEquals("c130cbc588a91ee414184f966eb77726", md5(resultDir, "static/osmium_export.json"));
         assertEquals("4c88c2c2f57396ccf0609e3eefb59708", md5(resultDir, "static/multipolygon.sql"));
-        assertEquals("34ede1e42a6ff8efe6a05a8108c3a3ff", md5(resultDir, "static/multipolygon_insert.sql"));
+        assertEquals("5259dbea7e04b6e7b47838f913475e22", md5(resultDir, "static/multipolygon_insert.sql"));
         assertEquals("680d35581dc024ff1006b22067a96c89", md5(resultDir, "static/h3_poly.tsv.gz"));
-        assertEquals("b64984f6c5d15c4fcc180faa03e08d44", md5(resultDir, "static/database_init.sql"));
+        assertEquals("14c8c0bdae5da333aa6d878beb421bf6", md5(resultDir, "static/database_init.sql"));
         assertEquals("5f2ffc1ccbdd46fe8869b4012a5828a9", md5(resultDir, "static/database_after_init.sql"));
         assertEquals("70453ad3f7f0a5c34b5b628a8ce4509d", md5(resultDir, "sql/ways_32767_import.sql"));
         assertEquals("b01daaf3a801bd3e7fb1dac67c3a4294", md5(resultDir, "sql/relations_import.sql"));
@@ -200,7 +203,7 @@ class ResourceCopierTest {
 
         File staticDir = new File(resultDir, ResultLayout.STATIC_DIR);
         String dbInit = Files.readString(new File(staticDir, "database_init.sql").toPath());
-        assertTrue(dbInit.contains("tags hstore);\nALTER TABLE nodes ADD COLUMN version integer NOT NULL;\n"), dbInit);
+        assertTrue(dbInit.contains("h3_3_multi_regions smallint[]);\nALTER TABLE nodes ADD COLUMN version integer NOT NULL;\n"), dbInit);
         assertTrue(dbInit.contains("ALTER TABLE ways ADD COLUMN version integer NOT NULL, ADD COLUMN geom_hash bigint NOT NULL;"));
         assertTrue(dbInit.contains("CREATE TABLE osm_import_state("));
         assertTrue(dbInit.contains("CREATE TABLE osm_change_log("));
