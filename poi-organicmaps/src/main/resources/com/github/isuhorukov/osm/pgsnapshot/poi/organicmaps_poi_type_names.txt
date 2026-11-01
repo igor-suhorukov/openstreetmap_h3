@@ -172,3 +172,83 @@ th = หน้าผา
 en = Moscow Central Circle Station
 ru = Станция МЦК
 th = สถานีวงแหวนกลางมอสโก
+
+[type.amenity.ski_rental]
+en = Ski Rental
+ru = Прокат лыж
+th = ร้านเช่าสกี
+
+[type.amenity.ski_school]
+en = Ski School
+ru = Горнолыжная школа
+th = โรงเรียนสอนสกี
+
+[type.shop.ski]
+en = Ski Shop
+ru = Магазин лыжного снаряжения
+th = ร้านอุปกรณ์สกี
+
+[type.leisure.swimming_area]
+en = Swimming Area
+ru = Место для купания
+th = พื้นที่เล่นน้ำ
+
+[type.landuse.farmland.lavender]
+en = Lavender Field
+ru = Поле лаванды
+th = ทุ่งลาเวนเดอร์
+
+[type.natural.sinkhole]
+en = Sinkhole
+ru = Карстовая воронка
+th = หลุมยุบ
+
+[type.natural.valley]
+en = Valley
+ru = Долина
+th = หุบเขา
+
+[type.natural.gorge]
+en = Gorge
+ru = Ущелье
+th = ช่องเขา
+
+[type.natural.ridge]
+en = Ridge
+ru = Горный хребет
+th = สันเขา
+
+[type.geological.glacial_erratic]
+en = Glacial Erratic
+ru = Ледниковый валун
+th = หินธารน้ำแข็ง
+
+[type.geological.palaeontological_site]
+en = Palaeontological Site
+ru = Палеонтологический памятник
+th = แหล่งบรรพชีวินวิทยา
+
+[type.craft.pottery]
+en = Pottery
+ru = Гончарная мастерская
+th = โรงปั้นเครื่องปั้นดินเผา
+
+[type.craft.distillery]
+en = Distillery
+ru = Винокурня
+th = โรงกลั่น
+
+[type.craft.cheese]
+en = Cheese Maker
+ru = Сыроварня
+th = โรงทำชีส
+
+[type.tourism.wine_cellar]
+en = Wine Cellar
+ru = Винный погреб
+th = ห้องเก็บไวน์
+
+[type.amenity.cooking_school]
+en = Cooking School
+ru = Кулинарная школа
+th = โรงเรียนสอนทำอาหาร

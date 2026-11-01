@@ -3,7 +3,8 @@
 # (libs/indexer/ftypes_matcher.cpp) and data/categories.txt has an entry for it.
 # A rule applies to the type and its subtypes: amenity-parking also matches amenity-parking-fee.
 #   +<type> [category ...] [key=value;value ...]   POI, optionally with additional displayed categories,
-#                                                  only for objects with one of the values of the tag
+#                                                  only for objects with one of the values of the tag,
+#                                                  key=* - with any value of the tag
 #   -<type>                  not a POI
 
 # The entrance is the walking destination of a metro station, categories.txt has no entry for it.
@@ -85,6 +86,30 @@
 +natural-beach category_beach
 +leisure-beach_resort category_beach
 +natural-peak category_peak
++natural-glacier name=*
++natural-water category_lake name=*
+-natural-water-basin
+-natural-water-ditch
+-natural-water-drain
+-natural-water-intermittent
+-natural-water-lock
+-natural-water-moat
+-natural-water-river
+-natural-water-tunnel
+-natural-water-wastewater
++waterway-river category_river name=*
+-waterway-river-intermittent
+-waterway-river-tunnel
++waterway-canal category_river name=*
+-waterway-canal-intermittent
+-waterway-canal-tunnel
++amenity-ski_rental category_ski
++amenity-ski_school category_ski
++shop-ski category_ski category_shopping
++amenity-shelter-basic_hut
++amenity-shelter-lean_to
++aeroway-aerodrome category_transport name=*
+-aeroway-aerodrome-restricted
 +natural-volcano category_volcano
 +man_made-pier
 +place-island
@@ -94,10 +119,36 @@
 +natural-cliff-notable
 +leisure-ice_rink
 +boundary-national_park
++boundary-protected_area-2 name=*
++boundary-protected_area-3 name=*
++boundary-protected_area-5 name=*
 +leisure-fishing
 +amenity-coworking_space
 +leisure-horse_riding
 +leisure-spa
++leisure-swimming_area
++landuse-farmland-lavender
+-landuse-farmland-lavender-private
++natural-cave_entrance category_geotourism
++natural-arch category_geotourism
++natural-gorge category_geotourism
++natural-rock category_geotourism name=*
++natural-sinkhole category_geotourism name=*
++natural-valley category_geotourism name=*
++natural-ridge category_geotourism name=*
++geological-glacial_erratic category_geotourism name=*
++geological-palaeontological_site category_geotourism
++craft-pottery category_craft_food
++craft-handicraft category_craft_food
++craft-winery category_craft_food
++craft-brewery category_craft_food
++craft-distillery category_craft_food
++craft-cheese category_craft_food
++craft-confectionery category_craft_food
++craft-beekeeper category_craft_food
++tourism-wine_cellar category_craft_food
++amenity-cooking_school category_craft_food
+-amenity-grave_yard
 
 # Street furniture
 -tourism-information

@@ -22,6 +22,7 @@ public final class OrganicMapsPoiClassifier {
     public static final List<String> NAME_LANGUAGES = List.of("en", "ru", "th");
 
     static final String MAPPING_FILE = "mapcss-mapping.csv";
+    private static final String ANY_VALUE = "*";
     static final String REPLACED_TAGS_FILE = "replaced_tags.txt";
     static final String CATEGORIES_FILE = "categories.txt";
     static final String TYPE_NAMES_FILE = "strings/types_strings.txt";
@@ -293,7 +294,7 @@ public final class OrganicMapsPoiClassifier {
 
     private static boolean hasTagValue(List<MutableTag> tags, String key, Set<String> values) {
         for (MutableTag tag : tags) {
-            if (tag.key.equals(key) && values.contains(tag.value)) {
+            if (tag.key.equals(key) && (values.contains(ANY_VALUE) || values.contains(tag.value))) {
                 return true;
             }
         }

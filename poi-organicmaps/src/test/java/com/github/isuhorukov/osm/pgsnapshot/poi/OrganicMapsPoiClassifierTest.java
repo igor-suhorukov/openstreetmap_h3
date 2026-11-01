@@ -36,6 +36,66 @@ class OrganicMapsPoiClassifierTest {
         return tags;
     }
 
+    @Test
+    void poiTags_protectedArea_onlyNamedClasses235() {
+        assertEquals(Map.of(POI_TAG, "{boundary-protected_area-2}"), poiTags("boundary=protected_area", "protect_class=2", "name=Park"));
+        assertEquals(Map.of(POI_TAG, "{boundary-protected_area-3}"), poiTags("boundary=protected_area", "protect_class=3", "name=Park"));
+        assertEquals(Map.of(POI_TAG, "{boundary-protected_area-5}"), poiTags("boundary=protected_area", "protect_class=5", "name=Park"));
+        assertTrue(poiTags("boundary=protected_area", "protect_class=2").isEmpty());
+        assertTrue(poiTags("boundary=protected_area", "protect_class=4", "name=Park").isEmpty());
+        assertTrue(poiTags("boundary=protected_area", "name=Park").isEmpty());
+    }
+
+    @Test
+    void poiTags_craftsAndGastronomy_ownCategory() {
+        assertEquals(Map.of(POI_TAG, "{craft-pottery}", POI_CATEGORY_TAG, "{category_craft_food}"), poiTags("craft=pottery"));
+        assertEquals(Map.of(POI_TAG, "{craft-distillery}", POI_CATEGORY_TAG, "{category_craft_food}"), poiTags("craft=distillery"));
+        assertEquals(Map.of(POI_TAG, "{craft-cheese}", POI_CATEGORY_TAG, "{category_craft_food}"), poiTags("craft=cheese"));
+        assertEquals(Map.of(POI_TAG, "{tourism-wine_cellar}", POI_CATEGORY_TAG, "{category_craft_food}"), poiTags("tourism=wine_cellar"));
+        assertEquals(Map.of(POI_TAG, "{amenity-cooking_school}", POI_CATEGORY_TAG, "{category_craft_food}"), poiTags("amenity=cooking_school"));
+    }
+
+    @Test
+    void poiTags_geotourism_ownCategory() {
+        Map<String, String> rock = Map.of(POI_TAG, "{natural-rock}", POI_CATEGORY_TAG, "{category_geotourism}");
+        assertEquals(rock, poiTags("natural=stone", "name=Pierre"));
+        assertEquals(rock, poiTags("natural=rock", "name=Pierre"));
+        assertTrue(poiTags("natural=stone").isEmpty());
+        assertEquals(Map.of(POI_TAG, "{natural-arch}", POI_CATEGORY_TAG, "{category_geotourism}"), poiTags("natural=arch"));
+        assertEquals(Map.of(POI_TAG, "{natural-cave_entrance}", POI_CATEGORY_TAG, "{category_geotourism}"), poiTags("natural=cave_entrance"));
+        assertEquals(Map.of(POI_TAG, "{natural-gorge}", POI_CATEGORY_TAG, "{category_geotourism}"), poiTags("natural=gorge"));
+        assertEquals(Map.of(POI_TAG, "{natural-sinkhole}", POI_CATEGORY_TAG, "{category_geotourism}"), poiTags("natural=sinkhole", "name=Aven"));
+        assertTrue(poiTags("natural=sinkhole").isEmpty());
+        assertEquals(Map.of(POI_TAG, "{natural-valley}", POI_CATEGORY_TAG, "{category_geotourism}"), poiTags("natural=valley", "name=Vallon"));
+        assertTrue(poiTags("natural=valley").isEmpty());
+        assertEquals(Map.of(POI_TAG, "{natural-ridge}", POI_CATEGORY_TAG, "{category_geotourism}"), poiTags("natural=ridge", "name=Crete"));
+        assertTrue(poiTags("natural=ridge").isEmpty());
+        assertEquals(Map.of(POI_TAG, "{geological-palaeontological_site}", POI_CATEGORY_TAG, "{category_geotourism}"), poiTags("geological=palaeontological_site"));
+        assertEquals(Map.of(POI_TAG, "{geological-glacial_erratic,natural-rock}", POI_CATEGORY_TAG, "{category_geotourism}"),
+                poiTags("geological=glacial_erratic", "natural=stone", "name=Pierre"));
+        assertTrue(poiTags("geological=glacial_erratic", "natural=stone").isEmpty());
+    }
+
+    @Test
+    void poiTags_lavenderField_notPrivate() {
+        Map<String, String> field = Map.of(POI_TAG, "{landuse-farmland-lavender}");
+        assertEquals(field, poiTags("landuse=farmland", "crop=lavender"));
+        assertEquals(field, poiTags("landuse=farmland", "crop=lavandin"));
+        assertEquals(field, poiTags("landuse=farmland", "crop=lavander"));
+        assertEquals(field, poiTags("landuse=farmland", "crop=wheat;lavender"));
+        assertEquals(field, poiTags("landuse=farmland", "crop=lavender", "access=yes"));
+        assertTrue(poiTags("landuse=farmland", "crop=lavender", "access=private").isEmpty());
+        assertTrue(poiTags("landuse=farmland", "crop=lavandin", "access=no").isEmpty());
+        assertTrue(poiTags("landuse=farmland", "crop=wheat").isEmpty());
+        assertTrue(poiTags("landuse=farmland").isEmpty());
+    }
+
+    @Test
+    void poiTags_conditionOnAnyValueOfTheTag() {
+        assertEquals(Map.of(POI_TAG, "{natural-glacier}"), poiTags("natural=glacier", "name=Mer de Glace"));
+        assertTrue(poiTags("natural=glacier").isEmpty());
+    }
+
     private static Map<String, String> poiTags(String... keyValues) {
         return classifier.poiTags(tags(keyValues)).stream().collect(Collectors.toMap(Tag::getKey, Tag::getValue));
     }
@@ -132,7 +192,7 @@ class OrganicMapsPoiClassifierTest {
         assertEquals(site, poiTags("sport=scuba_diving", "scuba_diving:entry:boat=yes"));
         assertEquals(Map.of(POI_TAG, "{natural-reef,sport-scuba_diving-divespot}", POI_CATEGORY_TAG, "{category_dive_site,category_diving}"),
                 poiTags("sport=scuba_diving", "natural=reef"));
-        assertEquals(Map.of(POI_TAG, "{sport-scuba_diving}", POI_CATEGORY_TAG, "{category_diving}"),
+        assertEquals(Map.of(POI_TAG, "{leisure-swimming_area,sport-scuba_diving}", POI_CATEGORY_TAG, "{category_diving}"),
                 poiTags("sport=scuba_diving", "leisure=swimming_area"));
         assertEquals(Map.of(POI_TAG, "{sport-snorkeling}", POI_CATEGORY_TAG, "{category_dive_site}"),
                 poiTags("scuba_diving:type:snorkeling=yes"));
@@ -207,6 +267,7 @@ class OrganicMapsPoiClassifierTest {
         assertEquals(Map.of(POI_TAG, "{natural-cliff-notable}"), poiTags("natural=cliff", "sport=climbing"));
         assertEquals(Map.of(POI_TAG, "{leisure-ice_rink}"), poiTags("leisure=ice_rink"));
         assertEquals(Map.of(POI_TAG, "{boundary-national_park}"), poiTags("boundary=national_park"));
+        assertEquals(Map.of(POI_TAG, "{leisure-swimming_area}"), poiTags("leisure=swimming_area"));
     }
 
     @Test

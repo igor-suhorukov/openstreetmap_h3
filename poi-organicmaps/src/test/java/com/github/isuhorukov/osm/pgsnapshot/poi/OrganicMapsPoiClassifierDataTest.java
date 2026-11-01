@@ -44,6 +44,92 @@ class OrganicMapsPoiClassifierDataTest {
     }
 
     @Test
+    void poiTypes_lakesRiversGlaciersOnlyWithName() {
+        assertEquals(List.of("natural-water-lake"), classifier.poiTypes(tags("natural=water", "water=lake", "name=Lac Blanc")));
+        assertEquals(List.of("natural-water"), classifier.poiTypes(tags("natural=water", "name=Lac Blanc")));
+        assertEquals(List.of("natural-water-reservoir"), classifier.poiTypes(tags("natural=water", "water=reservoir", "name=Lac")));
+        assertEquals(List.of("natural-water-pond"), classifier.poiTypes(tags("natural=water", "water=pond", "name=Etang")));
+        assertEquals(List.of(), classifier.poiTypes(tags("natural=water", "water=lake")));
+        assertEquals(List.of(), classifier.poiTypes(tags("natural=water", "water=wastewater", "name=Station")));
+        assertEquals(List.of(), classifier.poiTypes(tags("natural=water", "water=river", "name=Arve")));
+        assertEquals(List.of(), classifier.poiTypes(tags("natural=water", "water=stream", "name=Ruisseau")));
+        assertEquals(List.of(), classifier.poiTypes(tags("natural=water", "water=canal", "name=Canal")));
+        assertEquals(List.of(), classifier.poiTypes(tags("natural=water", "water=basin", "name=Bassin")));
+        assertEquals("{category_lake}", categoryOf("natural=water", "water=lake", "name=Lac Blanc"));
+        assertEquals(List.of("waterway-river"), classifier.poiTypes(tags("waterway=river", "name=Arve")));
+        assertEquals(List.of("waterway-canal"), classifier.poiTypes(tags("waterway=canal", "name=Canal")));
+        assertEquals(List.of(), classifier.poiTypes(tags("waterway=river")));
+        assertEquals(List.of(), classifier.poiTypes(tags("waterway=river", "tunnel=yes", "name=Arve")));
+        assertEquals(List.of(), classifier.poiTypes(tags("waterway=river", "intermittent=yes", "name=Arve")));
+        assertEquals("{category_river}", categoryOf("waterway=river", "name=Arve"));
+        assertEquals(List.of("natural-glacier"), classifier.poiTypes(tags("natural=glacier", "name=Mer de Glace")));
+        assertEquals(List.of(), classifier.poiTypes(tags("natural=glacier")));
+    }
+
+    @Test
+    void poiTypes_protectedArea_onlyNamedClasses235() {
+        assertEquals(List.of("boundary-protected_area-2"), classifier.poiTypes(tags("boundary=protected_area", "protect_class=2", "name=Park")));
+        assertEquals(List.of("boundary-protected_area-5"), classifier.poiTypes(tags("boundary=protected_area", "protect_class=5", "name=Park")));
+        assertEquals(List.of(), classifier.poiTypes(tags("boundary=protected_area", "protect_class=2")));
+        assertEquals(List.of(), classifier.poiTypes(tags("boundary=protected_area", "protect_class=1a", "name=Park")));
+        assertEquals(List.of(), classifier.poiTypes(tags("boundary=protected_area", "protect_class=4", "name=Park")));
+    }
+
+    @Test
+    void poiTypes_craftsAndGastronomy() {
+        assertEquals(List.of("craft-pottery"), classifier.poiTypes(tags("craft=pottery")));
+        assertTrue(classifier.poiTypes(tags("shop=pottery")).contains("craft-pottery"));
+        assertEquals(List.of("craft-distillery"), classifier.poiTypes(tags("craft=distillery")));
+        for (String tag : List.of("craft=winery", "craft=brewery", "craft=handicraft", "craft=confectionery", "craft=beekeeper")) {
+            assertTrue(categoryOf(tag).contains("category_craft_food"), tag);
+        }
+    }
+
+    @Test
+    void poiTypes_geotourismTypes() {
+        assertEquals(List.of("natural-rock"), classifier.poiTypes(tags("natural=stone", "name=Pierre")));
+        assertEquals(List.of(), classifier.poiTypes(tags("natural=stone")));
+        assertEquals(List.of("natural-arch"), classifier.poiTypes(tags("natural=arch")));
+        assertEquals(List.of("natural-sinkhole"), classifier.poiTypes(tags("natural=sinkhole", "name=Aven")));
+        assertTrue(categoryOf("natural=cave_entrance").contains("category_geotourism"));
+        assertTrue(categoryOf("natural=arch").contains("category_geotourism"));
+    }
+
+    @Test
+    void poiTypes_lavenderFieldIsPoiPrivateAndOtherFarmlandAreNot() {
+        assertEquals(List.of("landuse-farmland-lavender"), classifier.poiTypes(tags("landuse=farmland", "crop=lavender")));
+        assertEquals(List.of(), classifier.poiTypes(tags("landuse=farmland", "crop=lavender", "access=private")));
+        assertEquals(List.of(), classifier.poiTypes(tags("landuse=farmland", "crop=wheat")));
+    }
+
+    @Test
+    void poiTypes_swimmingAreaIsPoiCemeteryIsNot() {
+        assertEquals(List.of("leisure-swimming_area"), classifier.poiTypes(tags("leisure=swimming_area")));
+        assertEquals(List.of(), classifier.poiTypes(tags("amenity=grave_yard", "name=Old Cemetery")));
+        assertEquals(List.of(), classifier.poiTypes(tags("amenity=grave_yard", "religion=christian")));
+    }
+
+    @Test
+    void poiTypes_skiSheltersAndAirports() {
+        assertEquals(List.of("amenity-ski_rental"), classifier.poiTypes(tags("amenity=ski_rental")));
+        assertEquals(List.of("amenity-ski_school"), classifier.poiTypes(tags("amenity=ski_school")));
+        assertEquals(List.of("shop-ski"), classifier.poiTypes(tags("shop=ski")));
+        assertEquals("{category_ski}", categoryOf("amenity=ski_school"));
+        assertEquals("{category_shopping,category_ski}", categoryOf("shop=ski"));
+        assertEquals(List.of("amenity-shelter-basic_hut"), classifier.poiTypes(tags("amenity=shelter", "shelter_type=basic_hut")));
+        assertEquals(List.of("amenity-shelter-lean_to"), classifier.poiTypes(tags("amenity=shelter", "shelter_type=lean_to")));
+        assertEquals(List.of(), classifier.poiTypes(tags("amenity=shelter")));
+        assertEquals(List.of(), classifier.poiTypes(tags("amenity=shelter", "shelter_type=public_transport")));
+        assertEquals(List.of("aeroway-aerodrome"), classifier.poiTypes(tags("aeroway=aerodrome", "name=Megeve")));
+        assertEquals(List.of("aeroway-aerodrome-international"), classifier.poiTypes(tags("aeroway=aerodrome", "aerodrome=international", "name=Geneve")));
+        assertEquals(List.of(), classifier.poiTypes(tags("aeroway=aerodrome")));
+        assertEquals(List.of(), classifier.poiTypes(tags("aeroway=aerodrome", "aerodrome=mountain airfield", "name=Altisurface")));
+        assertEquals(List.of(), classifier.poiTypes(tags("aeroway=aerodrome", "aerodrome:type=military", "name=Base")));
+        assertEquals(List.of(), classifier.poiTypes(tags("aeroway=aerodrome", "aerodrome:type=private", "name=Strip")));
+        assertEquals("{category_transport}", categoryOf("aeroway=aerodrome", "name=Megeve"));
+    }
+
+    @Test
     void poiTags_divingAndAerialwayStations_ownCategories() {
         assertEquals(List.of("sport-scuba_diving"), classifier.poiTypes(tags("sport=scuba_diving")));
         assertEquals(List.of("sport-scuba_diving-divespot"), classifier.poiTypes(tags("scuba_diving:divespot=yes")));
@@ -84,6 +170,24 @@ class OrganicMapsPoiClassifierDataTest {
                 classifier.poiTypes(tags("natural=cave_entrance", "scuba_diving:type:cave=yes", "sport=scuba_diving")));
         assertEquals(List.of("leisure-swimming_pool", "sport-scuba_diving"),
                 classifier.poiTypes(tags("leisure=swimming_pool", "scuba_diving:type:pool=yes", "sport=scuba_diving")));
+        assertEquals(List.of("sport-scuba_diving-divespot"),
+                classifier.poiTypes(tags("sport=scuba_diving", "scuba_diving:entry=boat", "scuba_diving:type=reef")));
+        assertEquals(List.of("sport-scuba_diving-divespot"),
+                classifier.poiTypes(tags("sport=scuba_diving", "scuba_diving:entry=shore")));
+        assertEquals(List.of("sport-scuba_diving-divespot"),
+                classifier.poiTypes(tags("sport=scuba_diving", "scuba_diving:type=wreck")));
+        assertEquals(List.of("sport-scuba_diving-divespot"),
+                classifier.poiTypes(tags("sport=scuba_diving", "scuba_diving:type:wall=yes", "scuba_diving:type:drift=yes")));
+        assertEquals(List.of("sport-scuba_diving"),
+                classifier.poiTypes(tags("sport=scuba_diving", "scuba_diving:entry=no")));
+        assertEquals(List.of("sport-scuba_diving"),
+                classifier.poiTypes(tags("sport=scuba_diving", "scuba_diving:type:training=yes")));
+        assertEquals(List.of("amenity-dive_centre", "sport-scuba_diving"),
+                classifier.poiTypes(tags("amenity=dive_centre", "sport=scuba_diving", "scuba_diving:entry=boat", "scuba_diving:type=reef")));
+        assertEquals(List.of("shop-scuba_diving", "sport-scuba_diving"),
+                classifier.poiTypes(tags("shop=scuba_diving", "sport=scuba_diving", "scuba_diving:type=reef")));
+        assertEquals(List.of("leisure-swimming_pool", "sport-scuba_diving"),
+                classifier.poiTypes(tags("leisure=swimming_pool", "sport=scuba_diving", "scuba_diving:type=pool")));
         assertEquals(List.of("historic-wreck"), classifier.poiTypes(tags("seamark:type=wreck")));
         assertEquals("{category_dive_site}", categoryOf("natural=reef"));
         assertEquals("{category_dive_site}", categoryOf("historic=wreck"));
@@ -216,7 +320,7 @@ class OrganicMapsPoiClassifierDataTest {
         assertEquals(List.of("amenity-dive_centre"), classifier.poiTypes(tags("amenity=dive_centre;shelter")));
     }
 
-    private static String categoryOf(String tag) {
+    private static String categoryOf(String... tag) {
         return classifier.poiTags(tags(tag)).stream()
                 .filter(poiTag -> poiTag.getKey().equals(OrganicMapsPoiClassifier.POI_CATEGORY_TAG))
                 .findFirst().orElseThrow().getValue();
