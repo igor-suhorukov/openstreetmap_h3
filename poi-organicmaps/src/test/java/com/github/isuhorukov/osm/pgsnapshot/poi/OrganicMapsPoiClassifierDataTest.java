@@ -67,6 +67,17 @@ class OrganicMapsPoiClassifierDataTest {
     }
 
     @Test
+    void poiTypes_privateParksAndPoolsAreNotPoi() {
+        assertEquals(List.of(), classifier.poiTypes(tags("leisure=park", "access=private")));
+        assertEquals(List.of(), classifier.poiTypes(tags("leisure=park", "access=no")));
+        assertEquals(List.of("leisure-park"), classifier.poiTypes(tags("leisure=park")));
+        assertEquals(List.of("leisure-park-permissive"), classifier.poiTypes(tags("leisure=park", "access=permissive")));
+        assertEquals(List.of(), classifier.poiTypes(tags("leisure=swimming_pool", "access=private")));
+        assertEquals(List.of(), classifier.poiTypes(tags("leisure=swimming_pool", "access=no")));
+        assertEquals(List.of("leisure-swimming_pool"), classifier.poiTypes(tags("leisure=swimming_pool")));
+    }
+
+    @Test
     void poiTypes_protectedArea_onlyNamedClasses235() {
         assertEquals(List.of("boundary-protected_area-2"), classifier.poiTypes(tags("boundary=protected_area", "protect_class=2", "name=Park")));
         assertEquals(List.of("boundary-protected_area-5"), classifier.poiTypes(tags("boundary=protected_area", "protect_class=5", "name=Park")));

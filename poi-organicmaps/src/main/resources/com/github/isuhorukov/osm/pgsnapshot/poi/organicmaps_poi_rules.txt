@@ -149,6 +149,9 @@
 +tourism-wine_cellar category_craft_food
 +amenity-cooking_school category_craft_food
 -amenity-grave_yard
+-leisure-park-private
+-leisure-park-no-access
+-leisure-swimming_pool-private
 
 # Street furniture
 -tourism-information

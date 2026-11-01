@@ -66,3 +66,4 @@ craft|distillery;[craft=distillery];;name;int_name;66;
 craft|cheese;[craft=cheese];;name;int_name;67;
 tourism|wine_cellar;[tourism=wine_cellar];;name;int_name;68;
 amenity|cooking_school;[amenity=cooking_school];;name;int_name;69;
+leisure|swimming_pool|private;[leisure=swimming_pool][access=no],[amenity=swimming_pool][access=no];;name;int_name;70;
