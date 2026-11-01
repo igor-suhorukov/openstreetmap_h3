@@ -87,6 +87,13 @@ class OrganicMapsPoiExtensionTest {
     }
 
     @Test
+    void getFingerprint_coversAllProjectResources() {
+        List<String> covered = RulesFingerprint.RESOURCES;
+        assertEquals(List.of(OrganicMapsPoiClassifier.RULES_RESOURCE, OrganicMapsPoiClassifier.MAPPING_RESOURCE,
+                OrganicMapsPoiClassifier.TYPE_NAMES_RESOURCE), covered);
+    }
+
+    @Test
     void getFingerprint_changedOrMissingRuleFile_differs() throws Exception {
         Path data = Files.createDirectories(tempDir.resolve("data"));
         Path source = OrganicMapsPoiClassifierTest.testDataDirectory();

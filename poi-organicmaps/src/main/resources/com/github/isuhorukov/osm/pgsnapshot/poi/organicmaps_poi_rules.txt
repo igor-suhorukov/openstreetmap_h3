@@ -2,35 +2,124 @@
 # By default a type is a POI when it belongs to the POI classes of Organic Maps IsPoiChecker
 # (libs/indexer/ftypes_matcher.cpp) and data/categories.txt has an entry for it.
 # A rule applies to the type and its subtypes: amenity-parking also matches amenity-parking-fee.
-#   +<type> [category ...]   POI, optionally with additional displayed categories
+#   +<type> [category ...] [key=value;value ...]   POI, optionally with additional displayed categories,
+#                                                  only for objects with one of the values of the tag
 #   -<type>                  not a POI
 
 # The entrance is the walking destination of a metro station, categories.txt has no entry for it.
-+railway-subway_entrance category_transport
++railway-subway_entrance category_transport category_metro
++railway-station-subway category_transport category_metro
++railway-station-light_rail category_transport category_metro
++railway-station-monorail category_transport category_metro
++railway-halt-mcc category_transport category_metro
++amenity-dojo
+
++man_made-bridge
++man_made-tower tower:type=observation;bell_tower;pagoda;stupa;chedi
+-man_made-tower-communication
++place-square
++landuse-vineyard
++landuse-orchard
++sport-scuba_diving category_diving
++sport-scuba_diving-divespot category_dive_site category_diving
++sport-snorkeling category_dive_site
++natural-reef category_dive_site
++historic-wreck category_dive_site
++sport-freediving category_diving
++amenity-dive_centre category_diving
++shop-scuba_diving category_diving
++aerialway-station category_aerialway
++healthcare-other
++healthcare-paediatrics category_paediatrics
++amenity-training
++amenity-prep_school
++healthcare-sanatorium category_sanatorium
++historic-yes
++historic-building category_tourism
++historic-monastery category_tourism
++historic-military category_tourism
++historic-vehicle category_tourism
++amenity-planetarium category_tourism
++man_made-observatory category_tourism
++attraction category_amusement
+-attraction-animal
++sport-water_sports
++sport-air_sports
++sport-adventure
++sport-martial_arts
++sport-winter_sports
++sport-indoor_games
++sport-club
++sport-multi
++sport-futsal
++sport-ice_hockey
++sport-field_hockey
++sport-badminton
++sport-pelota
++sport-diving
++amenity-veterinary category_pets
++shop-pet category_pets
++shop-pet_grooming category_pets
++leisure-dog_park category_pets
++amenity-animal_shelter category_pets
++amenity-animal_boarding category_pets
++amenity-animal_breeding category_pets
++amenity-animal_training category_pets
++amenity-parking category_parking
+-amenity-parking-private
+-amenity-parking-no-access
+-amenity-parking-underground-private
+-amenity-parking-street_side-private
+-amenity-parking-lane-private
++amenity-atm category_atm
++amenity-drinking_water category_drinking_water
++amenity-water_point category_drinking_water
+-amenity-water_point-drinking_water_no
++man_made-water_tap category_drinking_water
+-man_made-water_tap-drinking_water_no
++man_made-water_well category_drinking_water
+-man_made-water_well-drinking_water_no
++natural-spring category_springs
++natural-hot_spring category_springs
++natural-geyser category_springs
++natural-beach category_beach
++leisure-beach_resort category_beach
++natural-peak category_peak
++natural-volcano category_volcano
++man_made-pier
++place-island
++place-islet
++natural-bay
++natural-cape
++natural-cliff-notable
++leisure-ice_rink
++boundary-national_park
++leisure-fishing
++amenity-coworking_space
++leisure-horse_riding
++leisure-spa
 
 # Street furniture
+-tourism-information
++tourism-information-office category_tourism
++tourism-information-visitor_centre category_tourism
 -amenity-bench
 -amenity-waste_basket
 -amenity-waste_disposal
 -amenity-recycling
--amenity-parking
 -amenity-parking_entrance
 -amenity-bicycle_parking
 -amenity-motorcycle_parking
 -amenity-vending_machine
 -amenity-post_box
 -amenity-telephone
--amenity-drinking_water
 -amenity-shelter
 -amenity-toilets
--amenity-atm
 -amenity-hunting_stand
--amenity-water_point
 -emergency-fire_hydrant
 -emergency-phone
 -emergency-defibrillator
 -emergency-assembly_point
--man_made-water_tap
 -highway-speed_camera
 -highway-ford
 -highway-raceway

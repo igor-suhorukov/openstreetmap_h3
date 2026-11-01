@@ -41,6 +41,16 @@ final class TypeNames {
         return new TypeNames(namesByType);
     }
 
+    TypeNames with(TypeNames other) {
+        Map<String, Map<String, String>> merged = new HashMap<>(namesByType);
+        other.namesByType.forEach((type, names) -> {
+            Map<String, String> typeNames = new HashMap<>(merged.getOrDefault(type, Collections.emptyMap()));
+            typeNames.putAll(names);
+            merged.put(type, typeNames);
+        });
+        return new TypeNames(merged);
+    }
+
     String name(List<String> type, String language) {
         for (int length = type.size(); length >= Math.min(2, type.size()); length--) {
             Map<String, String> names = namesByType.get(MapcssMapping.typeName(type.subList(0, length)));

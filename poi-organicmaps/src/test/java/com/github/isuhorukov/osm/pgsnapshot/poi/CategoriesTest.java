@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.StringReader;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -71,5 +72,19 @@ class CategoriesTest {
     void name_subtypeWithoutSection_usesParentName() {
         assertEquals("Train Station", typeNames.name(List.of("railway", "station", "subway"), "en"));
         assertNull(typeNames.name(List.of("railway", "rail"), "en"));
+    }
+
+    @Test
+    void with_otherNames_addedAndOverride() throws IOException {
+        TypeNames other = TypeNames.parse(new BufferedReader(new StringReader(
+                "[type.highway.bus_stop]\nen = Stop\n\n[type.amenity.dive_centre]\nen = Dive Centre\n")),
+                OrganicMapsPoiClassifier.NAME_LANGUAGES);
+
+        TypeNames merged = typeNames.with(other);
+
+        assertEquals("Stop", merged.name(List.of("highway", "bus_stop"), "en"));
+        assertEquals("Остановка", merged.name(List.of("highway", "bus_stop"), "ru"));
+        assertEquals("Dive Centre", merged.name(List.of("amenity", "dive_centre"), "en"));
+        assertEquals("Bus Stop", typeNames.name(List.of("highway", "bus_stop"), "en"));
     }
 }

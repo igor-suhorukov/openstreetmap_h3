@@ -171,7 +171,7 @@ class ResourceCopierTest {
         assertEquals("4c88c2c2f57396ccf0609e3eefb59708", md5(resultDir, "static/multipolygon.sql"));
         assertEquals("5259dbea7e04b6e7b47838f913475e22", md5(resultDir, "static/multipolygon_insert.sql"));
         assertEquals("680d35581dc024ff1006b22067a96c89", md5(resultDir, "static/h3_poly.tsv.gz"));
-        assertEquals("14c8c0bdae5da333aa6d878beb421bf6", md5(resultDir, "static/database_init.sql"));
+        assertEquals("a54e2b744ad1ebf7dd3eeea65f4022d1", md5(resultDir, "static/database_init.sql"));
         assertEquals("5f2ffc1ccbdd46fe8869b4012a5828a9", md5(resultDir, "static/database_after_init.sql"));
         assertEquals("70453ad3f7f0a5c34b5b628a8ce4509d", md5(resultDir, "sql/ways_32767_import.sql"));
         assertEquals("b01daaf3a801bd3e7fb1dac67c3a4294", md5(resultDir, "sql/relations_import.sql"));

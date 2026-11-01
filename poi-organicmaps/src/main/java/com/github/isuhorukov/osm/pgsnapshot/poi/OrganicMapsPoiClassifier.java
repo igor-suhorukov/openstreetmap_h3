@@ -26,6 +26,8 @@ public final class OrganicMapsPoiClassifier {
     static final String CATEGORIES_FILE = "categories.txt";
     static final String TYPE_NAMES_FILE = "strings/types_strings.txt";
     static final String RULES_RESOURCE = "organicmaps_poi_rules.txt";
+    static final String MAPPING_RESOURCE = "organicmaps_poi_mapping.csv";
+    static final String TYPE_NAMES_RESOURCE = "organicmaps_poi_type_names.txt";
 
     private static final Set<String> ONE_LEVEL_POI_CLASSES = Set.of("amenity", "craft", "emergency", "healthcare",
             "historic", "leisure", "mountain_pass", "office", "railway", "shop", "sport", "tourism");
@@ -39,6 +41,7 @@ public final class OrganicMapsPoiClassifier {
     private final TagReplacer tagReplacer;
     private final MapcssMapping mapping;
     private final Map<List<String>, Set<String>> poiCategories;
+    private final Map<List<String>, Map<String, Set<String>>> tagConditions;
     private final List<PoiType> poiTypes;
     private final Set<String> unknownRuleTypes;
 
@@ -52,10 +55,16 @@ public final class OrganicMapsPoiClassifier {
         this.unknownRuleTypes = unknownRuleTypes(types, poiRules);
         this.mapping = new MapcssMapping(candidateRules(rules, includedGroups(types, poiRules)));
         Map<List<String>, Set<String>> categoriesByType = new HashMap<>();
+        Map<List<String>, Map<String, Set<String>>> conditionsByType = new HashMap<>();
         for (List<String> type : types) {
             poiCategories(type, categories, poiRules).ifPresent(typeCategories -> categoriesByType.put(type, typeCategories));
+            Map<String, Set<String>> conditions = poiRules.tagConditions(MapcssMapping.typeName(type));
+            if (!conditions.isEmpty()) {
+                conditionsByType.put(type, conditions);
+            }
         }
         this.poiCategories = categoriesByType;
+        this.tagConditions = conditionsByType;
         this.poiTypes = catalog(types, categoriesByType, typeNames);
     }
 
@@ -125,6 +134,9 @@ public final class OrganicMapsPoiClassifier {
         try (BufferedReader reader = Files.newBufferedReader(dataDirectory.resolve(MAPPING_FILE))) {
             rules = MapcssMapping.parseRules(reader);
         }
+        try (BufferedReader reader = resourceReader(MAPPING_RESOURCE)) {
+            rules.addAll(MapcssMapping.parseRules(reader));
+        }
         Categories categories;
         try (BufferedReader reader = Files.newBufferedReader(dataDirectory.resolve(CATEGORIES_FILE))) {
             categories = Categories.parse(reader);
@@ -137,6 +149,9 @@ public final class OrganicMapsPoiClassifier {
             }
         } else {
             log.warn("{} not found, POI type catalog will have no names", typeNamesFile);
+        }
+        try (BufferedReader reader = resourceReader(TYPE_NAMES_RESOURCE)) {
+            typeNames = typeNames.with(TypeNames.parse(reader, NAME_LANGUAGES));
         }
         OrganicMapsPoiClassifier classifier = new OrganicMapsPoiClassifier(tagReplacer, rules, categories, typeNames, poiRules);
         if (!classifier.unknownRuleTypes.isEmpty()) {
@@ -208,28 +223,81 @@ public final class OrganicMapsPoiClassifier {
         if (tags == null || tags.isEmpty()) {
             return Collections.emptyList();
         }
-        List<MutableTag> objectTags = new ArrayList<>(tags.size());
-        boolean mayMatch = mapping.hasUnindexedRules();
-        for (Tag tag : tags) {
-            String key = tag.getKey() != null ? tag.getKey().trim() : "";
-            String value = tag.getValue() != null ? tag.getValue().trim() : "";
-            if (!key.isEmpty() && !value.isEmpty()) {
-                objectTags.add(new MutableTag(key, value));
-                mayMatch = mayMatch || mapping.isIndexed(key, value) || tagReplacer.replaces(key, value);
-            }
-        }
-        if (!mayMatch) {
+        List<MutableTag> objectTags = singleValueTags(tags);
+        if (!mayMatch(objectTags)) {
             return Collections.emptyList();
         }
         tagReplacer.apply(objectTags);
         List<List<String>> matched = mapping.match(objectTags);
         List<List<String>> result = new ArrayList<>(matched.size());
         for (List<String> type : matched) {
-            if (poiCategories.containsKey(type)) {
+            if (poiCategories.containsKey(type) && satisfiesTagConditions(type, objectTags)) {
                 result.add(type);
             }
         }
         return result;
+    }
+
+    private static List<MutableTag> singleValueTags(Collection<Tag> tags) {
+        List<MutableTag> objectTags = new ArrayList<>(tags.size());
+        for (Tag tag : tags) {
+            String key = tag.getKey() != null ? tag.getKey().trim() : "";
+            String value = tag.getValue() != null ? tag.getValue().trim() : "";
+            if (!key.isEmpty() && !value.isEmpty()) {
+                for (String single : singleValues(value)) {
+                    objectTags.add(new MutableTag(key, single));
+                }
+            }
+        }
+        return objectTags;
+    }
+
+    private boolean mayMatch(List<MutableTag> tags) {
+        if (mapping.hasUnindexedRules()) {
+            return true;
+        }
+        for (MutableTag tag : tags) {
+            if (mapping.isIndexed(tag.key, tag.value) || tagReplacer.replaces(tag.key, tag.value)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static List<String> singleValues(String value) {
+        if (value.indexOf(';') < 0) {
+            return List.of(value);
+        }
+        List<String> values = new ArrayList<>();
+        for (String token : Tokens.split(value, ";")) {
+            String single = token.trim();
+            if (!single.isEmpty()) {
+                values.add(single);
+            }
+        }
+        return values;
+    }
+
+    private boolean satisfiesTagConditions(List<String> type, List<MutableTag> tags) {
+        Map<String, Set<String>> conditions = tagConditions.get(type);
+        if (conditions == null) {
+            return true;
+        }
+        for (Map.Entry<String, Set<String>> condition : conditions.entrySet()) {
+            if (!hasTagValue(tags, condition.getKey(), condition.getValue())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean hasTagValue(List<MutableTag> tags, String key, Set<String> values) {
+        for (MutableTag tag : tags) {
+            if (tag.key.equals(key) && values.contains(tag.value)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static Optional<Set<String>> poiCategories(List<String> type, Categories categories, PoiRules poiRules) {

@@ -1,0 +1,174 @@
+[type.amenity.dive_centre]
+en = Dive Centre
+ru = Дайв-центр
+th = ศูนย์ดำน้ำ
+
+[type.shop.scuba_diving]
+en = Scuba Diving Shop
+ru = Магазин снаряжения для дайвинга
+th = ร้านอุปกรณ์ดำน้ำ
+
+[type.sport.scuba_diving.divespot]
+en = Dive Site
+ru = Место для погружений
+th = จุดดำน้ำ
+
+[type.sport.snorkeling]
+en = Snorkeling Spot
+ru = Место для снорклинга
+th = จุดดำน้ำตื้น
+
+[type.natural.reef]
+en = Reef
+ru = Риф
+th = แนวปะการัง
+
+[type.sport.freediving]
+en = Freediving
+ru = Фридайвинг
+th = ฟรีไดฟ์
+
+[type.amenity.animal_shelter]
+en = Animal Shelter
+ru = Приют для животных
+th = สถานพักพิงสัตว์
+
+[type.amenity.animal_boarding]
+en = Animal Boarding
+ru = Передержка животных
+th = สถานที่รับฝากสัตว์เลี้ยง
+
+[type.amenity.animal_breeding]
+en = Animal Breeding
+ru = Питомник
+th = ฟาร์มเพาะพันธุ์สัตว์
+
+[type.amenity.animal_training]
+en = Animal Training
+ru = Дрессировка животных
+th = สถานฝึกสัตว์
+
+[type.leisure.fishing]
+en = Fishing Spot
+ru = Место для рыбалки
+th = สถานที่ตกปลา
+
+[type.amenity.coworking_space]
+en = Coworking Space
+ru = Коворкинг
+th = พื้นที่ทำงานร่วมกัน
+
+[type.leisure.horse_riding]
+en = Horse Riding
+ru = Верховая езда
+th = สถานที่ขี่ม้า
+
+[type.leisure.spa]
+en = Spa
+ru = Спа
+th = สปา
+
+[type.healthcare.other]
+en = Other Healthcare
+ru = Другая медицина
+th = สถานพยาบาลอื่น ๆ
+
+[type.healthcare.sanatorium]
+en = Sanatorium and Rehabilitation
+ru = Санаторий и реабилитация
+th = สถานพักฟื้น
+
+[type.historic.yes]
+en = Historic Object
+ru = Исторический объект
+th = วัตถุทางประวัติศาสตร์
+
+[type.historic.building]
+en = Historic Building
+ru = Историческое здание
+th = อาคารประวัติศาสตร์
+
+[type.historic.monastery]
+en = Historic Monastery
+ru = Исторический монастырь
+th = อารามเก่าแก่
+
+[type.historic.military]
+en = Historic Military Object
+ru = Исторический военный объект
+th = สถานที่ทางทหารเก่าแก่
+
+[type.historic.vehicle]
+en = Historic Vehicle
+ru = Историческая техника
+th = ยานพาหนะประวัติศาสตร์
+
+[type.amenity.planetarium]
+en = Planetarium
+ru = Планетарий
+th = ท้องฟ้าจำลอง
+
+[type.man_made.observatory]
+en = Observatory
+ru = Обсерватория
+th = หอดูดาว
+
+[type.sport.water_sports]
+en = Water Sports
+ru = Водные виды спорта
+th = กีฬาทางน้ำ
+
+[type.sport.air_sports]
+en = Air Sports
+ru = Воздушные виды спорта
+th = กีฬาทางอากาศ
+
+[type.sport.adventure]
+en = Adventure Sports
+ru = Приключенческие виды спорта
+th = กีฬาผจญภัย
+
+[type.sport.martial_arts]
+en = Martial Arts
+ru = Боевые искусства
+th = ศิลปะการต่อสู้
+
+[type.sport.winter_sports]
+en = Winter Sports
+ru = Зимние виды спорта
+th = กีฬาฤดูหนาว
+
+[type.sport.indoor_games]
+en = Indoor Sports and Games
+ru = Спорт и игры в помещении
+th = กีฬาในร่ม
+
+[type.sport.club]
+en = Sports Club
+ru = Спортивный клуб
+th = สโมสรกีฬา
+
+[type.healthcare.paediatrics]
+en = Paediatric Care
+ru = Детский врач
+th = กุมารแพทย์
+
+[type.amenity.training]
+en = Training Centre
+ru = Учебные курсы
+th = ศูนย์ฝึกอบรม
+
+[type.amenity.prep_school]
+en = Tutoring Centre
+ru = Репетиторы
+th = โรงเรียนกวดวิชา
+
+[type.natural.cliff.notable]
+en = Cliff
+ru = Скала
+th = หน้าผา
+
+[type.railway.halt.mcc]
+en = Moscow Central Circle Station
+ru = Станция МЦК
+th = สถานีวงแหวนกลางมอสโก

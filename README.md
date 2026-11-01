@@ -233,8 +233,11 @@ Multipolygons get these tags too, also in `-arrow_format` files.
 ```
 Types are matched as in the Organic Maps generator (`replaced_tags.txt`, `mapcss-mapping.csv`, the longest types),
 a type is a POI when it belongs to the POI classes of `IsPoiChecker` and has an entry in `categories.txt`.
+Unlike the generator, a value with `;` such as `tourism=museum;gallery` is matched by each of its parts.
 Project adjustments, like street furniture exclusions, are in
 `poi-organicmaps/src/main/resources/com/github/isuhorukov/osm/pgsnapshot/poi/organicmaps_poi_rules.txt`.
+Tags that Organic Maps does not map to a type are added in `organicmaps_poi_mapping.csv` of the same directory,
+in the format of `mapcss-mapping.csv`, and names of project types in `organicmaps_poi_type_names.txt`.
 The catalog of POI types with English, Russian and Thai names is loaded into the `om_poi_type` table.
 ```sql
 select id, (tags->'is.poi')::text[] om_types, (tags->'is.poi_category')::text[] om_categories

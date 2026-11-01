@@ -14,6 +14,8 @@ final class RulesFingerprint {
     private static final List<String> DATA_FILES = List.of(OrganicMapsPoiClassifier.MAPPING_FILE,
             OrganicMapsPoiClassifier.REPLACED_TAGS_FILE, OrganicMapsPoiClassifier.CATEGORIES_FILE,
             OrganicMapsPoiClassifier.TYPE_NAMES_FILE);
+    static final List<String> RESOURCES = List.of(OrganicMapsPoiClassifier.RULES_RESOURCE,
+            OrganicMapsPoiClassifier.MAPPING_RESOURCE, OrganicMapsPoiClassifier.TYPE_NAMES_RESOURCE);
     private static final char[] HEX_DIGITS = "0123456789abcdef".toCharArray();
 
     private RulesFingerprint() {
@@ -25,7 +27,9 @@ final class RulesFingerprint {
             Path path = dataDirectory.resolve(dataFile);
             update(digest, dataFile, Files.exists(path) ? Files.readAllBytes(path) : null);
         }
-        update(digest, OrganicMapsPoiClassifier.RULES_RESOURCE, resource(OrganicMapsPoiClassifier.RULES_RESOURCE));
+        for (String resource : RESOURCES) {
+            update(digest, resource, resource(resource));
+        }
         return hex(digest.digest());
     }
 
