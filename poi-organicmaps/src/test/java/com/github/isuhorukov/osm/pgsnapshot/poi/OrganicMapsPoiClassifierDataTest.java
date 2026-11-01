@@ -67,6 +67,12 @@ class OrganicMapsPoiClassifierDataTest {
     }
 
     @Test
+    void poiTypes_paymentTerminalsAndGuardhousesAreNotPoi() {
+        assertEquals(List.of(), classifier.poiTypes(tags("amenity=payment_terminal", "name=Terminal")));
+        assertEquals(List.of(), classifier.poiTypes(tags("building=guardhouse", "name=Gate")));
+    }
+
+    @Test
     void poiTypes_privateParksAndPoolsAreNotPoi() {
         assertEquals(List.of(), classifier.poiTypes(tags("leisure=park", "access=private")));
         assertEquals(List.of(), classifier.poiTypes(tags("leisure=park", "access=no")));
@@ -91,9 +97,16 @@ class OrganicMapsPoiClassifierDataTest {
         assertEquals(List.of("craft-pottery"), classifier.poiTypes(tags("craft=pottery")));
         assertTrue(classifier.poiTypes(tags("shop=pottery")).contains("craft-pottery"));
         assertEquals(List.of("craft-distillery"), classifier.poiTypes(tags("craft=distillery")));
-        for (String tag : List.of("craft=winery", "craft=brewery", "craft=handicraft", "craft=confectionery", "craft=beekeeper")) {
-            assertTrue(categoryOf(tag).contains("category_craft_food"), tag);
-        }
+        assertEquals(List.of(), classifier.poiTypes(tags("craft=stonemason", "name=Monuments")));
+        assertEquals(List.of("craft-oil_mill"), classifier.poiTypes(tags("craft=oil_mill")));
+        assertEquals(List.of("craft-boatbuilder"), classifier.poiTypes(tags("craft=boatbuilder")));
+        assertEquals(List.of("craft-atelier"), classifier.poiTypes(tags("craft=atelier", "name=Studio")));
+        assertEquals(List.of(), classifier.poiTypes(tags("craft=atelier")));
+        assertTrue(categoryOf("craft=winery").contains("category_craft_drink"));
+        assertTrue(categoryOf("craft=brewery").contains("category_craft_drink"));
+        assertTrue(categoryOf("craft=handicraft").contains("category_crafts"));
+        assertTrue(categoryOf("craft=confectionery").contains("category_craft_food"));
+        assertTrue(categoryOf("craft=beekeeper").contains("category_craft_food"));
     }
 
     @Test

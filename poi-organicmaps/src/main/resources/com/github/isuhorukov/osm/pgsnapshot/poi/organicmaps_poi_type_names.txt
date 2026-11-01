@@ -243,6 +243,101 @@ en = Cheese Maker
 ru = Сыроварня
 th = โรงทำชีส
 
+[type.craft.bakery]
+en = Artisan Bakery
+ru = Пекарня
+th = ร้านอบขนมปัง
+
+[type.craft.jeweller]
+en = Jeweller
+ru = Ювелирная мастерская
+th = ช่างทำเครื่องประดับ
+
+[type.craft.luthier]
+en = Luthier
+ru = Мастер струнных инструментов
+th = ช่างทำเครื่องสาย
+
+[type.craft.oil_mill]
+en = Oil Mill
+ru = Маслобойня
+th = โรงบีบน้ำมัน
+
+[type.craft.coffee_roaster]
+en = Coffee Roaster
+ru = Обжарка кофе
+th = โรงคั่วกาแฟ
+
+[type.craft.cooper]
+en = Cooper
+ru = Бондарная мастерская
+th = ช่างทำถังไม้
+
+[type.craft.printmaker]
+en = Printmaker
+ru = Мастерская печатной графики
+th = ช่างภาพพิมพ์
+
+[type.craft.stained_glass]
+en = Stained Glass Workshop
+ru = Витражная мастерская
+th = โรงงานกระจกสี
+
+[type.craft.glassblower]
+en = Glassblower
+ru = Стеклодувная мастерская
+th = ช่างเป่าแก้ว
+
+[type.craft.embroiderer]
+en = Embroiderer
+ru = Вышивальная мастерская
+th = ช่างปัก
+
+[type.craft.bookbinder]
+en = Bookbinder
+ru = Переплётная мастерская
+th = ช่างเย็บเล่ม
+
+[type.craft.leather]
+en = Leather Workshop
+ru = Кожевенная мастерская
+th = โรงงานเครื่องหนัง
+
+[type.craft.candlemaker]
+en = Candle Maker
+ru = Свечная мастерская
+th = ช่างทำเทียน
+
+[type.craft.soap]
+en = Soap Maker
+ru = Мыловарня
+th = ช่างทำสบู่
+
+[type.craft.musical_instrument]
+en = Musical Instrument Maker
+ru = Мастерская музыкальных инструментов
+th = ช่างทำเครื่องดนตรี
+
+[type.craft.atelier]
+en = Art Studio
+ru = Художественная мастерская
+th = สตูดิโอศิลปะ
+
+[type.craft.engraver]
+en = Engraver
+ru = Граверная мастерская
+th = ช่างแกะสลักป้าย
+
+[type.craft.saddler]
+en = Saddler
+ru = Шорная мастерская
+th = ช่างทำอานม้า
+
+[type.craft.boatbuilder]
+en = Boatbuilder
+ru = Судостроительная мастерская
+th = ช่างต่อเรือ
+
 [type.tourism.wine_cellar]
 en = Wine Cellar
 ru = Винный погреб

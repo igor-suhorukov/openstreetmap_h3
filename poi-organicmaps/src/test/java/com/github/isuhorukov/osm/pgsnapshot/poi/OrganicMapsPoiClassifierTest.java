@@ -47,11 +47,31 @@ class OrganicMapsPoiClassifierTest {
     }
 
     @Test
+    void poiTags_moreCrafts_categoryOrServices() {
+        Map<String, String> categories = Map.ofEntries(Map.entry("oil_mill", "category_craft_food"), Map.entry("coffee_roaster", "category_craft_food"),
+                Map.entry("cooper", "category_craft_drink"), Map.entry("printmaker", "category_craft_art"), Map.entry("stained_glass", "category_craft_art"),
+                Map.entry("glassblower", "category_craft_art"), Map.entry("embroiderer", "category_crafts"), Map.entry("bookbinder", "category_crafts"),
+                Map.entry("leather", "category_crafts"), Map.entry("candlemaker", "category_crafts"), Map.entry("soap", "category_crafts"),
+                Map.entry("musical_instrument", "category_craft_music"));
+        categories.forEach((craft, category) -> assertEquals(Map.of(POI_TAG, "{craft-" + craft + "}", POI_CATEGORY_TAG, "{" + category + "}"), poiTags("craft=" + craft)));
+        assertEquals(Map.of(POI_TAG, "{craft-atelier}", POI_CATEGORY_TAG, "{category_craft_art}"), poiTags("craft=atelier", "name=Studio"));
+        assertTrue(poiTags("craft=atelier").isEmpty());
+        assertTrue(poiTags("craft=sculptor").isEmpty());
+        for (String craft : List.of("engraver", "saddler", "boatbuilder")) {
+            assertEquals(Map.of(POI_TAG, "{craft-" + craft + "}"), poiTags("craft=" + craft));
+        }
+    }
+
+    @Test
     void poiTags_craftsAndGastronomy_ownCategory() {
-        assertEquals(Map.of(POI_TAG, "{craft-pottery}", POI_CATEGORY_TAG, "{category_craft_food}"), poiTags("craft=pottery"));
-        assertEquals(Map.of(POI_TAG, "{craft-distillery}", POI_CATEGORY_TAG, "{category_craft_food}"), poiTags("craft=distillery"));
+        assertEquals(Map.of(POI_TAG, "{craft-pottery}", POI_CATEGORY_TAG, "{category_crafts}"), poiTags("craft=pottery"));
+        assertEquals(Map.of(POI_TAG, "{craft-distillery}", POI_CATEGORY_TAG, "{category_craft_drink}"), poiTags("craft=distillery"));
         assertEquals(Map.of(POI_TAG, "{craft-cheese}", POI_CATEGORY_TAG, "{category_craft_food}"), poiTags("craft=cheese"));
-        assertEquals(Map.of(POI_TAG, "{tourism-wine_cellar}", POI_CATEGORY_TAG, "{category_craft_food}"), poiTags("tourism=wine_cellar"));
+        assertEquals(Map.of(POI_TAG, "{craft-bakery}"), poiTags("craft=bakery"));
+        assertEquals(Map.of(POI_TAG, "{craft-jeweller}"), poiTags("craft=jeweller"));
+        assertTrue(poiTags("craft=stonemason").isEmpty());
+        assertEquals(Map.of(POI_TAG, "{craft-luthier}", POI_CATEGORY_TAG, "{category_craft_music}"), poiTags("craft=luthier"));
+        assertEquals(Map.of(POI_TAG, "{tourism-wine_cellar}", POI_CATEGORY_TAG, "{category_craft_drink}"), poiTags("tourism=wine_cellar"));
         assertEquals(Map.of(POI_TAG, "{amenity-cooking_school}", POI_CATEGORY_TAG, "{category_craft_food}"), poiTags("amenity=cooking_school"));
     }
 

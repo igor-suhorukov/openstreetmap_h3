@@ -138,15 +138,34 @@
 +natural-ridge category_geotourism name=*
 +geological-glacial_erratic category_geotourism name=*
 +geological-palaeontological_site category_geotourism
-+craft-pottery category_craft_food
-+craft-handicraft category_craft_food
-+craft-winery category_craft_food
-+craft-brewery category_craft_food
-+craft-distillery category_craft_food
++craft-pottery category_crafts
++craft-handicraft category_crafts
++craft-winery category_craft_drink
++craft-brewery category_craft_drink
++craft-distillery category_craft_drink
 +craft-cheese category_craft_food
 +craft-confectionery category_craft_food
 +craft-beekeeper category_craft_food
-+tourism-wine_cellar category_craft_food
++craft-bakery
++craft-jeweller
++craft-luthier category_craft_music
++craft-oil_mill category_craft_food
++craft-coffee_roaster category_craft_food
++craft-cooper category_craft_drink
++craft-printmaker category_craft_art
++craft-stained_glass category_craft_art
++craft-glassblower category_craft_art
++craft-embroiderer category_crafts
++craft-bookbinder category_crafts
++craft-leather category_crafts
++craft-candlemaker category_crafts
++craft-soap category_crafts
++craft-musical_instrument category_craft_music
++craft-atelier category_craft_art name=*
++craft-engraver
++craft-saddler
++craft-boatbuilder
++tourism-wine_cellar category_craft_drink
 +amenity-cooking_school category_craft_food
 -amenity-grave_yard
 -leisure-park-private
@@ -178,3 +197,5 @@
 -highway-ford
 -highway-raceway
 -highway-elevator
+-amenity-payment_terminal
+-building-guardhouse
