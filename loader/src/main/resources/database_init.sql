@@ -129,7 +129,7 @@ CREATE FUNCTION to_full_from_short_h3_3(smallint) RETURNS bigint
     RETURNS NULL ON NULL INPUT;
 
 CREATE FUNCTION to_short_h3_3(bigint) RETURNS smallint
-    AS $$ select ($1 & 'x000ffff000000000'::bit(64)::bigint>>36)::smallint;$$
+    AS $$ select ((($1 >> 36 & 65535) # 32768) - 32768)::smallint;$$
     LANGUAGE SQL
     IMMUTABLE
     RETURNS NULL ON NULL INPUT;
