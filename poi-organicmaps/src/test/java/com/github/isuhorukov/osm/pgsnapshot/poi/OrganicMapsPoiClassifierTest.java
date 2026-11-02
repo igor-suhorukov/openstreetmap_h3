@@ -41,9 +41,9 @@ class OrganicMapsPoiClassifierTest {
 
     @Test
     void poiTags_protectedArea_onlyNamedClasses235() {
-        assertEquals(Map.of(POI_TAG, "{boundary-protected_area-2}"), poiTags("boundary=protected_area", "protect_class=2", "name=Park"));
-        assertEquals(Map.of(POI_TAG, "{boundary-protected_area-3}"), poiTags("boundary=protected_area", "protect_class=3", "name=Park"));
-        assertEquals(Map.of(POI_TAG, "{boundary-protected_area-5}"), poiTags("boundary=protected_area", "protect_class=5", "name=Park"));
+        assertEquals(Map.of(POI_TAG, "{boundary-protected_area-2}", POI_CATEGORY_TAG, "{category_protected_area}"), poiTags("boundary=protected_area", "protect_class=2", "name=Park"));
+        assertEquals(Map.of(POI_TAG, "{boundary-protected_area-3}", POI_CATEGORY_TAG, "{category_protected_area}"), poiTags("boundary=protected_area", "protect_class=3", "name=Park"));
+        assertEquals(Map.of(POI_TAG, "{boundary-protected_area-5}", POI_CATEGORY_TAG, "{category_protected_area}"), poiTags("boundary=protected_area", "protect_class=5", "name=Park"));
         assertTrue(poiTags("boundary=protected_area", "protect_class=2").isEmpty());
         assertTrue(poiTags("boundary=protected_area", "protect_class=4", "name=Park").isEmpty());
         assertTrue(poiTags("boundary=protected_area", "name=Park").isEmpty());
@@ -61,7 +61,7 @@ class OrganicMapsPoiClassifierTest {
         assertTrue(poiTags("craft=atelier").isEmpty());
         assertTrue(poiTags("craft=sculptor").isEmpty());
         for (String craft : List.of("engraver", "saddler", "boatbuilder")) {
-            assertEquals(Map.of(POI_TAG, "{craft-" + craft + "}"), poiTags("craft=" + craft));
+            assertEquals(Map.of(POI_TAG, "{craft-" + craft + "}", POI_CATEGORY_TAG, "{category_services}"), poiTags("craft=" + craft));
         }
     }
 
@@ -70,8 +70,8 @@ class OrganicMapsPoiClassifierTest {
         assertEquals(Map.of(POI_TAG, "{craft-pottery}", POI_CATEGORY_TAG, "{category_crafts}"), poiTags("craft=pottery"));
         assertEquals(Map.of(POI_TAG, "{craft-distillery}", POI_CATEGORY_TAG, "{category_craft_drink}"), poiTags("craft=distillery"));
         assertEquals(Map.of(POI_TAG, "{craft-cheese}", POI_CATEGORY_TAG, "{category_craft_food}"), poiTags("craft=cheese"));
-        assertEquals(Map.of(POI_TAG, "{craft-bakery}"), poiTags("craft=bakery"));
-        assertEquals(Map.of(POI_TAG, "{craft-jeweller}"), poiTags("craft=jeweller"));
+        assertEquals(Map.of(POI_TAG, "{craft-bakery}", POI_CATEGORY_TAG, "{category_food_makers}"), poiTags("craft=bakery"));
+        assertEquals(Map.of(POI_TAG, "{craft-jeweller}", POI_CATEGORY_TAG, "{category_services}"), poiTags("craft=jeweller"));
         assertTrue(poiTags("craft=stonemason").isEmpty());
         assertEquals(Map.of(POI_TAG, "{craft-luthier}", POI_CATEGORY_TAG, "{category_craft_music}"), poiTags("craft=luthier"));
         assertEquals(Map.of(POI_TAG, "{tourism-wine_cellar}", POI_CATEGORY_TAG, "{category_craft_drink}"), poiTags("tourism=wine_cellar"));
@@ -107,20 +107,20 @@ class OrganicMapsPoiClassifierTest {
         assertEquals(Map.of(POI_TAG, "{building-office,office-company}", POI_CATEGORY_TAG, "{category_business_centre,category_office,category_work}"),
                 poiTags("building=office", "office=company", "name=Tower"));
         assertEquals(work("amenity-courthouse", "category_government"), poiTags("building=office", "amenity=courthouse", "name=Court"));
-        assertEquals(work("landuse-commercial", "category_business_centre"), poiTags("landuse=commercial", "name=Business Park"));
+        assertEquals(work("landuse-commercial", "category_commercial_area"), poiTags("landuse=commercial", "name=Business Park"));
         assertTrue(poiTags("landuse=commercial").isEmpty());
         assertEquals(Map.of(POI_TAG, "{amenity-cafe}", POI_CATEGORY_TAG, "{category_eat}"), poiTags("landuse=commercial", "amenity=cafe", "name=Cafe"));
     }
 
     @Test
     void poiTags_universitiesAndColleges_categoryAndNamedBuildings() {
-        assertEquals(Map.of(POI_TAG, "{amenity-university}", POI_CATEGORY_TAG, "{category_college_university}"), poiTags("amenity=university"));
-        assertEquals(Map.of(POI_TAG, "{amenity-college}", POI_CATEGORY_TAG, "{category_college_university}"), poiTags("amenity=college", "name=Техникум"));
-        assertEquals(Map.of(POI_TAG, "{building-university}", POI_CATEGORY_TAG, "{category_college_university}"), poiTags("building=university", "name=Main Hall"));
-        assertEquals(Map.of(POI_TAG, "{building-college}", POI_CATEGORY_TAG, "{category_college_university}"), poiTags("building=college", "name=Workshop"));
+        assertEquals(Map.of(POI_TAG, "{amenity-university}", POI_CATEGORY_TAG, "{category_college_university,category_university}"), poiTags("amenity=university"));
+        assertEquals(Map.of(POI_TAG, "{amenity-college}", POI_CATEGORY_TAG, "{category_college,category_college_university}"), poiTags("amenity=college", "name=Техникум"));
+        assertEquals(Map.of(POI_TAG, "{building-university}", POI_CATEGORY_TAG, "{category_college_university,category_university}"), poiTags("building=university", "name=Main Hall"));
+        assertEquals(Map.of(POI_TAG, "{building-college}", POI_CATEGORY_TAG, "{category_college,category_college_university}"), poiTags("building=college", "name=Workshop"));
         assertTrue(poiTags("building=university").isEmpty());
         assertTrue(poiTags("building=college").isEmpty());
-        assertEquals(Map.of(POI_TAG, "{amenity-university}", POI_CATEGORY_TAG, "{category_college_university}"), poiTags("building=university", "amenity=university", "name=Campus"));
+        assertEquals(Map.of(POI_TAG, "{amenity-university}", POI_CATEGORY_TAG, "{category_college_university,category_university}"), poiTags("building=university", "amenity=university", "name=Campus"));
         assertEquals(Map.of(POI_TAG, "{amenity-cafe}", POI_CATEGORY_TAG, "{category_eat}"), poiTags("building=college", "amenity=cafe", "name=Cafe"));
     }
 
@@ -165,7 +165,7 @@ class OrganicMapsPoiClassifierTest {
 
     @Test
     void poiTags_lavenderField_notPrivate() {
-        Map<String, String> field = Map.of(POI_TAG, "{landuse-farmland-lavender}");
+        Map<String, String> field = Map.of(POI_TAG, "{landuse-farmland-lavender}", POI_CATEGORY_TAG, "{category_lavender}");
         assertEquals(field, poiTags("landuse=farmland", "crop=lavender"));
         assertEquals(field, poiTags("landuse=farmland", "crop=lavandin"));
         assertEquals(field, poiTags("landuse=farmland", "crop=lavander"));
@@ -179,7 +179,7 @@ class OrganicMapsPoiClassifierTest {
 
     @Test
     void poiTags_conditionOnAnyValueOfTheTag() {
-        assertEquals(Map.of(POI_TAG, "{natural-glacier}"), poiTags("natural=glacier", "name=Mer de Glace"));
+        assertEquals(Map.of(POI_TAG, "{natural-glacier}", POI_CATEGORY_TAG, "{category_mountain}"), poiTags("natural=glacier", "name=Mer de Glace"));
         assertTrue(poiTags("natural=glacier").isEmpty());
     }
 
@@ -207,8 +207,8 @@ class OrganicMapsPoiClassifierTest {
         assertEquals(Map.of(POI_TAG, "{healthcare-trauma}", POI_CATEGORY_TAG, "{category_trauma}"), poiTags("healthcare:speciality=surgery;trauma"));
         assertTrue(poiTags("healthcare:speciality=orthopaedics").isEmpty());
         assertEquals(Map.of(POI_TAG, "{emergency-emergency_ward_entrance}"), poiTags("emergency=emergency_ward_entrance"));
-        assertEquals(Map.of(POI_TAG, "{amenity-training}"), poiTags("amenity=training"));
-        assertEquals(Map.of(POI_TAG, "{amenity-prep_school}"), poiTags("amenity=prep_school"));
+        assertEquals(Map.of(POI_TAG, "{amenity-training}", POI_CATEGORY_TAG, "{category_courses}"), poiTags("amenity=training"));
+        assertEquals(Map.of(POI_TAG, "{amenity-prep_school}", POI_CATEGORY_TAG, "{category_courses}"), poiTags("amenity=prep_school"));
     }
 
     @Test
@@ -219,14 +219,14 @@ class OrganicMapsPoiClassifierTest {
 
     @Test
     void poiTags_animalPlaces_petsCategory() {
-        Map<String, String> vet = Map.of(POI_TAG, "{amenity-veterinary}", POI_CATEGORY_TAG, "{category_pets}");
+        Map<String, String> vet = Map.of(POI_TAG, "{amenity-veterinary}", POI_CATEGORY_TAG, "{category_pet_services,category_pets}");
         assertEquals(vet, poiTags("amenity=veterinary"));
-        assertEquals(Map.of(POI_TAG, "{leisure-dog_park}", POI_CATEGORY_TAG, "{category_pets}"), poiTags("leisure=dog_park"));
-        assertEquals(Map.of(POI_TAG, "{shop-pet}", POI_CATEGORY_TAG, "{category_pets}"), poiTags("shop=pet"));
-        assertEquals(Map.of(POI_TAG, "{amenity-animal_shelter}", POI_CATEGORY_TAG, "{category_pets}"), poiTags("amenity=animal_shelter"));
-        assertEquals(Map.of(POI_TAG, "{amenity-animal_boarding}", POI_CATEGORY_TAG, "{category_pets}"), poiTags("amenity=animal_boarding"));
-        assertEquals(Map.of(POI_TAG, "{amenity-animal_breeding}", POI_CATEGORY_TAG, "{category_pets}"), poiTags("amenity=animal_breeding"));
-        assertEquals(Map.of(POI_TAG, "{amenity-animal_training}", POI_CATEGORY_TAG, "{category_pets}"), poiTags("amenity=animal_training"));
+        assertEquals(Map.of(POI_TAG, "{leisure-dog_park}", POI_CATEGORY_TAG, "{category_dog_areas,category_pets}"), poiTags("leisure=dog_park"));
+        assertEquals(Map.of(POI_TAG, "{shop-pet}", POI_CATEGORY_TAG, "{category_pet_services,category_pets}"), poiTags("shop=pet"));
+        assertEquals(Map.of(POI_TAG, "{amenity-animal_shelter}", POI_CATEGORY_TAG, "{category_pet_services,category_pets}"), poiTags("amenity=animal_shelter"));
+        assertEquals(Map.of(POI_TAG, "{amenity-animal_boarding}", POI_CATEGORY_TAG, "{category_pet_services,category_pets}"), poiTags("amenity=animal_boarding"));
+        assertEquals(Map.of(POI_TAG, "{amenity-animal_breeding}", POI_CATEGORY_TAG, "{category_pet_services,category_pets}"), poiTags("amenity=animal_breeding"));
+        assertEquals(Map.of(POI_TAG, "{amenity-animal_training}", POI_CATEGORY_TAG, "{category_dog_areas,category_pets}"), poiTags("amenity=animal_training"));
     }
 
     @Test
@@ -239,14 +239,19 @@ class OrganicMapsPoiClassifierTest {
     }
 
     @Test
-    void poiTags_typeWithoutDisplayedCategory_onlyPoiTag() {
-        assertEquals(Map.of(POI_TAG, "{amenity-school}"), poiTags("amenity=school", "building=yes"));
+    void poiTags_typeWithoutCategory_onlyPoiTag() {
+        assertEquals(Map.of(POI_TAG, "{emergency-emergency_ward_entrance}"), poiTags("emergency=emergency_ward_entrance", "building=yes"));
+    }
+
+    @Test
+    void poiTags_typeWithProjectCategoryOnly_categoryFromRules() {
+        assertEquals(Map.of(POI_TAG, "{amenity-school}", POI_CATEGORY_TAG, "{category_school}"), poiTags("amenity=school", "building=yes"));
     }
 
     @Test
     void poiTags_replacedTag_classifiedAsReplacement() {
-        assertEquals(Map.of(POI_TAG, "{amenity-ice_cream}"), poiTags("shop=ice_cream"));
-        assertEquals(Map.of(POI_TAG, "{amenity-parcel_locker}", POI_CATEGORY_TAG, "{category_post}"),
+        assertEquals(Map.of(POI_TAG, "{amenity-ice_cream}", POI_CATEGORY_TAG, "{category_eat}"), poiTags("shop=ice_cream"));
+        assertEquals(Map.of(POI_TAG, "{amenity-parcel_locker}", POI_CATEGORY_TAG, "{category_pickup,category_post}"),
                 poiTags("amenity=vending_machine", "vending=parcel_pickup"));
         assertTrue(poiTags("amenity=vending_machine", "vending=drinks").isEmpty());
     }
@@ -258,16 +263,16 @@ class OrganicMapsPoiClassifierTest {
     }
 
     @Test
-    void poiTags_typesIncludedByProjectRules_withoutCategory() {
-        assertEquals(Map.of(POI_TAG, "{man_made-bridge}"), poiTags("man_made=bridge"));
-        assertEquals(Map.of(POI_TAG, "{place-square}"), poiTags("place=square"));
-        assertEquals(Map.of(POI_TAG, "{landuse-vineyard}"), poiTags("landuse=vineyard"));
-        assertEquals(Map.of(POI_TAG, "{landuse-orchard}"), poiTags("landuse=orchard"));
+    void poiTags_typesIncludedByProjectRules_projectCategories() {
+        assertEquals(Map.of(POI_TAG, "{man_made-bridge}", POI_CATEGORY_TAG, "{category_landmark}"), poiTags("man_made=bridge"));
+        assertEquals(Map.of(POI_TAG, "{place-square}", POI_CATEGORY_TAG, "{category_square}"), poiTags("place=square"));
+        assertEquals(Map.of(POI_TAG, "{landuse-vineyard}", POI_CATEGORY_TAG, "{category_orchard}"), poiTags("landuse=vineyard"));
+        assertEquals(Map.of(POI_TAG, "{landuse-orchard}", POI_CATEGORY_TAG, "{category_orchard}"), poiTags("landuse=orchard"));
     }
 
     @Test
     void poiTags_divingObjects_diveCategory() {
-        Map<String, String> site = Map.of(POI_TAG, "{sport-scuba_diving}", POI_CATEGORY_TAG, "{category_diving}");
+        Map<String, String> site = Map.of(POI_TAG, "{sport-scuba_diving}", POI_CATEGORY_TAG, "{category_diving,category_sport}");
         assertEquals(site, poiTags("sport=scuba_diving"));
         assertEquals(Map.of(POI_TAG, "{amenity-dive_centre}", POI_CATEGORY_TAG, "{category_diving}"),
                 poiTags("amenity=dive_centre"));
@@ -283,7 +288,7 @@ class OrganicMapsPoiClassifierTest {
         assertEquals(site, poiTags("sport=scuba_diving", "scuba_diving:entry:boat=yes"));
         assertEquals(Map.of(POI_TAG, "{natural-reef,sport-scuba_diving-divespot}", POI_CATEGORY_TAG, "{category_dive_site,category_diving}"),
                 poiTags("sport=scuba_diving", "natural=reef"));
-        assertEquals(Map.of(POI_TAG, "{leisure-swimming_area,sport-scuba_diving}", POI_CATEGORY_TAG, "{category_diving}"),
+        assertEquals(Map.of(POI_TAG, "{leisure-swimming_area,sport-scuba_diving}", POI_CATEGORY_TAG, "{category_diving,category_sport,category_swimming_area}"),
                 poiTags("sport=scuba_diving", "leisure=swimming_area"));
         assertEquals(Map.of(POI_TAG, "{sport-snorkeling}", POI_CATEGORY_TAG, "{category_dive_site}"),
                 poiTags("scuba_diving:type:snorkeling=yes"));
@@ -376,9 +381,9 @@ class OrganicMapsPoiClassifierTest {
         assertTrue(poiTags("amenity=drinking_water", "access=no").isEmpty());
         assertTrue(poiTags("man_made=water_tap", "access=private").isEmpty());
         assertTrue(poiTags("man_made=water_well", "access=private").isEmpty());
-        assertEquals(Map.of(POI_TAG, "{leisure-garden}"), poiTags("leisure=garden"));
-        assertEquals(Map.of(POI_TAG, "{leisure-pitch,sport-soccer}"), poiTags("leisure=pitch", "sport=soccer", "access=customers"));
-        assertEquals(Map.of(POI_TAG, "{amenity-school}"), poiTags("amenity=school", "sport=soccer", "access=private"));
+        assertEquals(Map.of(POI_TAG, "{leisure-garden}", POI_CATEGORY_TAG, "{category_park}"), poiTags("leisure=garden"));
+        assertEquals(Map.of(POI_TAG, "{leisure-pitch,sport-soccer}", POI_CATEGORY_TAG, "{category_pitch,category_sport}"), poiTags("leisure=pitch", "sport=soccer", "access=customers"));
+        assertEquals(Map.of(POI_TAG, "{amenity-school}", POI_CATEGORY_TAG, "{category_school}"), poiTags("amenity=school", "sport=soccer", "access=private"));
         assertEquals(Map.of(POI_TAG, "{amenity-cafe}", POI_CATEGORY_TAG, "{category_eat}"), poiTags("amenity=cafe", "access=private"));
     }
 
@@ -399,15 +404,15 @@ class OrganicMapsPoiClassifierTest {
 
     @Test
     void poiTags_businessesAreNotDiveSites() {
-        Map<String, String> centre = Map.of(POI_TAG, "{amenity-dive_centre,sport-scuba_diving}", POI_CATEGORY_TAG, "{category_diving}");
+        Map<String, String> centre = Map.of(POI_TAG, "{amenity-dive_centre,sport-scuba_diving}", POI_CATEGORY_TAG, "{category_diving,category_sport}");
         assertEquals(centre, poiTags("amenity=dive_centre", "sport=scuba_diving;snorkeling"));
         assertEquals(centre, poiTags("amenity=dive_centre", "sport=scuba_diving", "scuba_diving:entry:boat=yes"));
         assertEquals(centre, poiTags("amenity=dive_centre", "sport=scuba_diving", "scuba_diving:type:cave=yes"));
         assertEquals(centre, poiTags("amenity=dive_centre", "sport=scuba_diving", "sport=snorkling"));
         assertEquals(Map.of(POI_TAG, "{shop-scuba_diving}", POI_CATEGORY_TAG, "{category_diving}"), poiTags("shop=scuba_diving", "sport=snorkeling"));
-        assertEquals(Map.of(POI_TAG, "{leisure-pitch}"), poiTags("leisure=pitch", "scuba_diving:divespot=yes"));
+        assertEquals(Map.of(POI_TAG, "{leisure-pitch}", POI_CATEGORY_TAG, "{category_pitch}"), poiTags("leisure=pitch", "scuba_diving:divespot=yes"));
         assertEquals(Map.of(POI_TAG, "{tourism-hotel}", POI_CATEGORY_TAG, "{category_hotel}"), poiTags("tourism=hotel", "scuba_diving:type:snorkeling=yes"));
-        assertEquals(Map.of(POI_TAG, "{sport-scuba_diving,tourism-hotel}", POI_CATEGORY_TAG, "{category_diving,category_hotel}"),
+        assertEquals(Map.of(POI_TAG, "{sport-scuba_diving,tourism-hotel}", POI_CATEGORY_TAG, "{category_diving,category_hotel,category_sport}"),
                 poiTags("tourism=hotel", "sport=scuba_diving", "scuba_diving:entry:boat=yes"));
         assertEquals(work("office-company", "category_office"), poiTags("office=company", "sport=snorkeling"));
         assertEquals(Map.of(POI_TAG, "{sport-snorkeling}", POI_CATEGORY_TAG, "{category_dive_site}"), poiTags("sport=snorkeling", "tourism=attraction"));
@@ -415,7 +420,7 @@ class OrganicMapsPoiClassifierTest {
 
     @Test
     void poiTags_rentalShopAndTravelAgency() {
-        assertEquals(Map.of(POI_TAG, "{shop-rental}"), poiTags("shop=rental"));
+        assertEquals(Map.of(POI_TAG, "{shop-rental}", POI_CATEGORY_TAG, "{category_services}"), poiTags("shop=rental"));
         assertEquals(work("shop-travel_agency", "category_office_services"), poiTags("shop=travel_agency"));
     }
 
@@ -484,29 +489,29 @@ class OrganicMapsPoiClassifierTest {
 
     @Test
     void poiTags_coastAndNatureTypes_poiByProjectRules() {
-        assertEquals(Map.of(POI_TAG, "{man_made-pier}"), poiTags("man_made=pier"));
-        assertEquals(Map.of(POI_TAG, "{place-island}"), poiTags("place=island"));
-        assertEquals(Map.of(POI_TAG, "{place-islet}"), poiTags("place=islet"));
-        assertEquals(Map.of(POI_TAG, "{natural-bay}"), poiTags("natural=bay"));
-        assertEquals(Map.of(POI_TAG, "{natural-cape}"), poiTags("natural=cape"));
+        assertEquals(Map.of(POI_TAG, "{man_made-pier}", POI_CATEGORY_TAG, "{category_pier}"), poiTags("man_made=pier"));
+        assertEquals(Map.of(POI_TAG, "{place-island}", POI_CATEGORY_TAG, "{category_coast}"), poiTags("place=island"));
+        assertEquals(Map.of(POI_TAG, "{place-islet}", POI_CATEGORY_TAG, "{category_coast}"), poiTags("place=islet"));
+        assertEquals(Map.of(POI_TAG, "{natural-bay}", POI_CATEGORY_TAG, "{category_coast}"), poiTags("natural=bay"));
+        assertEquals(Map.of(POI_TAG, "{natural-cape}", POI_CATEGORY_TAG, "{category_coast}"), poiTags("natural=cape"));
         assertEquals(Map.of(), poiTags("natural=cliff"));
-        assertEquals(Map.of(POI_TAG, "{natural-cliff-notable}"), poiTags("natural=cliff", "name=Aiguille"));
-        assertEquals(Map.of(POI_TAG, "{natural-cliff-notable}"), poiTags("natural=cliff", "climbing=crag"));
-        assertEquals(Map.of(POI_TAG, "{natural-cliff-notable}"), poiTags("natural=cliff", "sport=climbing"));
-        assertEquals(Map.of(POI_TAG, "{leisure-ice_rink}"), poiTags("leisure=ice_rink"));
-        assertEquals(Map.of(POI_TAG, "{boundary-national_park}"), poiTags("boundary=national_park"));
-        assertEquals(Map.of(POI_TAG, "{leisure-swimming_area}"), poiTags("leisure=swimming_area"));
+        assertEquals(Map.of(POI_TAG, "{natural-cliff-notable}", POI_CATEGORY_TAG, "{category_mountain}"), poiTags("natural=cliff", "name=Aiguille"));
+        assertEquals(Map.of(POI_TAG, "{natural-cliff-notable}", POI_CATEGORY_TAG, "{category_mountain}"), poiTags("natural=cliff", "climbing=crag"));
+        assertEquals(Map.of(POI_TAG, "{natural-cliff-notable}", POI_CATEGORY_TAG, "{category_mountain}"), poiTags("natural=cliff", "sport=climbing"));
+        assertEquals(Map.of(POI_TAG, "{leisure-ice_rink}", POI_CATEGORY_TAG, "{category_sport}"), poiTags("leisure=ice_rink"));
+        assertEquals(Map.of(POI_TAG, "{boundary-national_park}", POI_CATEGORY_TAG, "{category_protected_area}"), poiTags("boundary=national_park"));
+        assertEquals(Map.of(POI_TAG, "{leisure-swimming_area}", POI_CATEGORY_TAG, "{category_swimming_area}"), poiTags("leisure=swimming_area"));
     }
 
     @Test
     void poiTags_projectLeisureTypes_poiByProjectMapping() {
-        assertEquals(Map.of(POI_TAG, "{leisure-fishing}"), poiTags("leisure=fishing"));
+        assertEquals(Map.of(POI_TAG, "{leisure-fishing}", POI_CATEGORY_TAG, "{category_water_activities}"), poiTags("leisure=fishing"));
         assertEquals(work("amenity-coworking_space", "category_coworking"), poiTags("amenity=coworking_space"));
         assertEquals(work("amenity-coworking_space,office-coworking", "category_coworking"), poiTags("office=co_working"));
-        assertEquals(Map.of(POI_TAG, "{leisure-horse_riding}"), poiTags("leisure=horse_riding"));
-        assertEquals(Map.of(POI_TAG, "{leisure-spa}"), poiTags("leisure=spa"));
-        assertEquals(Map.of(POI_TAG, "{leisure-spa}"), poiTags("amenity=spa"));
-        assertEquals(Map.of(POI_TAG, "{leisure-spa}"), poiTags("tourism=spa_resort"));
+        assertEquals(Map.of(POI_TAG, "{leisure-horse_riding}", POI_CATEGORY_TAG, "{category_sport}"), poiTags("leisure=horse_riding"));
+        assertEquals(Map.of(POI_TAG, "{leisure-spa}", POI_CATEGORY_TAG, "{category_wellness}"), poiTags("leisure=spa"));
+        assertEquals(Map.of(POI_TAG, "{leisure-spa}", POI_CATEGORY_TAG, "{category_wellness}"), poiTags("amenity=spa"));
+        assertEquals(Map.of(POI_TAG, "{leisure-spa}", POI_CATEGORY_TAG, "{category_wellness}"), poiTags("tourism=spa_resort"));
     }
 
     @Test
@@ -522,7 +527,7 @@ class OrganicMapsPoiClassifierTest {
 
     @Test
     void poiTags_severalValuesOfConditionTag_anyValueSatisfies() {
-        assertEquals(Map.of(POI_TAG, "{man_made-tower}"), poiTags("man_made=tower", "tower:type=water;observation"));
+        assertEquals(Map.of(POI_TAG, "{man_made-tower}", POI_CATEGORY_TAG, "{category_landmark}"), poiTags("man_made=tower", "tower:type=water;observation"));
         assertEquals(Map.of(), poiTags("man_made=tower", "tower:type=water;defensive"));
     }
 
@@ -545,12 +550,12 @@ class OrganicMapsPoiClassifierTest {
 
     @Test
     void poiTags_towers_onlyObservationBellTowerPagodaStupaAndChedi() {
-        assertEquals(Map.of(POI_TAG, "{man_made-tower}"), poiTags("man_made=tower", "tower:type=observation"));
-        assertEquals(Map.of(POI_TAG, "{man_made-tower}"), poiTags("man_made=tower", "tower:type=bell_tower"));
-        assertEquals(Map.of(POI_TAG, "{man_made-tower}"), poiTags("man_made=tower", "tower:type=pagoda"));
-        assertEquals(Map.of(POI_TAG, "{man_made-tower}"), poiTags("man_made=tower", "tower:type=stupa"));
-        assertEquals(Map.of(POI_TAG, "{man_made-tower}"), poiTags("man_made=tower", "tower:type=chedi"));
-        assertEquals(Map.of(POI_TAG, "{man_made-tower}"), poiTags("man_made=tower", "tower:type=lighting; observation"));
+        assertEquals(Map.of(POI_TAG, "{man_made-tower}", POI_CATEGORY_TAG, "{category_landmark}"), poiTags("man_made=tower", "tower:type=observation"));
+        assertEquals(Map.of(POI_TAG, "{man_made-tower}", POI_CATEGORY_TAG, "{category_landmark}"), poiTags("man_made=tower", "tower:type=bell_tower"));
+        assertEquals(Map.of(POI_TAG, "{man_made-tower}", POI_CATEGORY_TAG, "{category_landmark}"), poiTags("man_made=tower", "tower:type=pagoda"));
+        assertEquals(Map.of(POI_TAG, "{man_made-tower}", POI_CATEGORY_TAG, "{category_landmark}"), poiTags("man_made=tower", "tower:type=stupa"));
+        assertEquals(Map.of(POI_TAG, "{man_made-tower}", POI_CATEGORY_TAG, "{category_landmark}"), poiTags("man_made=tower", "tower:type=chedi"));
+        assertEquals(Map.of(POI_TAG, "{man_made-tower}", POI_CATEGORY_TAG, "{category_landmark}"), poiTags("man_made=tower", "tower:type=lighting; observation"));
         assertTrue(poiTags("man_made=tower").isEmpty());
         assertTrue(poiTags("man_made=tower", "tower:type=lighting").isEmpty());
         assertTrue(poiTags("man_made=tower", "tower:type=cooling").isEmpty());
@@ -562,7 +567,7 @@ class OrganicMapsPoiClassifierTest {
     void poiTags_towerOfOtherTypeWithPoiTag_keepsOnlyThatType() {
         assertEquals(Map.of(POI_TAG, "{amenity-cafe}", POI_CATEGORY_TAG, "{category_eat}"),
                 poiTags("man_made=tower", "tower:type=lighting", "amenity=cafe"));
-        assertEquals(Map.of(POI_TAG, "{amenity-cafe,man_made-tower}", POI_CATEGORY_TAG, "{category_eat}"),
+        assertEquals(Map.of(POI_TAG, "{amenity-cafe,man_made-tower}", POI_CATEGORY_TAG, "{category_eat,category_landmark}"),
                 poiTags("man_made=tower", "tower:type=observation", "amenity=cafe"));
     }
 
@@ -618,7 +623,7 @@ class OrganicMapsPoiClassifierTest {
         assertEquals("Остановка", busStop.getName("ru"));
         assertEquals("ป้ายรถเมล์", busStop.getName("th"));
 
-        assertEquals(List.of(), catalog.get("amenity-school").getCategories());
+        assertEquals(List.of("category_school"), catalog.get("amenity-school").getCategories());
         assertEquals("Subway Entrance", catalog.get("railway-subway_entrance").getName("en"));
         assertNull(catalog.get("amenity-ice_cream").getName("en"));
         assertFalse(catalog.containsKey("amenity-bench"));

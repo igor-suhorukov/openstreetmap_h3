@@ -143,6 +143,11 @@ en = Indoor Sports and Games
 ru = Спорт и игры в помещении
 th = กีฬาในร่ม
 
+[type.sport.fitness]
+en = Fitness
+ru = Фитнес
+th = ฟิตเนส
+
 [type.sport.club]
 en = Sports Club
 ru = Спортивный клуб

@@ -4,9 +4,14 @@ import org.junit.jupiter.api.Test;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.StringReader;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -22,6 +27,22 @@ class PoiRulesTest {
         org.junit.jupiter.api.Assertions.assertFalse(rules.isExcluded("tourism-information-office"));
         org.junit.jupiter.api.Assertions.assertFalse(rules.isExcluded("amenity-parking"));
         assertTrue(rules.isExcluded("amenity-parking-private"));
+    }
+
+    @Test
+    void rulesFile_hasOneIncludingLinePerType() throws IOException {
+        Set<String> types = new HashSet<>();
+        List<String> duplicates = new ArrayList<>();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                Objects.requireNonNull(PoiRules.class.getResourceAsStream(OrganicMapsPoiClassifier.RULES_RESOURCE)), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.startsWith("+") && !types.add(line.split(" ")[0])) {
+                    duplicates.add(line);
+                }
+            }
+        }
+        assertEquals(List.of(), duplicates);
     }
 
     private static PoiRules parse(String text) throws IOException {

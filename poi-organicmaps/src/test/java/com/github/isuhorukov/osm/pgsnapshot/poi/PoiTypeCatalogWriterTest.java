@@ -21,7 +21,7 @@ class PoiTypeCatalogWriterTest {
                 StandardCharsets.UTF_8).split("\n"));
         assertEquals(classifier.getPoiTypes().size(), rows.size());
         assertTrue(rows.contains("\"highway-bus_stop\"\t\"{category_transport}\"\t\"Bus Stop\"\t\"Остановка\"\t\"ป้ายรถเมล์\""), rows.toString());
-        assertTrue(rows.contains("\"amenity-ice_cream\"\t\\N\t\\N\t\\N\t\\N"), rows.toString());
+        assertTrue(rows.contains("\"amenity-ice_cream\"\t\"{category_eat}\"\t\\N\t\\N\t\\N"), rows.toString());
 
         String script = resources.importScripts.get(PoiTypeCatalogWriter.CATALOG_SCRIPT);
         assertTrue(script.contains("/input/static/" + PoiTypeCatalogWriter.CATALOG_FILE));

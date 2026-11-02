@@ -11,6 +11,8 @@
 # A type excluded by a -<type> rule without a tag also removes the other types of the object with the same two
 # first levels, except the types included by a + rule below that - rule:
 # amenity-parking-private removes amenity-parking-fee, tourism-information-board keeps tourism-information-office.
+# Every POI type has a category: the classes of reach are built from them. Only the most specific + rule gives categories,
+# so a type has one line, and a shop type without its own line gets the categories of the shop rule.
 
 # The entrance is the walking destination of a metro station, categories.txt has no entry for it.
 +railway-subway_entrance category_transport category_metro
@@ -18,15 +20,15 @@
 +railway-station-light_rail category_transport category_metro
 +railway-station-monorail category_transport category_metro
 +railway-halt-mcc category_transport category_metro
-+amenity-dojo
++amenity-dojo category_fitness
 
-+man_made-bridge
-+man_made-tower tower:type=observation;bell_tower;pagoda;stupa;chedi
++man_made-bridge category_landmark
++man_made-tower category_landmark tower:type=observation;bell_tower;pagoda;stupa;chedi
 -man_made-tower-communication
-+place-square
-+landuse-vineyard
-+landuse-orchard
-+sport-scuba_diving category_diving
++place-square category_square
++landuse-vineyard category_orchard
++landuse-orchard category_orchard
++sport-scuba_diving category_diving category_sport
 +sport-scuba_diving-divespot category_dive_site category_diving
 -sport-scuba_diving-divespot tourism=hotel;guest_house;hostel;motel;apartment;chalet
 -sport-scuba_diving-divespot office=*
@@ -39,50 +41,50 @@
 +amenity-dive_centre category_diving
 +shop-scuba_diving category_diving
 +aerialway-station category_aerialway
-+healthcare-other
++healthcare-other category_health
 +healthcare-paediatrics category_paediatrics
 +healthcare-trauma category_trauma
 +emergency-emergency_ward_entrance
-+amenity-training
-+amenity-prep_school
-+amenity-university category_college_university
-+amenity-college category_college_university
-+building-university category_college_university name=*
++amenity-training category_courses
++amenity-prep_school category_courses
++amenity-university category_college_university category_university
++amenity-college category_college_university category_college
++building-university category_college_university category_university name=*
 -building-university-other
-+building-college category_college_university name=*
++building-college category_college_university category_college name=*
 -building-college-other
 +healthcare-sanatorium category_sanatorium
-+historic-yes
++historic-yes category_small_history
 +historic-building category_tourism
 +historic-monastery category_tourism
-+historic-military category_tourism
++historic-military category_tourism name=*
 +historic-vehicle category_tourism
 +amenity-planetarium category_tourism
 +man_made-observatory category_tourism
 +attraction category_amusement
 -attraction-animal
-+sport-water_sports
-+sport-air_sports
-+sport-adventure
-+sport-martial_arts
-+sport-winter_sports
-+sport-indoor_games
-+sport-club
-+sport-multi
-+sport-futsal
-+sport-ice_hockey
-+sport-field_hockey
-+sport-badminton
-+sport-pelota
-+sport-diving
-+amenity-veterinary category_pets
-+shop-pet category_pets
-+shop-pet_grooming category_pets
-+leisure-dog_park category_pets
-+amenity-animal_shelter category_pets
-+amenity-animal_boarding category_pets
-+amenity-animal_breeding category_pets
-+amenity-animal_training category_pets
++sport-water_sports category_water_sports
++sport-air_sports category_air_sports
++sport-adventure category_air_sports
++sport-martial_arts category_fitness
++sport-winter_sports category_sport
++sport-indoor_games category_sport
++sport-club category_sport
++sport-multi category_sport
++sport-futsal category_sport
++sport-ice_hockey category_sport
++sport-field_hockey category_sport
++sport-badminton category_sport
++sport-pelota category_sport
++sport-diving category_sport
++amenity-veterinary category_pets category_pet_services
++shop-pet category_pets category_pet_services
++shop-pet_grooming category_pets category_pet_services
++leisure-dog_park category_pets category_dog_areas
++amenity-animal_shelter category_pets category_pet_services
++amenity-animal_boarding category_pets category_pet_services
++amenity-animal_breeding category_pets category_pet_services
++amenity-animal_training category_pets category_dog_areas
 +amenity-parking category_parking
 -amenity-parking-private
 -amenity-parking-no-access
@@ -103,7 +105,7 @@
 +natural-beach category_beach
 +leisure-beach_resort category_beach
 +natural-peak category_peak
-+natural-glacier name=*
++natural-glacier category_mountain name=*
 +natural-water category_lake name=*
 -natural-water-basin
 -natural-water-ditch
@@ -123,27 +125,27 @@
 +amenity-ski_rental category_ski
 +amenity-ski_school category_ski
 +shop-ski category_ski category_shopping
-+amenity-shelter-basic_hut
-+amenity-shelter-lean_to
-+aeroway-aerodrome category_transport name=*
++amenity-shelter-basic_hut category_hut
++amenity-shelter-lean_to category_hut
++aeroway-aerodrome category_transport category_airport name=*
 -aeroway-aerodrome-restricted
 +natural-volcano category_volcano
-+man_made-pier
-+place-island
-+place-islet
-+natural-bay
-+natural-cape
-+natural-cliff-notable
-+leisure-ice_rink
-+boundary-national_park
-+boundary-protected_area-2 name=*
-+boundary-protected_area-3 name=*
-+boundary-protected_area-5 name=*
-+leisure-fishing
-+leisure-horse_riding
-+leisure-spa
-+leisure-swimming_area
-+landuse-farmland-lavender
++man_made-pier category_pier
++place-island category_coast
++place-islet category_coast
++natural-bay category_coast
++natural-cape category_coast
++natural-cliff-notable category_mountain
++leisure-ice_rink category_sport
++boundary-national_park category_protected_area
++boundary-protected_area-2 category_protected_area name=*
++boundary-protected_area-3 category_protected_area name=*
++boundary-protected_area-5 category_protected_area name=*
++leisure-fishing category_water_activities
++leisure-horse_riding category_sport
++leisure-spa category_wellness
++leisure-swimming_area category_swimming_area
++landuse-farmland-lavender category_lavender
 -landuse-farmland-lavender-private
 +natural-cave_entrance category_geotourism
 +natural-arch category_geotourism
@@ -162,8 +164,8 @@
 +craft-cheese category_craft_food
 +craft-confectionery category_craft_food
 +craft-beekeeper category_craft_food
-+craft-bakery
-+craft-jeweller
++craft-bakery category_food_makers
++craft-jeweller category_services
 +craft-luthier category_craft_music
 +craft-oil_mill category_craft_food
 +craft-coffee_roaster category_craft_food
@@ -178,9 +180,9 @@
 +craft-soap category_crafts
 +craft-musical_instrument category_craft_music
 +craft-atelier category_craft_art name=*
-+craft-engraver
-+craft-saddler
-+craft-boatbuilder
++craft-engraver category_services
++craft-saddler category_services
++craft-boatbuilder category_services
 +tourism-wine_cellar category_craft_drink
 +amenity-cooking_school category_craft_food
 -amenity-grave_yard
@@ -191,7 +193,7 @@
 -leisure-park-no-access
 -leisure-swimming_pool-private
 -leisure-garden-residential
-+shop-rental
++shop-rental category_services
 
 # Private objects
 -leisure access=private;no
@@ -208,7 +210,7 @@
 +building-office category_work category_business_centre name=*
 -building-office-other
 +amenity-business_centre category_work category_business_centre
-+landuse-commercial category_work category_business_centre name=*
++landuse-commercial category_work category_commercial_area name=*
 -landuse-commercial-other
 +amenity-coworking_space category_work category_coworking
 +office-coworking category_work category_coworking
@@ -242,6 +244,321 @@
 -landuse-industrial-other
 +landuse-industrial-warehouse category_work category_warehouse name=*
 +landuse-industrial-depot category_work category_depot name=*
+
+# Education
++amenity-kindergarten category_kindergarten
++amenity-childcare category_kindergarten
++amenity-school category_school
++amenity-language_school category_language_school
++amenity-music_school category_music_school
++leisure-dance category_courses
++office-educational_institution category_work category_courses
+
+# Religion
++amenity-place_of_worship category_worship
+
+# Sport
++leisure-fitness_centre category_fitness
++sport-fitness category_fitness
++sport-yoga category_fitness
++leisure-pitch category_pitch
++leisure-fitness_station category_pitch
++leisure-track category_pitch
++leisure-swimming_pool category_pool
++leisure-sports_centre category_sports_centre category_sport
++leisure-sports_hall category_sport
++leisure-stadium category_sport
++leisure-golf_course category_sport
++leisure-miniature_golf category_sport
++sport-10pin category_sport
++sport-9pin category_sport
++sport-american_football category_sport
++sport-archery category_sport
++sport-athletics category_sport
++sport-australian_football category_sport
++sport-baseball category_sport
++sport-basketball category_sport
++sport-beachvolleyball category_sport
++sport-boules category_sport
++sport-bowls category_sport
++sport-chess category_sport
++sport-climbing category_sport
++sport-cricket category_sport
++sport-curling category_sport
++sport-cycling category_sport
++sport-equestrian category_sport
++sport-four_square category_sport
++sport-golf category_sport
++sport-gymnastics category_sport
++sport-handball category_sport
++sport-horse_racing category_sport
++sport-karting category_sport
++sport-motocross category_sport
++sport-motor category_sport
++sport-netball category_sport
++sport-padel category_sport
++sport-pickleball category_sport
++sport-rugby_union category_sport
++sport-running category_sport
++sport-shooting category_sport
++sport-skateboard category_sport
++sport-skiing category_sport
++sport-soccer category_sport
++sport-softball category_sport
++sport-swimming category_sport
++sport-table_tennis category_sport
++sport-tennis category_sport
++sport-volleyball category_sport
+
+# Parks and outdoors
++leisure-park category_park
++leisure-garden category_park
++tourism-picnic_site category_park
++leisure-playground category_playground
++leisure-picnic_table category_outdoor
++leisure-firepit category_outdoor
++amenity-bbq category_outdoor
++amenity-shower category_outdoor
++amenity-fountain category_outdoor
+
+# Nature
++leisure-nature_reserve category_protected_area
++natural-saddle category_mountain
++mountain_pass category_mountain
++tourism-alpine_hut category_hut
++tourism-wilderness_hut category_hut
++tourism-viewpoint category_viewpoint
++waterway-waterfall category_waterfall
+
+# Water
++leisure-marina category_water_activities
++leisure-slipway category_water_activities
++amenity-boat_rental category_water_activities
++shop-fishing category_water_activities
+
+# Sights
++man_made-lighthouse category_landmark
++tourism-artwork category_artwork
++historic-memorial-plaque category_small_history
++historic-memorial-cross category_small_history
++historic-memorial-stolperstein category_small_history
++historic-battlefield category_small_history
++historic-mine category_small_history
++historic-anchor category_small_history
++historic-boundary_stone category_small_history
++historic-cannon category_small_history
++historic-stone category_small_history
++historic-wayside_cross category_small_history
++historic-wayside_shrine category_small_history
++man_made-cross category_small_history
++man_made-windmill category_small_history
+
+# Entertainment
++amenity-events_venue category_events
++amenity-conference_centre category_events
++amenity-exhibition_centre category_events
++amenity-studio category_events
++amenity-gambling category_gambling
++amenity-casino category_gambling
++leisure-adult_gaming_centre category_gambling
++shop-bookmaker category_gambling
++shop-lottery category_gambling
++amenity-brothel category_adult
++amenity-stripclub category_adult
++leisure-escape_game category_entertainment
++amenity-internet_cafe category_entertainment
++amenity-community_centre category_community_centre
++leisure-hackerspace category_community_centre
+
+# Beauty and health
++leisure-sauna category_wellness
++amenity-public_bath category_wellness
++shop-massage category_wellness
++shop-beauty category_beauty
++shop-hairdresser category_beauty
++shop-tattoo category_beauty
++amenity-clinic category_clinic
++amenity-dentist category_health
++shop-optician category_health
++shop-medical_supply category_health
++shop-hearing_aids category_health
++healthcare-alternative category_health
++healthcare-audiologist category_health
++healthcare-blood_donation category_health
++healthcare-laboratory category_health
++healthcare-optometrist category_health
++healthcare-physiotherapist category_health
++healthcare-podiatrist category_health
++healthcare-psychotherapist category_health
++healthcare-sample_collection category_health
++healthcare-speech_therapist category_health
+
+# Public services
++amenity-library category_library
++amenity-public_bookcase category_library
++amenity-fire_station category_rescue
++emergency-lifeguard category_rescue
++emergency-mountain_rescue category_rescue
++amenity-social_facility category_social
++amenity-nursing_home category_social
+
+# Transport and road
++aeroway-terminal category_airport
++railway-station-funicular category_aerialway
++amenity-charging_station category_road
++amenity-compressed_air category_road
++amenity-car_sharing category_road
++amenity-vehicle_inspection category_road
++amenity-bicycle_repair_station category_road
++highway-rest_area category_road
++highway-services category_road
++amenity-luggage_locker category_road
+
+# Food and lodging
++amenity-food_court category_eat
++amenity-ice_cream category_eat
++craft-caterer category_food_makers
++tourism-camp_site category_camping
++tourism-caravan_site category_camping
+
+# Pickup
++shop-outpost category_pickup
++amenity-parcel_locker category_pickup
+
+# Everyday services
++shop-laundry category_services
++shop-dry_cleaning category_services
++amenity-bureau_de_change category_services
++amenity-money_transfer category_services
++shop-copyshop category_services
++shop-ticket category_services
++craft-tailor category_services
++shop-mobile_phone category_services
++shop-telecommunication category_services
++shop-car_repair category_services
++shop-motorcycle_repair category_services
++shop-tyres category_services
++amenity-car_wash category_services
++amenity-car_rental category_services
++amenity-motorcycle_rental category_services
++amenity-bicycle_rental category_services
++shop-bicycle category_services
++shop-car category_services
++shop-motorcycle category_services
++shop-car_parts category_services
++shop-hardware category_services
++shop-doityourself category_services
++shop-electronics category_services
++shop-computer category_services
++shop-furniture category_services
++shop-books category_services
++shop-stationery category_services
++shop-florist category_services
++shop-photo category_services
++shop-pawnbroker category_services
++craft-electronics_repair category_services
++craft-shoemaker category_services
++craft-key_cutter category_services
++craft-locksmith category_services
++craft-watchmaker category_services
++craft-photographer category_services
++amenity-driving_school category_services
++shop category_services
++craft-blacksmith category_services
++craft-carpenter category_services
++craft-electrician category_services
++craft-gardener category_services
++craft-grinding_mill category_services
++craft-hvac category_services
++craft-metal_construction category_services
++craft-painter category_services
++craft-plumber category_services
++craft-sawmill category_services
++shop-agrarian category_services
++shop-appliance category_services
++shop-bathroom_furnishing category_services
++shop-bed category_services
++shop-boutique category_services
++shop-camera category_services
++shop-cannabis category_services
++shop-carpet category_services
++shop-chemist category_services
++shop-craft category_services
++shop-curtain category_services
++shop-electrical category_services
++shop-erotic category_services
++shop-fabric category_services
++shop-fashion_accessories category_services
++shop-games category_services
++shop-garden_centre category_services
++shop-gas category_services
++shop-herbalist category_services
++shop-hifi category_services
++shop-houseware category_services
++shop-interior_decoration category_services
++shop-kiosk category_services
++shop-kitchen category_services
++shop-leather category_services
++shop-lighting category_services
++shop-money_lender category_services
++shop-music category_services
++shop-musical_instrument category_services
++shop-newsagent category_services
++shop-nutrition_supplements category_services
++shop-outdoor category_services
++shop-paint category_services
++shop-pasta category_services
++shop-religion category_services
++shop-sewing category_services
++shop-storage_rental category_services
++shop-tea category_services
++shop-tobacco category_services
++shop-trade category_services
++shop-video category_services
++shop-video_games category_services
++shop-wholesale category_services
+
+# Shops with a category of Organic Maps
++shop-alcohol
++shop-antiques
++shop-art
++shop-auction
++shop-baby_goods
++shop-bag
++shop-bakery
++shop-beverages
++shop-butcher
++shop-caravan
++shop-charity
++shop-cheese
++shop-chocolate
++shop-clothes
++shop-coffee
++shop-collector
++shop-confectionery
++shop-convenience
++shop-cosmetics
++shop-dairy
++shop-deli
++shop-department_store
++shop-farm
++shop-gift
++shop-greengrocer
++shop-grocery
++shop-health_food
++shop-jewelry
++shop-mall
++shop-pastry
++shop-perfumery
++shop-seafood
++shop-second_hand
++shop-shoes
++shop-sports
++shop-supermarket
++shop-toys
++shop-variety_store
++shop-watches
++shop-wine
 
 # Street furniture
 -tourism-information

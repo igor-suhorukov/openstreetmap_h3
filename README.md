@@ -226,7 +226,8 @@ as for any invalid command line.
 
 With `-poi_mapping_dir /path/to/organicmaps/data` (a checkout of [Organic Maps](https://github.com/organicmaps/organicmaps))
 nodes, ways and relations that Organic Maps treats as POI get two additional tags with PostgreSQL array values:
-`is.poi` with Organic Maps types and `is.poi_category` with categories displayed in its search.
+`is.poi` with Organic Maps types and `is.poi_category` with categories displayed in its search and categories of the project rules below.
+Every POI type has a category except `emergency-emergency_ward_entrance`.
 Multipolygons get these tags too, also in `-arrow_format` files.
 ```
 "amenity"=>"cafe", "shop"=>"bakery", "is.poi"=>"{amenity-cafe,shop-bakery}", "is.poi_category"=>"{category_eat,category_food}"
