@@ -3,3 +3,6 @@ atm=yes : amenity=atm
 shop=ice_cream : amenity=ice_cream
 vending=parcel_pickup;parcel_mail_in : amenity=parcel_locker | u
 vending=parcel_pickup : amenity=parcel_locker | u
+amenity=embassy : office=diplomatic
+office=notary : office=lawyer
+office=administrative : office=government

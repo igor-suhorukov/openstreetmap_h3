@@ -110,6 +110,51 @@ class OrganicMapsPoiClassifierDataTest {
     }
 
     @Test
+    void poiTypes_placesOfWork() {
+        assertEquals(List.of("office-company"), classifier.poiTypes(tags("office=company")));
+        assertEquals(List.of("office"), classifier.poiTypes(tags("office=it")));
+        assertEquals(List.of("office-lawyer"), classifier.poiTypes(tags("office=notary")));
+        assertEquals(List.of("office-estate_agent"), classifier.poiTypes(tags("shop=estate_agent")));
+        assertEquals(List.of("office-travel_agent", "shop-travel_agency"), classifier.poiTypes(tags("office=travel_agent")));
+        assertEquals(List.of("office-government"), classifier.poiTypes(tags("office=administrative")));
+        assertEquals(List.of("office-diplomatic"), classifier.poiTypes(tags("amenity=embassy")));
+        assertEquals(List.of("amenity-research_institute", "office-research"), classifier.poiTypes(tags("amenity=research_institute", "office=research")));
+        assertEquals(List.of("building-office"), classifier.poiTypes(tags("building=office", "name=Tower")));
+        assertEquals(List.of(), classifier.poiTypes(tags("building=office")));
+        assertEquals(List.of("shop-mall"), classifier.poiTypes(tags("building=office", "shop=mall", "name=Mall")));
+        assertEquals(List.of("landuse-commercial"), classifier.poiTypes(tags("landuse=commercial", "name=Business Park")));
+        assertEquals(List.of("tourism-hotel"), classifier.poiTypes(tags("landuse=commercial", "tourism=hotel", "name=Hotel")));
+        assertEquals(List.of("man_made-works"), classifier.poiTypes(tags("man_made=works", "name=Plant")));
+        assertEquals(List.of("landuse-industrial-depot"), classifier.poiTypes(tags("landuse=industrial", "industrial=depot", "name=Depot")));
+        assertEquals(List.of("landuse-industrial-warehouse"), classifier.poiTypes(tags("landuse=industrial", "industrial=storage", "name=Stock")));
+        assertEquals("{category_office,category_work}", categoryOf("office=yes"));
+        assertEquals("{category_office_services,category_work}", categoryOf("office=insurance"));
+        assertEquals("{category_office_services,category_work}", categoryOf("office=travel_agent"));
+        assertEquals("{category_government,category_work}", categoryOf("amenity=townhall"));
+        assertEquals("{category_ngo,category_work}", categoryOf("office=charity"));
+        assertEquals("{category_coworking,category_work}", categoryOf("amenity=coworking_space"));
+        assertEquals("{category_business_centre,category_work}", categoryOf("building=office", "name=Tower"));
+        assertEquals("{category_industrial,category_work}", categoryOf("landuse=industrial", "name=Plant"));
+        assertEquals("{category_warehouse,category_work}", categoryOf("landuse=industrial", "industrial=logistics", "name=Hub"));
+        assertEquals("{category_depot,category_work}", categoryOf("landuse=industrial", "industrial=depot", "name=Depot"));
+        assertEquals("{category_research,category_work}", categoryOf("amenity=research_institute"));
+    }
+
+    @Test
+    void poiTypes_universitiesAndColleges() {
+        assertEquals("{category_college_university}", categoryOf("amenity=university"));
+        assertEquals("{category_college_university}", categoryOf("amenity=college"));
+        assertEquals(List.of("building-university"), classifier.poiTypes(tags("building=university", "name=Main Hall")));
+        assertEquals(List.of("building-college"), classifier.poiTypes(tags("building=college", "name=Workshop")));
+        assertEquals(List.of(), classifier.poiTypes(tags("building=university")));
+        assertEquals(List.of("amenity-university"), classifier.poiTypes(tags("building=university", "amenity=university", "name=Campus")));
+        assertEquals(List.of("amenity-research_institute"), classifier.poiTypes(tags("building=university", "amenity=research_institute", "name=Lab")));
+        assertEquals(List.of("building-university", "office-educational_institution"),
+                classifier.poiTypes(tags("building=university", "office=educational_institution", "name=Office")));
+        assertEquals("{category_college_university}", categoryOf("building=college", "name=Workshop"));
+    }
+
+    @Test
     void poiTypes_geotourismTypes() {
         assertEquals(List.of("natural-rock"), classifier.poiTypes(tags("natural=stone", "name=Pierre")));
         assertEquals(List.of(), classifier.poiTypes(tags("natural=stone")));
@@ -228,6 +273,10 @@ class OrganicMapsPoiClassifierDataTest {
         assertEquals("{category_sanatorium}", categoryOf("amenity=sanatorium"));
         assertEquals("{category_sanatorium}", categoryOf("healthcare=rehabilitation"));
         assertEquals(List.of("healthcare-sanatorium", "leisure-resort"), classifier.poiTypes(tags("leisure=resort", "resort=sanatorium")));
+        assertEquals(List.of("amenity-doctors", "healthcare-trauma"), classifier.poiTypes(tags("amenity=doctors", "healthcare=doctor", "healthcare:speciality=trauma")));
+        assertEquals("{category_hospital,category_trauma}", categoryOf("amenity=clinic", "healthcare:speciality=neurology;trauma"));
+        assertEquals("{category_trauma}", categoryOf("healthcare:speciality=trauma"));
+        assertEquals(List.of("emergency-emergency_ward_entrance"), classifier.poiTypes(tags("emergency=emergency_ward_entrance")));
     }
 
     @Test
@@ -329,7 +378,7 @@ class OrganicMapsPoiClassifierDataTest {
         assertEquals(List.of("boundary-national_park"), classifier.poiTypes(tags("boundary=national_park")));
         assertEquals(List.of("leisure-fishing"), classifier.poiTypes(tags("leisure=fishing")));
         assertEquals(List.of("amenity-coworking_space"), classifier.poiTypes(tags("amenity=coworking_space")));
-        assertEquals(List.of("amenity-coworking_space", "office"), classifier.poiTypes(tags("office=coworking")));
+        assertEquals(List.of("amenity-coworking_space", "office-coworking"), classifier.poiTypes(tags("office=coworking")));
         assertEquals(List.of("leisure-horse_riding"), classifier.poiTypes(tags("leisure=horse_riding")));
         assertEquals(List.of("leisure-spa"), classifier.poiTypes(tags("tourism=spa_resort")));
         assertEquals(List.of(), classifier.poiTypes(tags("place=city")));

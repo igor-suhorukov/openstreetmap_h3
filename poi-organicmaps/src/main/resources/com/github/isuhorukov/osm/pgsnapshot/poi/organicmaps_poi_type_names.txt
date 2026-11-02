@@ -153,6 +153,15 @@ en = Paediatric Care
 ru = Детский врач
 th = กุมารแพทย์
 
+[type.healthcare.trauma]
+en = Trauma Care
+ru = Травматология
+th = การรักษาอาการบาดเจ็บ
+
+[type.emergency.emergency_ward_entrance]
+ru = Вход в приёмное отделение
+th = ทางเข้าห้องฉุกเฉิน
+
 [type.amenity.training]
 en = Training Centre
 ru = Учебные курсы
@@ -347,3 +356,122 @@ th = ห้องเก็บไวน์
 en = Cooking School
 ru = Кулинарная школа
 th = โรงเรียนสอนทำอาหาร
+
+[type.building.office]
+en = Office Building
+ru = Офисное здание
+th = อาคารสำนักงาน
+
+[type.amenity.business_centre]
+en = Business Centre
+ru = Бизнес-центр
+th = ศูนย์ธุรกิจ
+
+[type.landuse.commercial]
+th = พื้นที่พาณิชยกรรม
+
+[type.building.university]
+en = University Building
+ru = Здание вуза
+th = อาคารมหาวิทยาลัย
+
+[type.building.college]
+en = College Building
+ru = Здание колледжа
+th = อาคารวิทยาลัย
+
+[type.office.coworking]
+en = Coworking Space
+ru = Коворкинг
+th = พื้นที่ทำงานร่วมกัน
+
+[type.office.accountant]
+en = Accountant
+ru = Бухгалтерские услуги
+th = สำนักงานบัญชี
+
+[type.office.tax_advisor]
+en = Tax Advisor
+ru = Налоговый консультант
+th = ที่ปรึกษาด้านภาษี
+
+[type.office.financial_advisor]
+en = Financial Advisor
+ru = Финансовый консультант
+th = ที่ปรึกษาทางการเงิน
+
+[type.office.employment_agency]
+en = Employment Agency
+ru = Кадровое агентство
+th = สำนักงานจัดหางาน
+
+[type.office.visa]
+en = Visa Centre
+ru = Визовый центр
+th = ศูนย์รับยื่นวีซ่า
+
+[type.office.translator]
+en = Translation Agency
+ru = Бюро переводов
+th = สำนักงานแปลภาษา
+
+[type.office.travel_agent]
+en = Travel Agent Office
+ru = Офис турагентства
+th = สำนักงานบริษัทนำเที่ยว
+
+[type.office.association]
+en = Association
+ru = Общественное объединение
+th = สมาคม
+
+[type.office.foundation]
+en = Foundation
+ru = Фонд
+th = มูลนิธิ
+
+[type.office.charity]
+en = Charity
+ru = Благотворительная организация
+th = องค์กรการกุศล
+
+[type.office.political_party]
+en = Political Party
+ru = Политическая партия
+th = พรรคการเมือง
+
+[type.office.union]
+en = Trade Union
+ru = Профсоюз
+th = สหภาพแรงงาน
+
+[type.office.religion]
+en = Religious Organisation
+ru = Религиозная организация
+th = องค์กรศาสนา
+
+[type.office.research]
+en = Research Office
+ru = Научная организация
+th = สำนักงานวิจัย
+
+[type.amenity.research_institute]
+en = Research Institute
+ru = Научно-исследовательский институт
+th = สถาบันวิจัย
+
+[type.man_made.works]
+th = โรงงานอุตสาหกรรม
+
+[type.landuse.industrial]
+th = เขตอุตสาหกรรม
+
+[type.landuse.industrial.warehouse]
+en = Warehouse Area
+ru = Складская территория
+th = พื้นที่คลังสินค้า
+
+[type.landuse.industrial.depot]
+en = Transport Depot
+ru = Транспортное депо
+th = อู่จอดและซ่อมบำรุงยานพาหนะ

@@ -32,8 +32,16 @@
 +aerialway-station category_aerialway
 +healthcare-other
 +healthcare-paediatrics category_paediatrics
++healthcare-trauma category_trauma
++emergency-emergency_ward_entrance
 +amenity-training
 +amenity-prep_school
++amenity-university category_college_university
++amenity-college category_college_university
++building-university category_college_university name=*
+-building-university-other
++building-college category_college_university name=*
+-building-college-other
 +healthcare-sanatorium category_sanatorium
 +historic-yes
 +historic-building category_tourism
@@ -123,7 +131,6 @@
 +boundary-protected_area-3 name=*
 +boundary-protected_area-5 name=*
 +leisure-fishing
-+amenity-coworking_space
 +leisure-horse_riding
 +leisure-spa
 +leisure-swimming_area
@@ -171,6 +178,44 @@
 -leisure-park-private
 -leisure-park-no-access
 -leisure-swimming_pool-private
+
+# Places of work
++building-office category_work category_business_centre name=*
+-building-office-other
++amenity-business_centre category_work category_business_centre
++landuse-commercial category_work category_business_centre name=*
+-landuse-commercial-other
++amenity-coworking_space category_work category_coworking
++office-coworking category_work category_coworking
++office category_work category_office
++office-lawyer category_work category_office_services
++office-estate_agent category_work category_office_services
++office-insurance category_work category_office_services
++office-accountant category_work category_office_services
++office-tax_advisor category_work category_office_services
++office-financial_advisor category_work category_office_services
++office-employment_agency category_work category_office_services
++office-visa category_work category_office_services
++office-translator category_work category_office_services
++office-travel_agent category_work category_office_services
++office-government category_work category_government
++office-diplomatic category_work category_government
++amenity-townhall category_work category_government
++amenity-courthouse category_work category_government
++office-ngo category_work category_ngo
++office-association category_work category_ngo
++office-foundation category_work category_ngo
++office-charity category_work category_ngo
++office-political_party category_work category_ngo
++office-union category_work category_ngo
++office-religion category_work category_ngo
++office-research category_work category_research
++amenity-research_institute category_work category_research
++man_made-works category_work category_industrial
++landuse-industrial category_work category_industrial name=*
+-landuse-industrial-other
++landuse-industrial-warehouse category_work category_warehouse name=*
++landuse-industrial-depot category_work category_depot name=*
 
 # Street furniture
 -tourism-information
