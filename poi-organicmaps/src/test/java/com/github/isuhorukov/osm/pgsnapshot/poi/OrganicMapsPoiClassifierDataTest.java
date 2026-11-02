@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.List;
 
 import static com.github.isuhorukov.osm.pgsnapshot.poi.OrganicMapsPoiClassifierTest.tags;
@@ -81,6 +82,94 @@ class OrganicMapsPoiClassifierDataTest {
         assertEquals(List.of(), classifier.poiTypes(tags("leisure=swimming_pool", "access=private")));
         assertEquals(List.of(), classifier.poiTypes(tags("leisure=swimming_pool", "access=no")));
         assertEquals(List.of("leisure-swimming_pool"), classifier.poiTypes(tags("leisure=swimming_pool")));
+    }
+
+    @Test
+    void poiTypes_privateParkingOfEveryKindIsNotPoi() {
+        for (String access : List.of("access=private", "access=no")) {
+            assertEquals(List.of(), classifier.poiTypes(tags("amenity=parking", access)));
+            assertEquals(List.of(), classifier.poiTypes(tags("amenity=parking", "fee=yes", access)));
+            for (String parking : List.of("multi-storey", "underground", "street_side", "lane", "surface")) {
+                assertEquals(List.of(), classifier.poiTypes(tags("amenity=parking", "parking=" + parking, access)), parking);
+                assertEquals(List.of(), classifier.poiTypes(tags("amenity=parking", "parking=" + parking, "fee=yes", access)), parking);
+            }
+        }
+        assertEquals(List.of("amenity-parking-multi-storey"), classifier.poiTypes(tags("amenity=parking", "parking=multi-storey")));
+        assertEquals(List.of("amenity-parking-lane-fee"), classifier.poiTypes(tags("amenity=parking", "parking=lane", "fee=yes")));
+        assertEquals(List.of("amenity-parking-permissive", "amenity-parking-street_side"), classifier.poiTypes(tags("amenity=parking", "parking=street_side", "access=permissive")));
+        assertEquals(List.of(), classifier.poiTypes(tags("amenity=parking_space", "parking_space=disabled")));
+    }
+
+    @Test
+    void poiTypes_otherPrivateObjectsAreNotPoi() {
+        for (String access : List.of("access=private", "access=no")) {
+            for (String tag : List.of("leisure=garden", "leisure=playground", "leisure=pitch", "leisure=fitness_station", "leisure=sports_centre", "leisure=marina", "sport=soccer",
+                    "man_made=pier", "amenity=charging_station", "amenity=water_point", "amenity=drinking_water", "man_made=water_tap", "man_made=water_well")) {
+                assertEquals(List.of(), classifier.poiTypes(tags(tag, access)), tag);
+            }
+            assertEquals(List.of(), classifier.poiTypes(tags("leisure=swimming_pool", "sport=swimming", access)));
+            assertEquals(List.of("amenity-school"), classifier.poiTypes(tags("amenity=school", "sport=soccer", access)));
+            assertEquals(List.of("amenity-cafe"), classifier.poiTypes(tags("amenity=cafe", access)));
+            assertEquals(List.of("amenity-fuel"), classifier.poiTypes(tags("amenity=fuel", access)));
+        }
+        assertEquals(List.of(), classifier.poiTypes(tags("leisure=garden", "garden:type=residential")));
+        assertEquals(List.of("leisure-garden"), classifier.poiTypes(tags("leisure=garden")));
+        assertEquals(List.of("leisure-pitch", "sport-soccer"), classifier.poiTypes(tags("leisure=pitch", "sport=soccer", "access=customers")));
+    }
+
+    @Test
+    void poiTypes_excludedTypeRemovesItsGroup() {
+        assertEquals(List.of(), classifier.poiTypes(tags("natural=water", "water=lake", "name=Lac", "intermittent=yes")));
+        assertEquals(List.of(), classifier.poiTypes(tags("natural=water", "water=pond", "name=Lac", "intermittent=yes")));
+        assertEquals(List.of(), classifier.poiTypes(tags("aeroway=aerodrome", "aerodrome=international", "aerodrome:type=military", "name=Base")));
+        assertEquals(List.of("shop-wholesale"), classifier.poiTypes(tags("landuse=industrial", "industrial=warehouse", "shop=wholesale", "name=Depot")));
+        assertEquals(List.of("shop-car_repair"), classifier.poiTypes(tags("landuse=industrial", "industrial=depot", "shop=car_repair", "name=Depot")));
+        assertEquals(List.of("landuse-industrial-warehouse"), classifier.poiTypes(tags("landuse=industrial", "industrial=warehouse", "name=Depot")));
+        assertEquals(List.of("tourism-information-office"), classifier.poiTypes(tags("tourism=information", "information=board;office")));
+        assertEquals(List.of("tourism-information-office", "tourism-information-visitor_centre"), classifier.poiTypes(tags("tourism=information", "information=office;visitor_centre")));
+        assertEquals(List.of("tourism-museum"), classifier.poiTypes(tags("tourism=information;museum")));
+        assertEquals(List.of("attraction-carousel"), classifier.poiTypes(tags("attraction=animal;carousel")));
+        assertEquals(List.of("amenity-cafe"), classifier.poiTypes(tags("amenity=toilets;cafe")));
+    }
+
+    @Test
+    void poiTypes_businessesAreNotDiveSites() {
+        assertEquals(List.of("amenity-dive_centre", "sport-scuba_diving"), classifier.poiTypes(tags("amenity=dive_centre", "sport=scuba_diving;snorkeling")));
+        assertEquals(List.of("amenity-dive_centre", "sport-scuba_diving"), classifier.poiTypes(tags("amenity=dive_centre", "sport=scuba_diving", "scuba_diving:entry:boat=yes")));
+        assertEquals(List.of("amenity-dive_centre", "sport-scuba_diving"), classifier.poiTypes(tags("amenity=dive_centre", "sport=scuba_diving", "scuba_diving:type:cave=yes")));
+        assertEquals(List.of("shop-scuba_diving"), classifier.poiTypes(tags("shop=scuba_diving", "diving:snorkeling=yes")));
+        assertEquals(List.of("tourism-hotel"), classifier.poiTypes(tags("tourism=hotel", "scuba_diving:type:snorkeling=yes")));
+        assertEquals(List.of("sport-scuba_diving", "tourism-guest_house"), classifier.poiTypes(tags("tourism=guest_house", "sport=scuba_diving", "scuba_diving:entry:shore=yes")));
+        assertEquals(List.of("office-company", "sport-scuba_diving"), classifier.poiTypes(tags("office=company", "sport=scuba_diving", "scuba_diving:entry:boat=yes")));
+        assertEquals(List.of("sport-snorkeling", "tourism-attraction"), classifier.poiTypes(tags("sport=snorkeling", "tourism=attraction")));
+        assertEquals("{category_dive_site,category_tourism}", categoryOf("sport=snorkeling", "tourism=attraction"));
+    }
+
+    @Test
+    void poiTypes_rentalShopAndTravelAgency() {
+        assertEquals(List.of("shop-rental"), classifier.poiTypes(tags("shop=rental")));
+        assertEquals(List.of("shop-travel_agency"), classifier.poiTypes(tags("shop=travel_agency")));
+        assertEquals("{category_office_services,category_work}", categoryOf("shop=travel_agency"));
+    }
+
+    @Test
+    void poiTypes_negativeFactorsAreNotPoi() {
+        assertEquals(List.of(), classifier.poiTypes(tags("amenity=prison", "name=Prison")));
+        assertEquals(List.of(), classifier.poiTypes(tags("shop=funeral_directors", "name=Funeral")));
+        assertEquals(List.of(), classifier.poiTypes(tags("amenity=waste_transfer_station")));
+    }
+
+    @Test
+    void getPoiTypes_everyTypeHasNamesInEveryLanguage() {
+        for (String language : OrganicMapsPoiClassifier.NAME_LANGUAGES) {
+            List<String> missing = new ArrayList<>();
+            for (PoiType type : classifier.getPoiTypes()) {
+                if (type.getName(language) == null) {
+                    missing.add(type.getType());
+                }
+            }
+            assertEquals(List.of(), missing, language);
+        }
     }
 
     @Test

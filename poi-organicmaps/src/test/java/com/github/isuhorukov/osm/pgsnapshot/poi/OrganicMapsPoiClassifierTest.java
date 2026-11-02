@@ -4,6 +4,9 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openstreetmap.osmosis.core.domain.v0_6.Tag;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.StringReader;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -286,6 +289,143 @@ class OrganicMapsPoiClassifierTest {
                 poiTags("scuba_diving:type:snorkeling=yes"));
         assertEquals(Map.of(POI_TAG, "{natural-reef}", POI_CATEGORY_TAG, "{category_dive_site}"), poiTags("natural=reef"));
         assertEquals(Map.of(POI_TAG, "{sport-freediving}", POI_CATEGORY_TAG, "{category_diving}"), poiTags("sport=freediving"));
+    }
+
+    private static OrganicMapsPoiClassifier classifierOf(String mapping, String categories, String rules) throws IOException {
+        return new OrganicMapsPoiClassifier(TagReplacer.parse(reader("")), MapcssMapping.parseRules(reader(mapping)),
+                Categories.parse(reader(categories)), TypeNames.EMPTY, PoiRules.parse(reader(rules)));
+    }
+
+    private static BufferedReader reader(String text) {
+        return new BufferedReader(new StringReader(text));
+    }
+
+    @Test
+    void poiTypes_excludedTypeRemovesTypesOfItsGroup() throws IOException {
+        OrganicMapsPoiClassifier parking = classifierOf("amenity|parking;26;\n"
+                + "amenity|parking|fee;[amenity=parking][fee];;name;int_name;125;\n"
+                + "amenity|parking|private;[amenity=parking][access=private];;name;int_name;145;\n", "", "+amenity-parking\n-amenity-parking-private\n");
+        assertEquals(List.of("amenity-parking-fee"), parking.poiTypes(tags("amenity=parking", "fee=yes")));
+        assertEquals(List.of(), parking.poiTypes(tags("amenity=parking", "fee=yes", "access=private")));
+        assertEquals(List.of(), parking.poiTypes(tags("amenity=parking", "access=private")));
+    }
+
+    @Test
+    void poiTypes_excludedTypeKeepsOtherGroups() throws IOException {
+        OrganicMapsPoiClassifier attractions = classifierOf("attraction|animal;1;\nattraction|carousel;2;\n", "", "+attraction\n-attraction-animal\n");
+        assertEquals(List.of("attraction-carousel"), attractions.poiTypes(tags("attraction=animal;carousel")));
+        assertEquals(List.of(), attractions.poiTypes(tags("attraction=animal")));
+    }
+
+    @Test
+    void poiTypes_excludedTypeKeepsTypesIncludedBelowItsRule() throws IOException {
+        OrganicMapsPoiClassifier information = classifierOf("tourism|information;1;\n"
+                + "tourism|information|board;[tourism=information][information=board];;;;2;\n"
+                + "tourism|information|office;[tourism=information][information=office];;;;3;\n", "", "-tourism-information\n+tourism-information-office\n");
+        assertEquals(List.of("tourism-information-office"), information.poiTypes(tags("tourism=information", "information=board;office")));
+        assertEquals(List.of(), information.poiTypes(tags("tourism=information", "information=board")));
+    }
+
+    @Test
+    void poiTypes_typeWithoutCategoriesEntryKeepsItsGroup() throws IOException {
+        OrganicMapsPoiClassifier shops = classifierOf("shop|a;1;\nshop|a|b;[shop=a][b];;;;2;\nshop|a|c;[shop=a][c];;;;3;\n", "shop-a-c\nen:C\n", "");
+        assertEquals(List.of("shop-a-c"), shops.poiTypes(tags("shop=a", "b=yes", "c=yes")));
+    }
+
+    @Test
+    void poiTypes_exclusionByTagIsStrongerThanInclusion() throws IOException {
+        OrganicMapsPoiClassifier sport = classifierOf("leisure|pitch;1;\nsport|soccer;2;\namenity|school;3;\n", "",
+                "+leisure-pitch\n+sport-soccer\n+amenity-school\n-leisure access=private;no\n-sport access=private;no\n");
+        assertEquals(List.of("leisure-pitch", "sport-soccer"), sport.poiTypes(tags("leisure=pitch", "sport=soccer")));
+        assertEquals(List.of("leisure-pitch", "sport-soccer"), sport.poiTypes(tags("leisure=pitch", "sport=soccer", "access=yes")));
+        assertEquals(List.of(), sport.poiTypes(tags("leisure=pitch", "sport=soccer", "access=private")));
+        assertEquals(List.of(), sport.poiTypes(tags("leisure=pitch", "sport=soccer", "access=no")));
+        assertEquals(List.of("amenity-school"), sport.poiTypes(tags("amenity=school", "sport=soccer", "access=private")));
+    }
+
+    @Test
+    void poiTypes_exclusionRulesOfOneTypeAreAlternatives() throws IOException {
+        OrganicMapsPoiClassifier snorkeling = classifierOf("sport|snorkeling;[sport=snorkeling];;;;1;\n", "",
+                "+sport-snorkeling\n-sport-snorkeling tourism=hotel;hostel\n-sport-snorkeling office=*\n");
+        assertEquals(List.of("sport-snorkeling"), snorkeling.poiTypes(tags("sport=snorkeling")));
+        assertEquals(List.of("sport-snorkeling"), snorkeling.poiTypes(tags("sport=snorkeling", "tourism=attraction")));
+        assertEquals(List.of(), snorkeling.poiTypes(tags("sport=snorkeling", "tourism=hostel")));
+        assertEquals(List.of(), snorkeling.poiTypes(tags("sport=snorkeling", "office=company")));
+    }
+
+    @Test
+    void poiTypes_typeExcludedByTagLeavesTheShorterType() throws IOException {
+        OrganicMapsPoiClassifier diving = classifierOf("sport|scuba_diving;1;\nsport|scuba_diving|divespot;[sport=scuba_diving][scuba_diving:type];;;;2;\n", "",
+                "+sport-scuba_diving\n-sport-scuba_diving-divespot tourism=hotel\n");
+        assertEquals(List.of("sport-scuba_diving-divespot"), diving.poiTypes(tags("sport=scuba_diving", "scuba_diving:type=reef")));
+        assertEquals(List.of("sport-scuba_diving"), diving.poiTypes(tags("sport=scuba_diving", "scuba_diving:type=reef", "tourism=hotel")));
+    }
+
+    @Test
+    void poiTags_privateObjectsAreNotPoi() {
+        assertEquals(Map.of(POI_TAG, "{amenity-parking-multi-storey}", POI_CATEGORY_TAG, "{category_parking}"), poiTags("amenity=parking", "parking=multi-storey"));
+        assertTrue(poiTags("amenity=parking", "parking=multi-storey", "access=private").isEmpty());
+        assertTrue(poiTags("amenity=parking", "parking=multi-storey", "access=no").isEmpty());
+        assertTrue(poiTags("amenity=parking", "fee=yes", "access=private").isEmpty());
+        assertTrue(poiTags("leisure=pitch", "sport=soccer", "access=private").isEmpty());
+        assertTrue(poiTags("leisure=playground", "access=no").isEmpty());
+        assertTrue(poiTags("leisure=garden", "access=private").isEmpty());
+        assertTrue(poiTags("man_made=pier", "access=private").isEmpty());
+        assertTrue(poiTags("amenity=charging_station", "access=private").isEmpty());
+        assertTrue(poiTags("amenity=water_point", "access=private").isEmpty());
+        assertTrue(poiTags("amenity=drinking_water", "access=no").isEmpty());
+        assertTrue(poiTags("man_made=water_tap", "access=private").isEmpty());
+        assertTrue(poiTags("man_made=water_well", "access=private").isEmpty());
+        assertEquals(Map.of(POI_TAG, "{leisure-garden}"), poiTags("leisure=garden"));
+        assertEquals(Map.of(POI_TAG, "{leisure-pitch,sport-soccer}"), poiTags("leisure=pitch", "sport=soccer", "access=customers"));
+        assertEquals(Map.of(POI_TAG, "{amenity-school}"), poiTags("amenity=school", "sport=soccer", "access=private"));
+        assertEquals(Map.of(POI_TAG, "{amenity-cafe}", POI_CATEGORY_TAG, "{category_eat}"), poiTags("amenity=cafe", "access=private"));
+    }
+
+    @Test
+    void poiTags_excludedSubtypeRemovesItsGroup() {
+        assertEquals(Map.of(POI_TAG, "{natural-water-lake}", POI_CATEGORY_TAG, "{category_lake}"), poiTags("natural=water", "water=lake", "name=Lac"));
+        assertTrue(poiTags("natural=water", "water=lake", "name=Lac", "intermittent=yes").isEmpty());
+        assertEquals(Map.of(POI_TAG, "{amenity-cafe}", POI_CATEGORY_TAG, "{category_eat}"), poiTags("landuse=industrial", "industrial=warehouse", "amenity=cafe", "name=Depot"));
+        assertEquals(Map.of(POI_TAG, "{amenity-cafe}", POI_CATEGORY_TAG, "{category_eat}"), poiTags("landuse=industrial", "industrial=depot", "amenity=cafe", "name=Depot"));
+        assertEquals(work("landuse-industrial-warehouse", "category_warehouse"), poiTags("landuse=industrial", "industrial=warehouse", "name=Depot"));
+    }
+
+    @Test
+    void poiTags_informationAndAttractionsWithSeveralValues() {
+        assertEquals(Map.of(POI_TAG, "{tourism-information-office}", POI_CATEGORY_TAG, "{category_tourism}"), poiTags("tourism=information", "information=board;office"));
+        assertEquals(Map.of(POI_TAG, "{attraction-carousel}", POI_CATEGORY_TAG, "{category_amusement}"), poiTags("attraction=animal;carousel"));
+    }
+
+    @Test
+    void poiTags_businessesAreNotDiveSites() {
+        Map<String, String> centre = Map.of(POI_TAG, "{amenity-dive_centre,sport-scuba_diving}", POI_CATEGORY_TAG, "{category_diving}");
+        assertEquals(centre, poiTags("amenity=dive_centre", "sport=scuba_diving;snorkeling"));
+        assertEquals(centre, poiTags("amenity=dive_centre", "sport=scuba_diving", "scuba_diving:entry:boat=yes"));
+        assertEquals(centre, poiTags("amenity=dive_centre", "sport=scuba_diving", "scuba_diving:type:cave=yes"));
+        assertEquals(centre, poiTags("amenity=dive_centre", "sport=scuba_diving", "sport=snorkling"));
+        assertEquals(Map.of(POI_TAG, "{shop-scuba_diving}", POI_CATEGORY_TAG, "{category_diving}"), poiTags("shop=scuba_diving", "sport=snorkeling"));
+        assertEquals(Map.of(POI_TAG, "{leisure-pitch}"), poiTags("leisure=pitch", "scuba_diving:divespot=yes"));
+        assertEquals(Map.of(POI_TAG, "{tourism-hotel}", POI_CATEGORY_TAG, "{category_hotel}"), poiTags("tourism=hotel", "scuba_diving:type:snorkeling=yes"));
+        assertEquals(Map.of(POI_TAG, "{sport-scuba_diving,tourism-hotel}", POI_CATEGORY_TAG, "{category_diving,category_hotel}"),
+                poiTags("tourism=hotel", "sport=scuba_diving", "scuba_diving:entry:boat=yes"));
+        assertEquals(work("office-company", "category_office"), poiTags("office=company", "sport=snorkeling"));
+        assertEquals(Map.of(POI_TAG, "{sport-snorkeling}", POI_CATEGORY_TAG, "{category_dive_site}"), poiTags("sport=snorkeling", "tourism=attraction"));
+    }
+
+    @Test
+    void poiTags_rentalShopAndTravelAgency() {
+        assertEquals(Map.of(POI_TAG, "{shop-rental}"), poiTags("shop=rental"));
+        assertEquals(work("shop-travel_agency", "category_office_services"), poiTags("shop=travel_agency"));
+    }
+
+    @Test
+    void poiTags_negativeFactorsAndSmallObjectsAreNotPoi() {
+        assertTrue(poiTags("amenity=prison").isEmpty());
+        assertTrue(poiTags("shop=funeral_directors").isEmpty());
+        assertTrue(poiTags("amenity=waste_transfer_station").isEmpty());
+        assertTrue(poiTags("leisure=garden", "garden:type=residential").isEmpty());
+        assertTrue(poiTags("amenity=parking_space", "parking_space=disabled").isEmpty());
     }
 
     @Test

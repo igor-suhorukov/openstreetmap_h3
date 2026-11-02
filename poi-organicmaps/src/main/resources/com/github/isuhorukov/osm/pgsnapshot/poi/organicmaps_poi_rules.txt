@@ -6,6 +6,11 @@
 #                                                  only for objects with one of the values of the tag,
 #                                                  key=* - with any value of the tag
 #   -<type>                  not a POI
+#   -<type> key=value;value  not a POI for objects with one of the values of the tag, stronger than any + rule;
+#                            key=* - with any value of the tag, several rules of one type are alternatives
+# A type excluded by a -<type> rule without a tag also removes the other types of the object with the same two
+# first levels, except the types included by a + rule below that - rule:
+# amenity-parking-private removes amenity-parking-fee, tourism-information-board keeps tourism-information-office.
 
 # The entrance is the walking destination of a metro station, categories.txt has no entry for it.
 +railway-subway_entrance category_transport category_metro
@@ -23,7 +28,11 @@
 +landuse-orchard
 +sport-scuba_diving category_diving
 +sport-scuba_diving-divespot category_dive_site category_diving
+-sport-scuba_diving-divespot tourism=hotel;guest_house;hostel;motel;apartment;chalet
+-sport-scuba_diving-divespot office=*
 +sport-snorkeling category_dive_site
+-sport-snorkeling tourism=hotel;guest_house;hostel;motel;apartment;chalet
+-sport-snorkeling office=*
 +natural-reef category_dive_site
 +historic-wreck category_dive_site
 +sport-freediving category_diving
@@ -175,9 +184,25 @@
 +tourism-wine_cellar category_craft_drink
 +amenity-cooking_school category_craft_food
 -amenity-grave_yard
+-amenity-prison
+-shop-funeral_directors
+-amenity-waste_transfer_station
 -leisure-park-private
 -leisure-park-no-access
 -leisure-swimming_pool-private
+-leisure-garden-residential
++shop-rental
+
+# Private objects
+-leisure access=private;no
+-sport access=private;no
+-amenity-parking access=private;no
+-man_made-pier access=private;no
+-amenity-charging_station access=private;no
+-amenity-water_point access=private;no
+-amenity-drinking_water access=private;no
+-man_made-water_tap access=private;no
+-man_made-water_well access=private;no
 
 # Places of work
 +building-office category_work category_business_centre name=*
@@ -198,6 +223,7 @@
 +office-visa category_work category_office_services
 +office-translator category_work category_office_services
 +office-travel_agent category_work category_office_services
++shop-travel_agency category_work category_office_services
 +office-government category_work category_government
 +office-diplomatic category_work category_government
 +amenity-townhall category_work category_government
@@ -226,6 +252,7 @@
 -amenity-waste_disposal
 -amenity-recycling
 -amenity-parking_entrance
+-amenity-parking_space-disabled
 -amenity-bicycle_parking
 -amenity-motorcycle_parking
 -amenity-vending_machine

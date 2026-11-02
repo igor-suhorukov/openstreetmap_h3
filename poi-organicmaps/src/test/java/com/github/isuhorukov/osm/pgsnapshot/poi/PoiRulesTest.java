@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -59,6 +60,33 @@ class PoiRulesTest {
     void parse_conditionWithoutKeyOrValue_throws() {
         assertThrows(IllegalArgumentException.class, () -> parse("+man_made-tower tower:type=\n"));
         assertThrows(IllegalArgumentException.class, () -> parse("+man_made-tower =observation\n"));
+    }
+
+    @Test
+    void exclusionConditions_typeAndSubtypes() throws IOException {
+        PoiRules rules = parse("-leisure access=private;no\n-sport-snorkeling tourism=hotel;hostel\n-sport-snorkeling office=*\n+leisure-park\n");
+        assertEquals(List.of(Map.of("access", Set.of("private", "no"))), rules.exclusionConditions("leisure-park-permissive"));
+        assertEquals(List.of(Map.of("tourism", Set.of("hotel", "hostel")), Map.of("office", Set.of("*"))), rules.exclusionConditions("sport-snorkeling"));
+        assertEquals(List.of(), rules.exclusionConditions("amenity-cafe"));
+        assertFalse(rules.isExcluded("leisure-park"));
+        assertFalse(rules.isExcluded("sport-snorkeling"));
+        assertEquals(Set.of("leisure", "leisure-park", "sport-snorkeling"), rules.ruleTypes());
+    }
+
+    @Test
+    void parse_exclusionWithEmptyCondition_throws() {
+        assertThrows(IllegalArgumentException.class, () -> parse("-leisure access=\n"));
+        assertThrows(IllegalArgumentException.class, () -> parse("-leisure =private\n"));
+        assertThrows(IllegalArgumentException.class, () -> parse("-leisure access=private category_eat\n"));
+    }
+
+    @Test
+    void exclusionRule_onlyForExcludedTypes() throws IOException {
+        PoiRules rules = parse("-tourism-information\n+tourism-information-office\n");
+        assertEquals(Optional.of("tourism-information"), rules.exclusionRule("tourism-information-board"));
+        assertEquals(Optional.empty(), rules.exclusionRule("tourism-information-office"));
+        assertEquals(Optional.of("tourism-information-office"), rules.inclusionRule("tourism-information-office"));
+        assertEquals(Optional.empty(), rules.inclusionRule("tourism-information-board"));
     }
 
     @Test

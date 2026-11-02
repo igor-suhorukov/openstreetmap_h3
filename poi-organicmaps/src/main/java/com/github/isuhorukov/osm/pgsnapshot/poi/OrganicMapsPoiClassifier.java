@@ -43,6 +43,9 @@ public final class OrganicMapsPoiClassifier {
     private final MapcssMapping mapping;
     private final Map<List<String>, Set<String>> poiCategories;
     private final Map<List<String>, Map<String, Set<String>>> tagConditions;
+    private final Map<List<String>, List<Map<String, Set<String>>>> exclusionConditions;
+    private final Map<List<String>, String> exclusionRules;
+    private final Map<List<String>, String> inclusionRules;
     private final List<PoiType> poiTypes;
     private final Set<String> unknownRuleTypes;
 
@@ -57,15 +60,28 @@ public final class OrganicMapsPoiClassifier {
         this.mapping = new MapcssMapping(candidateRules(rules, includedGroups(types, poiRules)));
         Map<List<String>, Set<String>> categoriesByType = new HashMap<>();
         Map<List<String>, Map<String, Set<String>>> conditionsByType = new HashMap<>();
+        Map<List<String>, List<Map<String, Set<String>>>> exclusionConditionsByType = new HashMap<>();
+        Map<List<String>, String> exclusionRulesByType = new HashMap<>();
+        Map<List<String>, String> inclusionRulesByType = new HashMap<>();
         for (List<String> type : types) {
+            String name = MapcssMapping.typeName(type);
             poiCategories(type, categories, poiRules).ifPresent(typeCategories -> categoriesByType.put(type, typeCategories));
-            Map<String, Set<String>> conditions = poiRules.tagConditions(MapcssMapping.typeName(type));
+            Map<String, Set<String>> conditions = poiRules.tagConditions(name);
             if (!conditions.isEmpty()) {
                 conditionsByType.put(type, conditions);
             }
+            List<Map<String, Set<String>>> exclusions = poiRules.exclusionConditions(name);
+            if (!exclusions.isEmpty()) {
+                exclusionConditionsByType.put(type, exclusions);
+            }
+            poiRules.exclusionRule(name).ifPresent(rule -> exclusionRulesByType.put(type, rule));
+            poiRules.inclusionRule(name).ifPresent(rule -> inclusionRulesByType.put(type, rule));
         }
         this.poiCategories = categoriesByType;
         this.tagConditions = conditionsByType;
+        this.exclusionConditions = exclusionConditionsByType;
+        this.exclusionRules = exclusionRulesByType;
+        this.inclusionRules = inclusionRulesByType;
         this.poiTypes = catalog(types, categoriesByType, typeNames);
     }
 
@@ -229,14 +245,44 @@ public final class OrganicMapsPoiClassifier {
             return Collections.emptyList();
         }
         tagReplacer.apply(objectTags);
-        List<List<String>> matched = mapping.match(objectTags);
+        Set<List<String>> all = mapping.matchAll(objectTags);
+        all.removeIf(type -> excludedByTags(type, objectTags));
+        List<List<String>> matched = MapcssMapping.leaveLongestTypes(all);
         List<List<String>> result = new ArrayList<>(matched.size());
         for (List<String> type : matched) {
-            if (poiCategories.containsKey(type) && satisfiesTagConditions(type, objectTags)) {
+            if (poiCategories.containsKey(type) && satisfiesTagConditions(type, objectTags) && !hasExcludedSibling(type, matched)) {
                 result.add(type);
             }
         }
         return result;
+    }
+
+    private boolean excludedByTags(List<String> type, List<MutableTag> tags) {
+        List<Map<String, Set<String>>> exclusions = exclusionConditions.get(type);
+        if (exclusions == null) {
+            return false;
+        }
+        for (Map<String, Set<String>> conditions : exclusions) {
+            if (holds(conditions, tags)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasExcludedSibling(List<String> type, List<List<String>> matched) {
+        for (List<String> other : matched) {
+            String exclusion = exclusionRules.get(other);
+            if (exclusion != null && group(other).equals(group(type)) && !isReincluded(type, exclusion)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isReincluded(List<String> type, String exclusion) {
+        String inclusion = inclusionRules.get(type);
+        return inclusion != null && PoiRules.appliesTo(exclusion, inclusion);
     }
 
     private static List<MutableTag> singleValueTags(Collection<Tag> tags) {
@@ -281,9 +327,10 @@ public final class OrganicMapsPoiClassifier {
 
     private boolean satisfiesTagConditions(List<String> type, List<MutableTag> tags) {
         Map<String, Set<String>> conditions = tagConditions.get(type);
-        if (conditions == null) {
-            return true;
-        }
+        return conditions == null || holds(conditions, tags);
+    }
+
+    private static boolean holds(Map<String, Set<String>> conditions, List<MutableTag> tags) {
         for (Map.Entry<String, Set<String>> condition : conditions.entrySet()) {
             if (!hasTagValue(tags, condition.getKey(), condition.getValue())) {
                 return false;

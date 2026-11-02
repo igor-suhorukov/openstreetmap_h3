@@ -475,3 +475,104 @@ th = พื้นที่คลังสินค้า
 en = Transport Depot
 ru = Транспортное депо
 th = อู่จอดและซ่อมบำรุงยานพาหนะ
+
+[type.man_made.bridge]
+en = Bridge
+ru = Мост
+th = สะพาน
+
+[type.sport.9pin]
+en = Nine-pin Bowling
+ru = Кегли
+th = โบว์ลิ่งเก้าพิน
+
+[type.railway.halt]
+ru = Железнодорожная платформа
+th = ป้ายหยุดรถไฟ
+
+[type.aeroway.terminal]
+th = อาคารผู้โดยสารสนามบิน
+
+[type.amenity.food_court]
+th = ศูนย์อาหาร
+
+[type.amenity.love_hotel]
+th = เลิฟโฮเทล
+
+[type.amenity.luggage_locker]
+th = ตู้ฝากกระเป๋า
+
+[type.amenity.parcel_locker]
+th = ตู้รับพัสดุ
+
+[type.amenity.ranger_station]
+th = หน่วยพิทักษ์ป่า
+
+[type.amenity.sanitary_dump_station]
+th = จุดถ่ายของเสียรถบ้าน
+
+[type.amenity.studio]
+th = สตูดิโอ
+
+[type.attraction.big_wheel]
+th = ชิงช้าสวรรค์
+
+[type.attraction.bumper_car]
+th = รถบั๊ม
+
+[type.highway.services]
+th = จุดพักรถและบริการ
+
+[type.historic.gallows]
+th = ตะแลงแกง
+
+[type.landuse.orchard]
+th = สวนผลไม้
+
+[type.landuse.vineyard]
+th = ไร่องุ่น
+
+[type.leisure.beach_resort]
+th = รีสอร์ตริมหาด
+
+[type.leisure.escape_game]
+th = เกมห้องปริศนา
+
+[type.leisure.firepit]
+th = หลุมก่อไฟ
+
+[type.leisure.ice_rink]
+th = ลานสเก็ตน้ำแข็ง
+
+[type.leisure.marina]
+th = มารีนา
+
+[type.leisure.slipway]
+th = ทางลาดลงเรือ
+
+[type.man_made.pier]
+th = ท่าเทียบเรือ
+
+[type.mountain_pass]
+th = ช่องเขา
+
+[type.office.security]
+th = บริษัทรักษาความปลอดภัย
+
+[type.shop.caravan]
+th = ร้านรถบ้าน
+
+[type.shop.lighting]
+th = ร้านโคมไฟ
+
+[type.sport.australian_football]
+th = ฟุตบอลออสเตรเลีย
+
+[type.sport.bowls]
+th = ลอนโบวลส์
+
+[type.sport.cricket]
+th = คริกเก็ต
+
+[type.sport.diving]
+th = กระโดดน้ำ

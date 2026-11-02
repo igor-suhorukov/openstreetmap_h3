@@ -145,6 +145,10 @@ final class MapcssMapping {
     }
 
     List<List<String>> match(List<MutableTag> tags) {
+        return leaveLongestTypes(matchAll(tags));
+    }
+
+    Set<List<String>> matchAll(List<MutableTag> tags) {
         Set<List<String>> matched = new HashSet<>();
         for (MutableTag tag : tags) {
             Map<String, List<Rule>> byValue = rulesByTag.get(tag.key);
@@ -154,7 +158,7 @@ final class MapcssMapping {
             addMatched(rulesByMandatoryKey.get(tag.key), tags, matched);
         }
         addMatched(unindexedRules, tags, matched);
-        return leaveLongestTypes(matched);
+        return matched;
     }
 
     private static void addMatched(List<Rule> rules, List<MutableTag> tags, Set<List<String>> matched) {

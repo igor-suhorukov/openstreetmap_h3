@@ -132,3 +132,33 @@ amenity-courthouse
 en:4Courthouse
 ru:Суд
 th:ศาล
+
+leisure-garden
+en:Garden
+
+shop-funeral_directors
+en:Funeral Directors
+
+tourism-hotel|@category_hotel
+en:Hotel
+
+leisure-playground|@category_children
+en:Playground
+
+leisure-pitch
+en:Pitch
+
+sport-soccer
+en:Soccer
+
+shop-travel_agency
+en:Travel Agency
+
+amenity-parking_space-disabled|@category_parking
+en:Disabled Parking Space
+
+amenity-prison
+en:Prison
+
+amenity-waste_transfer_station
+en:Waste Transfer Station
