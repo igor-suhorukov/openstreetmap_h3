@@ -346,9 +346,22 @@ class OrganicMapsPoiClassifierDataTest {
                 classifier.poiTypes(tags("shop=scuba_diving", "sport=scuba_diving", "scuba_diving:type=reef")));
         assertEquals(List.of("leisure-swimming_pool", "sport-scuba_diving"),
                 classifier.poiTypes(tags("leisure=swimming_pool", "sport=scuba_diving", "scuba_diving:type=pool")));
-        assertEquals(List.of("historic-wreck"), classifier.poiTypes(tags("seamark:type=wreck")));
         assertEquals("{category_dive_site}", categoryOf("natural=reef"));
-        assertEquals("{category_dive_site}", categoryOf("historic=wreck"));
+    }
+
+    @Test
+    void poiTags_wreckIsDiveSiteOnlyWithDivingMark() {
+        assertEquals(List.of(), classifier.poiTypes(tags("historic=wreck")));
+        assertEquals(List.of(), classifier.poiTypes(tags("seamark:type=wreck", "seamark:wreck:category=hull_showing")));
+        assertEquals(List.of("historic-wreck"), classifier.poiTypes(tags("seamark:type=wreck", "name=Old Barge")));
+        assertEquals("{category_tourism}", categoryOf("historic=wreck", "name=Old Barge"));
+        assertEquals(List.of("sport-scuba_diving-divespot"), classifier.poiTypes(tags("historic=wreck", "sport=scuba_diving")));
+        assertEquals(List.of("sport-scuba_diving-divespot"), classifier.poiTypes(tags("seamark:type=wreck", "sport=scuba_diving")));
+        assertEquals(List.of("historic-wreck", "sport-scuba_diving-divespot"),
+                classifier.poiTypes(tags("historic=wreck", "seamark:type=wreck", "sport=scuba_diving", "name=Victory")));
+        assertEquals("{category_dive_site,category_diving,category_tourism}", categoryOf("historic=wreck", "sport=scuba_diving", "name=Victory"));
+        assertEquals(List.of("amenity-dive_centre", "historic-wreck", "sport-scuba_diving"),
+                classifier.poiTypes(tags("amenity=dive_centre", "historic=wreck", "sport=scuba_diving", "name=Wreck Divers")));
     }
 
     @Test

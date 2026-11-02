@@ -36,7 +36,6 @@
 -sport-snorkeling tourism=hotel;guest_house;hostel;motel;apartment;chalet
 -sport-snorkeling office=*
 +natural-reef category_dive_site
-+historic-wreck category_dive_site
 +sport-freediving category_diving
 +amenity-dive_centre category_diving
 +shop-scuba_diving category_diving
@@ -58,6 +57,7 @@
 +historic-building category_tourism
 +historic-monastery category_tourism
 +historic-military category_tourism name=*
++historic-wreck category_tourism name=*
 +historic-vehicle category_tourism
 +amenity-planetarium category_tourism
 +man_made-observatory category_tourism
