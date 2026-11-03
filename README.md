@@ -237,7 +237,8 @@ a type is a POI when it belongs to the POI classes of `IsPoiChecker` and has an 
 Unlike the generator, a value with `;` such as `tourism=museum;gallery` is matched by each of its parts.
 Project adjustments, like street furniture exclusions, are in
 `poi-organicmaps/src/main/resources/com/github/isuhorukov/osm/pgsnapshot/poi/organicmaps_poi_rules.txt`:
-`+<type> [category ...] [key=value;value ...]` makes a type a POI, `-<type>` removes it and the other types of the object
+`+<type> [category ...] [!category ...] [key=value;value ...]` makes a type a POI (`!category` drops that category of Organic Maps,
+as `amenity-ferry_terminal` has `category_sea_transport` instead of `category_transport`), `-<type>` removes it and the other types of the object
 with the same two first levels, except the types included by a `+` rule below that `-` rule, and
 `-<type> key=value;value` removes the type and its subtypes for objects with the tag, stronger than any `+` rule
 (`key=*` matches any value, several rules of one type are alternatives).

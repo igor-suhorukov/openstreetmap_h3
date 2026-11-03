@@ -2,7 +2,9 @@
 # By default a type is a POI when it belongs to the POI classes of Organic Maps IsPoiChecker
 # (libs/indexer/ftypes_matcher.cpp) and data/categories.txt has an entry for it.
 # A rule applies to the type and its subtypes: amenity-parking also matches amenity-parking-fee.
-#   +<type> [category ...] [key=value;value ...]   POI, optionally with additional displayed categories,
+#   +<type> [category ...] [!category ...] [key=value;value ...]
+#                                                  POI, optionally with additional displayed categories,
+#                                                  !category - without this category of Organic Maps,
 #                                                  only for objects with one of the values of the tag,
 #                                                  key=* - with any value of the tag
 #   -<type>                  not a POI
@@ -85,7 +87,9 @@
 +amenity-animal_boarding category_pets category_pet_services
 +amenity-animal_breeding category_pets category_pet_services
 +amenity-animal_training category_pets category_dog_areas
++amenity-veterinary_pharmacy category_pets category_pet_services
 +amenity-parking category_parking
++amenity-motorcycle_parking category_parking
 -amenity-parking-private
 -amenity-parking-no-access
 -amenity-parking-underground-private
@@ -127,6 +131,8 @@
 +shop-ski category_ski category_shopping
 +amenity-shelter-basic_hut category_hut
 +amenity-shelter-lean_to category_hut
++amenity-shelter-weather_shelter category_hut name=*
++amenity-shelter-rock_shelter category_hut
 +aeroway-aerodrome category_transport category_airport name=*
 -aeroway-aerodrome-restricted
 +natural-volcano category_volcano
@@ -135,12 +141,18 @@
 +place-islet category_coast
 +natural-bay category_coast
 +natural-cape category_coast
++place-archipelago category_coast
++natural-atoll category_coast
 +natural-cliff-notable category_mountain
 +leisure-ice_rink category_sport
 +boundary-national_park category_protected_area
++boundary-protected_area category_protected_area name=* protect_class=7;97
++boundary-protected_area-1 category_protected_area name=*
 +boundary-protected_area-2 category_protected_area name=*
 +boundary-protected_area-3 category_protected_area name=*
++boundary-protected_area-4 category_protected_area name=*
 +boundary-protected_area-5 category_protected_area name=*
++boundary-protected_area-6 category_protected_area name=*
 +leisure-fishing category_water_activities
 +leisure-horse_riding category_sport
 +leisure-spa category_wellness
@@ -156,6 +168,8 @@
 +natural-ridge category_geotourism name=*
 +geological-glacial_erratic category_geotourism name=*
 +geological-palaeontological_site category_geotourism
++geological category_geotourism name=*
++waterway-rapids category_geotourism name=*
 +craft-pottery category_crafts
 +craft-handicraft category_crafts
 +craft-winery category_craft_drink
@@ -183,6 +197,8 @@
 +craft-engraver category_services
 +craft-saddler category_services
 +craft-boatbuilder category_services
++craft category_services
+-craft craft=stonemason;sculptor
 +tourism-wine_cellar category_craft_drink
 +amenity-cooking_school category_craft_food
 -amenity-grave_yard
@@ -199,6 +215,8 @@
 -leisure access=private;no
 -sport access=private;no
 -amenity-parking access=private;no
+-amenity-motorcycle_parking access=private;no
+-amenity-canteen access=private;no
 -man_made-pier access=private;no
 -amenity-charging_station access=private;no
 -amenity-water_point access=private;no
@@ -209,12 +227,17 @@
 # Places of work
 +building-office category_work category_business_centre name=*
 -building-office-other
++building-commercial category_work category_business_centre name=*
+-building-commercial-other
 +amenity-business_centre category_work category_business_centre
 +landuse-commercial category_work category_commercial_area name=*
 -landuse-commercial-other
++landuse-retail category_work category_commercial_area name=*
+-landuse-retail-other
 +amenity-coworking_space category_work category_coworking
 +office-coworking category_work category_coworking
 +office category_work category_office
+-office office=therapist;physician;midwife;psychologist
 +office-lawyer category_work category_office_services
 +office-estate_agent category_work category_office_services
 +office-insurance category_work category_office_services
@@ -248,6 +271,8 @@
 # Education
 +amenity-kindergarten category_kindergarten
 +amenity-childcare category_kindergarten
++building-kindergarten category_kindergarten name=*
+-building-kindergarten-other
 +amenity-school category_school
 +amenity-language_school category_language_school
 +amenity-music_school category_music_school
@@ -256,6 +281,8 @@
 
 # Religion
 +amenity-place_of_worship category_worship
++landuse-religious category_worship name=*
+-landuse-religious-other
 
 # Sport
 +leisure-fitness_centre category_fitness
@@ -323,6 +350,8 @@
 
 # Nature
 +leisure-nature_reserve category_protected_area
++landuse-forest category_forest name=*
+-landuse-forest place=island;islet
 +natural-saddle category_mountain
 +mountain_pass category_mountain
 +tourism-alpine_hut category_hut
@@ -335,6 +364,16 @@
 +leisure-slipway category_water_activities
 +amenity-boat_rental category_water_activities
 +shop-fishing category_water_activities
++shop-boat category_water_activities
++shop-surf category_water_activities
++shop-water_sports category_water_activities
++club-fishing category_water_activities name=*
++landuse-harbour category_pier name=*
++whitewater-put_in category_water_sports
+
+# Hunting
++shop-hunting category_hunting
++club-hunting category_hunting name=*
 
 # Sights
 +man_made-lighthouse category_landmark
@@ -352,6 +391,28 @@
 +historic-wayside_shrine category_small_history
 +man_made-cross category_small_history
 +man_made-windmill category_small_history
++man_made-watermill category_small_history
++man_made-adit category_small_history name=*
++waterway-dam category_landmark name=*
+
+# Other historic objects only with a name; the types of Organic Maps keep their categories and stay POI without a name
++historic category_tourism name=*
+-historic historic=railway;rail;highway;road;ancient_road;paving;suburb;neighbourhood;quarter;district;village;hamlet;locality;construction;abandoned;bomb_crater
++historic-aircraft
++historic-archaeological_site
++historic-castle
++historic-city_gate
++historic-citywalls
++historic-fort
++historic-gallows
++historic-locomotive
++historic-memorial
++historic-monument
++historic-pillory
++historic-ruins
++historic-ship
++historic-tank
++historic-tomb
 
 # Entertainment
 +amenity-events_venue category_events
@@ -369,6 +430,12 @@
 +amenity-internet_cafe category_entertainment
 +amenity-community_centre category_community_centre
 +leisure-hackerspace category_community_centre
++club category_community_centre name=*
+-club club=sport;sports;sailing;aviation;computer;swinger;cannabis;allotments
++leisure-trampoline_park category_children
++amenity-traffic_park category_children
++attraction-alpine_coaster category_amusement
+-attraction-alpine_coaster roller_coaster=track
 
 # Beauty and health
 +leisure-sauna category_wellness
@@ -399,10 +466,12 @@
 +amenity-fire_station category_rescue
 +emergency-lifeguard category_rescue
 +emergency-mountain_rescue category_rescue
++emergency-ambulance_station category_rescue
 +amenity-social_facility category_social
 +amenity-nursing_home category_social
 
 # Transport and road
++amenity-ferry_terminal category_sea_transport !category_transport
 +aeroway-terminal category_airport
 +railway-station-funicular category_aerialway
 +amenity-charging_station category_road
@@ -417,6 +486,11 @@
 # Food and lodging
 +amenity-food_court category_eat
 +amenity-ice_cream category_eat
++amenity-canteen category_eat
++shop-spices category_food
++shop-honey category_food
++shop-nuts category_food
++shop-frozen_food category_food
 +craft-caterer category_food_makers
 +tourism-camp_site category_camping
 +tourism-caravan_site category_camping
@@ -571,7 +645,6 @@
 -amenity-parking_entrance
 -amenity-parking_space-disabled
 -amenity-bicycle_parking
--amenity-motorcycle_parking
 -amenity-vending_machine
 -amenity-post_box
 -amenity-telephone

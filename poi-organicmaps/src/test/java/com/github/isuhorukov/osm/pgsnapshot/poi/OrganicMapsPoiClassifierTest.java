@@ -40,12 +40,19 @@ class OrganicMapsPoiClassifierTest {
     }
 
     @Test
-    void poiTags_protectedArea_onlyNamedClasses235() {
-        assertEquals(Map.of(POI_TAG, "{boundary-protected_area-2}", POI_CATEGORY_TAG, "{category_protected_area}"), poiTags("boundary=protected_area", "protect_class=2", "name=Park"));
-        assertEquals(Map.of(POI_TAG, "{boundary-protected_area-3}", POI_CATEGORY_TAG, "{category_protected_area}"), poiTags("boundary=protected_area", "protect_class=3", "name=Park"));
-        assertEquals(Map.of(POI_TAG, "{boundary-protected_area-5}", POI_CATEGORY_TAG, "{category_protected_area}"), poiTags("boundary=protected_area", "protect_class=5", "name=Park"));
+    void poiTags_protectedArea_onlyNamedNatureClasses() {
+        for (String protectClass : List.of("2", "3", "4", "5")) {
+            assertEquals(Map.of(POI_TAG, "{boundary-protected_area-" + protectClass + "}", POI_CATEGORY_TAG, "{category_protected_area}"),
+                    poiTags("boundary=protected_area", "protect_class=" + protectClass, "name=Park"), protectClass);
+        }
+        for (String protectClass : List.of("7", "97")) {
+            assertEquals(Map.of(POI_TAG, "{boundary-protected_area}", POI_CATEGORY_TAG, "{category_protected_area}"),
+                    poiTags("boundary=protected_area", "protect_class=" + protectClass, "name=Park"), protectClass);
+        }
         assertTrue(poiTags("boundary=protected_area", "protect_class=2").isEmpty());
-        assertTrue(poiTags("boundary=protected_area", "protect_class=4", "name=Park").isEmpty());
+        assertTrue(poiTags("boundary=protected_area", "protect_class=7").isEmpty());
+        assertTrue(poiTags("boundary=protected_area", "protect_class=22", "name=Altstadt").isEmpty());
+        assertTrue(poiTags("boundary=protected_area", "protect_class=12", "name=Wasserschutzgebiet").isEmpty());
         assertTrue(poiTags("boundary=protected_area", "name=Park").isEmpty());
     }
 
@@ -102,7 +109,9 @@ class OrganicMapsPoiClassifierTest {
     void poiTags_businessCentresAndOfficeBuildings_onlyWithName() {
         assertEquals(work("building-office", "category_business_centre"), poiTags("building=office", "name=Tower"));
         assertTrue(poiTags("building=office").isEmpty());
-        assertTrue(poiTags("building=commercial", "name=Tower").isEmpty());
+        assertEquals(work("building-commercial", "category_business_centre"), poiTags("building=commercial", "name=Plaza"));
+        assertTrue(poiTags("building=commercial").isEmpty());
+        assertEquals(work("office-company", "category_office"), poiTags("building=commercial", "office=company", "name=Plaza"));
         assertEquals(work("amenity-business_centre", "category_business_centre"), poiTags("amenity=business_center"));
         assertEquals(Map.of(POI_TAG, "{building-office,office-company}", POI_CATEGORY_TAG, "{category_business_centre,category_office,category_work}"),
                 poiTags("building=office", "office=company", "name=Tower"));

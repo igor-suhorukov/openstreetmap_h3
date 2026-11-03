@@ -358,6 +358,7 @@ public final class OrganicMapsPoiClassifier {
         if (includedCategories.isPresent()) {
             Set<String> result = new TreeSet<>(includedCategories.get());
             typeCategories.ifPresent(result::addAll);
+            result.removeAll(poiRules.removedCategories(name));
             return Optional.of(Collections.unmodifiableSet(result));
         }
         return isPoiClass(type) ? typeCategories : Optional.empty();

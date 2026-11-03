@@ -7,13 +7,15 @@ import java.util.*;
 final class PoiRules {
 
     private final Map<String, Set<String>> included;
+    private final Map<String, Set<String>> removed;
     private final Map<String, Map<String, Set<String>>> tagConditions;
     private final Set<String> excluded;
     private final Map<String, List<Map<String, Set<String>>>> excludedWhen;
 
-    private PoiRules(Map<String, Set<String>> included, Map<String, Map<String, Set<String>>> tagConditions, Set<String> excluded,
-                     Map<String, List<Map<String, Set<String>>>> excludedWhen) {
+    private PoiRules(Map<String, Set<String>> included, Map<String, Set<String>> removed, Map<String, Map<String, Set<String>>> tagConditions,
+                     Set<String> excluded, Map<String, List<Map<String, Set<String>>>> excludedWhen) {
         this.included = included;
+        this.removed = removed;
         this.tagConditions = tagConditions;
         this.excluded = excluded;
         this.excludedWhen = excludedWhen;
@@ -21,6 +23,7 @@ final class PoiRules {
 
     static PoiRules parse(BufferedReader reader) throws IOException {
         Map<String, Set<String>> included = new HashMap<>();
+        Map<String, Set<String>> removed = new HashMap<>();
         Map<String, Map<String, Set<String>>> tagConditions = new HashMap<>();
         Set<String> excluded = new HashSet<>();
         Map<String, List<Map<String, Set<String>>>> excludedWhen = new HashMap<>();
@@ -38,23 +41,34 @@ final class PoiRules {
             List<String> arguments = tokens.subList(1, tokens.size());
             if (rule.charAt(0) == '+' && !type.isEmpty()) {
                 included.put(type, categories(arguments));
+                removed.put(type, removedCategories(arguments));
                 tagConditions.put(type, conditions(arguments, lineNumber, line));
             } else if (rule.charAt(0) == '-' && !type.isEmpty() && arguments.isEmpty()) {
                 excluded.add(type);
-            } else if (rule.charAt(0) == '-' && !type.isEmpty() && categories(arguments).isEmpty()) {
+            } else if (rule.charAt(0) == '-' && !type.isEmpty() && categories(arguments).isEmpty() && removedCategories(arguments).isEmpty()) {
                 excludedWhen.computeIfAbsent(type, key -> new ArrayList<>()).add(conditions(arguments, lineNumber, line));
             } else {
                 throw new IllegalArgumentException("Expected '+type [category...]', '-type' or '-type key=value' in line " + lineNumber + ": " + line);
             }
         }
-        return new PoiRules(included, tagConditions, excluded, excludedWhen);
+        return new PoiRules(included, removed, tagConditions, excluded, excludedWhen);
     }
 
     private static Set<String> categories(List<String> arguments) {
         Set<String> categories = new TreeSet<>();
         for (String argument : arguments) {
-            if (argument.indexOf('=') < 0) {
+            if (argument.indexOf('=') < 0 && argument.charAt(0) != '!') {
                 categories.add(argument);
+            }
+        }
+        return Collections.unmodifiableSet(categories);
+    }
+
+    private static Set<String> removedCategories(List<String> arguments) {
+        Set<String> categories = new TreeSet<>();
+        for (String argument : arguments) {
+            if (argument.indexOf('=') < 0 && argument.charAt(0) == '!' && argument.length() > 1) {
+                categories.add(argument.substring(1));
             }
         }
         return Collections.unmodifiableSet(categories);
@@ -101,6 +115,10 @@ final class PoiRules {
 
     Optional<Set<String>> includedCategories(String type) {
         return mostSpecificRule(included.keySet(), type).map(included::get);
+    }
+
+    Set<String> removedCategories(String type) {
+        return mostSpecificRule(included.keySet(), type).map(removed::get).orElse(Set.of());
     }
 
     Map<String, Set<String>> tagConditions(String type) {

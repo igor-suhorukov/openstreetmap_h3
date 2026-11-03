@@ -121,6 +121,22 @@ class PoiRulesTest {
     }
 
     @Test
+    void removedCategories_mostSpecificRule() throws IOException {
+        PoiRules rules = parse("+amenity-ferry_terminal category_sea_transport !category_transport name=*\n+amenity-ferry_terminal-big\n");
+        assertEquals(Optional.of(Set.of("category_sea_transport")), rules.includedCategories("amenity-ferry_terminal"));
+        assertEquals(Set.of("category_transport"), rules.removedCategories("amenity-ferry_terminal"));
+        assertEquals(Set.of("category_transport"), rules.removedCategories("amenity-ferry_terminal-small"));
+        assertEquals(Map.of("name", Set.of("*")), rules.tagConditions("amenity-ferry_terminal"));
+        assertEquals(Set.of(), rules.removedCategories("amenity-ferry_terminal-big"));
+        assertEquals(Set.of(), rules.removedCategories("amenity-cafe"));
+    }
+
+    @Test
+    void parse_exclusionWithRemovedCategory_throws() {
+        assertThrows(IllegalArgumentException.class, () -> parse("-amenity-ferry_terminal !category_transport\n"));
+    }
+
+    @Test
     void parse_signWithoutType_throws() {
         assertThrows(IllegalArgumentException.class, () -> parse("+\n"));
     }

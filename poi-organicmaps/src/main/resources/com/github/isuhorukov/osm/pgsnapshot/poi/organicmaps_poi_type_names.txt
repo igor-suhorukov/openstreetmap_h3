@@ -581,3 +581,163 @@ th = คริกเก็ต
 
 [type.sport.diving]
 th = กระโดดน้ำ
+
+[type.club]
+en = Club
+ru = Клуб
+th = สโมสร
+
+[type.club.fishing]
+en = Fishing Club
+ru = Рыболовный клуб
+th = ชมรมตกปลา
+
+[type.club.hunting]
+en = Hunting Club
+ru = Охотничий клуб
+th = ชมรมล่าสัตว์
+
+[type.leisure.trampoline_park]
+en = Trampoline Park
+ru = Батутный парк
+th = สวนแทรมโพลีน
+
+[type.amenity.traffic_park]
+en = Traffic Park
+ru = Детский автогородок
+th = สวนจราจรสำหรับเด็ก
+
+[type.amenity.veterinary_pharmacy]
+en = Veterinary Pharmacy
+ru = Ветеринарная аптека
+th = ร้านขายยาสัตว์
+
+[type.emergency.ambulance_station]
+en = Ambulance Station
+ru = Станция скорой помощи
+th = สถานีรถพยาบาล
+
+[type.building.kindergarten]
+en = Kindergarten Building
+ru = Здание детского сада
+th = อาคารโรงเรียนอนุบาล
+
+[type.building.commercial]
+en = Commercial Building
+ru = Коммерческое здание
+th = อาคารพาณิชย์
+
+[type.landuse.retail]
+en = Retail Area
+ru = Зона торговли
+th = ย่านการค้าปลีก
+
+[type.place.archipelago]
+en = Archipelago
+ru = Архипелаг
+th = หมู่เกาะ
+
+[type.natural.atoll]
+en = Atoll
+ru = Атолл
+th = เกาะปะการังวงแหวน
+
+[type.landuse.harbour]
+en = Harbour
+ru = Гавань
+th = ท่าเรือ
+
+[type.shop.boat]
+en = Boat Shop
+ru = Магазин лодок и катеров
+th = ร้านขายเรือ
+
+[type.shop.surf]
+en = Surf Shop
+ru = Сёрф-шоп
+th = ร้านอุปกรณ์โต้คลื่น
+
+[type.shop.water_sports]
+en = Water Sports Shop
+ru = Магазин товаров для водного спорта
+th = ร้านอุปกรณ์กีฬาทางน้ำ
+
+[type.shop.hunting]
+en = Hunting Shop
+ru = Охотничий магазин
+th = ร้านอุปกรณ์ล่าสัตว์
+
+[type.whitewater.put_in]
+en = Put-in or Take-out Point
+ru = Место спуска или выхода на воду
+th = จุดลงเรือหรือขึ้นฝั่ง
+
+[type.attraction.alpine_coaster]
+en = Alpine Coaster
+ru = Горная санная трасса
+th = รถรางเลื่อนภูเขา
+
+[type.amenity.shelter.weather_shelter]
+en = Weather Shelter
+ru = Укрытие от непогоды
+th = ที่หลบภัยจากสภาพอากาศ
+
+[type.amenity.shelter.rock_shelter]
+en = Rock Shelter
+ru = Скальное укрытие
+th = เพิงผา
+
+[type.geological]
+en = Geological Feature
+ru = Геологический объект
+th = แหล่งธรณีวิทยา
+
+[type.waterway.rapids]
+en = Rapids
+ru = Пороги
+th = แก่งน้ำ
+
+[type.man_made.adit]
+en = Adit
+ru = Штольня
+th = อุโมงค์เหมือง
+
+[type.man_made.watermill]
+en = Watermill
+ru = Водяная мельница
+th = โรงสีน้ำ
+
+[type.waterway.dam]
+en = Dam
+ru = Плотина
+th = เขื่อน
+
+[type.landuse.religious]
+en = Religious Area
+ru = Территория храма
+th = เขตศาสนสถาน
+
+[type.amenity.canteen]
+en = Canteen
+ru = Столовая
+th = โรงอาหาร
+
+[type.shop.spices]
+en = Spice Shop
+ru = Магазин специй
+th = ร้านเครื่องเทศ
+
+[type.shop.honey]
+en = Honey Shop
+ru = Магазин мёда
+th = ร้านน้ำผึ้ง
+
+[type.shop.nuts]
+en = Nut Shop
+ru = Магазин орехов
+th = ร้านถั่ว
+
+[type.shop.frozen_food]
+en = Frozen Food Shop
+ru = Магазин замороженных продуктов
+th = ร้านอาหารแช่แข็ง
