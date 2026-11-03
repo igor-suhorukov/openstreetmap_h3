@@ -746,3 +746,48 @@ th = ร้านอาหารแช่แข็ง
 en = Heritage Area
 ru = Охраняемая территория памятника
 th = เขตอนุรักษ์มรดกทางวัฒนธรรม
+
+[type.sport.yoga.studio]
+en = Yoga Studio
+ru = Студия йоги
+th = สตูดิโอโยคะ
+
+[type.sport.martial_arts.school]
+en = Martial Arts School
+ru = Школа единоборств
+th = โรงเรียนศิลปะการต่อสู้
+
+[type.emergency.rescue_station]
+en = Rescue Station
+ru = Спасательная станция
+th = สถานีกู้ภัย
+
+[type.waterway.boatyard]
+en = Boatyard
+ru = Верфь и ремонт лодок
+th = อู่ซ่อมเรือ
+
+[type.waterway.fuel]
+en = Boat Fuel Station
+ru = Заправка для лодок
+th = สถานีเติมน้ำมันเรือ
+
+[type.building.place_of_worship]
+en = Place of Worship Building
+ru = Здание храма
+th = อาคารศาสนสถาน
+
+[type.building.hotel]
+en = Hotel Building
+ru = Здание гостиницы
+th = อาคารโรงแรม
+
+[type.building.retail]
+en = Retail Building
+ru = Торговое здание
+th = อาคารร้านค้า
+
+[type.natural.tree]
+en = Notable Tree
+ru = Памятное дерево
+th = ต้นไม้สำคัญ
