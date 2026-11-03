@@ -791,3 +791,8 @@ th = อาคารร้านค้า
 en = Notable Tree
 ru = Памятное дерево
 th = ต้นไม้สำคัญ
+
+[type.sport.ice_skating]
+en = Ice Skating
+ru = Катание на коньках
+th = สเก็ตน้ำแข็ง

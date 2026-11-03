@@ -260,7 +260,7 @@ class OrganicMapsPoiClassifierTest {
     @Test
     void poiTags_replacedTag_classifiedAsReplacement() {
         assertEquals(Map.of(POI_TAG, "{amenity-ice_cream}", POI_CATEGORY_TAG, "{category_eat}"), poiTags("shop=ice_cream"));
-        assertEquals(Map.of(POI_TAG, "{amenity-parcel_locker}", POI_CATEGORY_TAG, "{category_pickup,category_post}"),
+        assertEquals(Map.of(POI_TAG, "{amenity-parcel_locker}", POI_CATEGORY_TAG, "{category_pickup}"),
                 poiTags("amenity=vending_machine", "vending=parcel_pickup"));
         assertTrue(poiTags("amenity=vending_machine", "vending=drinks").isEmpty());
     }

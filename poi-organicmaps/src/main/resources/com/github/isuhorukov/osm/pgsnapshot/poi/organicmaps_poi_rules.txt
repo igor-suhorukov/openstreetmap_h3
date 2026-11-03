@@ -75,6 +75,7 @@
 +sport-multi category_sport
 +sport-futsal category_sport
 +sport-ice_hockey category_sport
++sport-ice_skating category_sport
 +sport-field_hockey category_sport
 +sport-badminton category_sport
 +sport-pelota category_sport
@@ -284,7 +285,7 @@
 +amenity-school category_school
 +amenity-language_school category_language_school
 +amenity-music_school category_music_school
-+amenity-driving_school category_courses
++amenity-driving_school category_driving_school
 +leisure-dance category_courses
 +office-educational_institution category_work category_courses
 
@@ -350,47 +351,51 @@
 +sport-tennis category_sport
 +sport-volleyball category_sport
 
-# Sport of a pitch, a track or an outdoor gym: the place is described by leisure, its sport values stay in reach.target.sport;
-# sports that people travel for (riding, flying, climbing, shooting, archery, golf, karting, motor sport, water and winter sports) keep their type
--sport-10pin leisure=pitch;track;fitness_station
--sport-9pin leisure=pitch;track;fitness_station
--sport-american_football leisure=pitch;track;fitness_station
--sport-athletics leisure=pitch;track;fitness_station
--sport-australian_football leisure=pitch;track;fitness_station
--sport-badminton leisure=pitch;track;fitness_station
--sport-baseball leisure=pitch;track;fitness_station
--sport-basketball leisure=pitch;track;fitness_station
--sport-beachvolleyball leisure=pitch;track;fitness_station
--sport-boules leisure=pitch;track;fitness_station
--sport-bowls leisure=pitch;track;fitness_station
--sport-chess leisure=pitch;track;fitness_station
--sport-club leisure=pitch;track;fitness_station
--sport-cricket leisure=pitch;track;fitness_station
--sport-curling leisure=pitch;track;fitness_station
--sport-cycling leisure=pitch;track;fitness_station
--sport-field_hockey leisure=pitch;track;fitness_station
--sport-four_square leisure=pitch;track;fitness_station
--sport-futsal leisure=pitch;track;fitness_station
--sport-gymnastics leisure=pitch;track;fitness_station
--sport-handball leisure=pitch;track;fitness_station
--sport-ice_hockey leisure=pitch;track;fitness_station
--sport-indoor_games leisure=pitch;track;fitness_station
--sport-martial_arts leisure=pitch;track;fitness_station
--sport-multi leisure=pitch;track;fitness_station
--sport-netball leisure=pitch;track;fitness_station
--sport-padel leisure=pitch;track;fitness_station
--sport-pelota leisure=pitch;track;fitness_station
--sport-pickleball leisure=pitch;track;fitness_station
--sport-rugby_union leisure=pitch;track;fitness_station
--sport-running leisure=pitch;track;fitness_station
--sport-skateboard leisure=pitch;track;fitness_station
--sport-soccer leisure=pitch;track;fitness_station
--sport-softball leisure=pitch;track;fitness_station
--sport-swimming leisure=pitch;track;fitness_station
--sport-table_tennis leisure=pitch;track;fitness_station
--sport-tennis leisure=pitch;track;fitness_station
--sport-volleyball leisure=pitch;track;fitness_station
--sport-yoga leisure=pitch;track;fitness_station
+# Sport of a pitch, a track, an outdoor gym, a picnic or game table, a pool or a swimming area: the place is described by leisure or amenity,
+# its sport values stay in reach.target.sport; sports that people travel for (riding, flying, climbing, shooting, archery, golf, karting,
+# motor sport, water sports, skiing and other winter sports) keep their type
+-sport-10pin leisure=pitch;track;fitness_station;picnic_table;table
+-sport-9pin leisure=pitch;track;fitness_station;picnic_table;table
+-sport-american_football leisure=pitch;track;fitness_station;picnic_table;table
+-sport-athletics leisure=pitch;track;fitness_station;picnic_table;table
+-sport-australian_football leisure=pitch;track;fitness_station;picnic_table;table
+-sport-badminton leisure=pitch;track;fitness_station;picnic_table;table
+-sport-baseball leisure=pitch;track;fitness_station;picnic_table;table
+-sport-basketball leisure=pitch;track;fitness_station;picnic_table;table
+-sport-beachvolleyball leisure=pitch;track;fitness_station;picnic_table;table
+-sport-boules leisure=pitch;track;fitness_station;picnic_table;table
+-sport-bowls leisure=pitch;track;fitness_station;picnic_table;table
+-sport-chess leisure=pitch;track;fitness_station;picnic_table;table
+-sport-club leisure=pitch;track;fitness_station;picnic_table;table
+-sport-cricket leisure=pitch;track;fitness_station;picnic_table;table
+-sport-curling leisure=pitch;track;fitness_station;picnic_table;table
+-sport-cycling leisure=pitch;track;fitness_station;picnic_table;table
+-sport-field_hockey leisure=pitch;track;fitness_station;picnic_table;table
+-sport-four_square leisure=pitch;track;fitness_station;picnic_table;table
+-sport-futsal leisure=pitch;track;fitness_station;picnic_table;table
+-sport-gymnastics leisure=pitch;track;fitness_station;picnic_table;table
+-sport-handball leisure=pitch;track;fitness_station;picnic_table;table
+-sport-ice_hockey leisure=pitch;track;fitness_station;picnic_table;table
+-sport-ice_skating leisure=pitch;track;fitness_station;picnic_table;table
+-sport-indoor_games leisure=pitch;track;fitness_station;picnic_table;table
+-sport-martial_arts leisure=pitch;track;fitness_station;picnic_table;table
+-sport-multi leisure=pitch;track;fitness_station;picnic_table;table
+-sport-netball leisure=pitch;track;fitness_station;picnic_table;table
+-sport-padel leisure=pitch;track;fitness_station;picnic_table;table
+-sport-pelota leisure=pitch;track;fitness_station;picnic_table;table
+-sport-pickleball leisure=pitch;track;fitness_station;picnic_table;table
+-sport-rugby_union leisure=pitch;track;fitness_station;picnic_table;table
+-sport-running leisure=pitch;track;fitness_station;picnic_table;table
+-sport-skateboard leisure=pitch;track;fitness_station;picnic_table;table
+-sport-soccer leisure=pitch;track;fitness_station;picnic_table;table
+-sport-softball leisure=pitch;track;fitness_station;picnic_table;table
+-sport-swimming leisure=pitch;track;fitness_station;picnic_table;table;swimming_pool;swimming_area;bathing_place;beach_resort;water_park
+-sport-table_tennis leisure=pitch;track;fitness_station;picnic_table;table
+-sport-tennis leisure=pitch;track;fitness_station;picnic_table;table
+-sport-volleyball leisure=pitch;track;fitness_station;picnic_table;table
+-sport-yoga leisure=pitch;track;fitness_station;picnic_table;table
+-sport-chess amenity=table
+-sport-table_tennis amenity=table
 
 # Parks and outdoors
 +leisure-park category_park
@@ -414,6 +419,7 @@
 +tourism-viewpoint category_viewpoint
 +waterway-waterfall category_waterfall
 +natural-tree category_tourism name=*
+-natural-tree-species
 
 # Water
 +leisure-marina category_water_activities
@@ -537,11 +543,9 @@
 +amenity-charging_station category_road
 +amenity-compressed_air category_road
 +amenity-car_sharing category_road
-+amenity-vehicle_inspection category_road
 +amenity-bicycle_repair_station category_road
 +highway-rest_area category_road
 +highway-services category_road
-+amenity-luggage_locker category_road
 
 # Food and lodging
 +amenity-food_court category_eat
@@ -553,7 +557,6 @@
 +shop-frozen_food category_food
 +shop-tea category_food
 +shop-pasta category_food
-+craft-caterer category_craft_food
 +tourism-camp_site category_camping
 +tourism-caravan_site category_camping
 +building-hotel category_hotel name=*
@@ -561,7 +564,7 @@
 
 # Pickup
 +shop-outpost category_pickup
-+amenity-parcel_locker category_pickup
++amenity-parcel_locker category_pickup !category_post
 
 # Everyday services
 +shop-laundry category_services
@@ -581,6 +584,7 @@
 +craft-watchmaker category_services
 +craft-electronics_repair category_services
 +craft-photographer category_services
++amenity-luggage_locker category_services
 
 # Cars and motorcycles: dealers, parts, repair and washing
 +shop-car category_car_services
@@ -590,6 +594,7 @@
 +amenity-car_wash category_car_services
 +shop-motorcycle category_car_services
 +shop-motorcycle_repair category_car_services
++amenity-vehicle_inspection category_car_services
 
 # Rental of cars, scooters and bicycles
 +amenity-car_rental category_rental
@@ -600,6 +605,7 @@
 # Trades and workshops that customers rarely visit
 +craft category_work category_trades
 -craft craft=stonemason;sculptor
++craft-caterer category_work category_trades
 +craft-blacksmith category_work category_trades
 +craft-boatbuilder category_work category_trades
 +craft-carpenter category_work category_trades

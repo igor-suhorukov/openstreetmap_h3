@@ -614,7 +614,8 @@ class OrganicMapsPoiClassifierDataTest {
         assertEquals(List.of("sport-air_sports"), classifier.poiTypes(tags("sport=free_flying")));
         assertEquals(List.of("sport-adventure"), classifier.poiTypes(tags("sport=climbing_adventure")));
         assertEquals(List.of("sport-martial_arts-school"), classifier.poiTypes(tags("sport=muaythai")));
-        assertEquals(List.of("sport-winter_sports"), classifier.poiTypes(tags("sport=ice_skating")));
+        assertEquals(List.of("sport-ice_skating"), classifier.poiTypes(tags("sport=ice_skating")));
+        assertEquals(List.of("sport-winter_sports"), classifier.poiTypes(tags("sport=biathlon")));
         assertEquals(List.of("sport-indoor_games"), classifier.poiTypes(tags("sport=billiards")));
         assertEquals(List.of("sport-soccer"), classifier.poiTypes(tags("sport=football")));
         assertEquals(List.of("sport-ice_hockey"), classifier.poiTypes(tags("sport=ice_hockey")));
@@ -795,7 +796,8 @@ class OrganicMapsPoiClassifierDataTest {
         assertEquals("{category_crafts}", categoryOf("craft=handicraft"));
         assertEquals("{category_airport}", categoryOf("aeroway=terminal"));
         assertEquals("{category_aerialway}", categoryOf("railway=station", "station=funicular"));
-        assertEquals("{category_road}", categoryOf("amenity=luggage_locker"));
+        assertEquals("{category_services}", categoryOf("amenity=luggage_locker"));
+        assertEquals("{category_road}", categoryOf("amenity=charging_station"));
         assertEquals("{category_library}", categoryOf("amenity=library"));
         assertEquals("{category_library}", categoryOf("amenity=public_bookcase"));
         assertEquals("{category_rescue}", categoryOf("amenity=fire_station"));
@@ -854,6 +856,16 @@ class OrganicMapsPoiClassifierDataTest {
         assertEquals(List.of("leisure-sports_centre", "sport-tennis"), classifier.poiTypes(tags("leisure=sports_centre", "sport=tennis")));
         assertEquals(List.of("leisure-stadium", "sport-soccer"), classifier.poiTypes(tags("leisure=stadium", "sport=soccer")));
         assertEquals(List.of("sport-tennis"), classifier.poiTypes(tags("sport=tennis", "name=Tennis Club")));
+        assertEquals(List.of("leisure-picnic_table"), classifier.poiTypes(tags("leisure=picnic_table", "sport=chess")));
+        assertEquals(List.of(), classifier.poiTypes(tags("amenity=table", "sport=chess")));
+        assertEquals(List.of(), classifier.poiTypes(tags("amenity=table", "sport=table_tennis")));
+        assertEquals(List.of("sport-chess"), classifier.poiTypes(tags("sport=chess", "name=Шахматный клуб")));
+        assertEquals(List.of("leisure-pitch"), classifier.poiTypes(tags("leisure=pitch", "sport=ice_hockey;ice_skating")));
+        assertEquals(List.of("leisure-ice_rink", "sport-ice_skating"), classifier.poiTypes(tags("leisure=ice_rink", "sport=ice_skating")));
+        assertEquals(List.of("leisure-pitch", "sport-winter_sports"), classifier.poiTypes(tags("leisure=pitch", "sport=ski_jumping")));
+        assertEquals(List.of("leisure-swimming_pool"), classifier.poiTypes(tags("leisure=swimming_pool", "sport=swimming")));
+        assertEquals(List.of("leisure-swimming_area"), classifier.poiTypes(tags("leisure=swimming_area", "sport=swimming")));
+        assertEquals(List.of("leisure-sports_centre", "sport-swimming"), classifier.poiTypes(tags("leisure=sports_centre", "sport=swimming")));
     }
 
     @Test
@@ -889,8 +901,11 @@ class OrganicMapsPoiClassifierDataTest {
         assertEquals("{category_crafts}", categoryOf("craft=jeweller"));
         assertEquals("{category_food}", categoryOf("shop=tea"));
         assertEquals("{category_food}", categoryOf("shop=pasta"));
-        assertEquals("{category_courses}", categoryOf("amenity=driving_school"));
-        assertEquals("{category_craft_food}", categoryOf("craft=caterer"));
+        assertEquals("{category_driving_school}", categoryOf("amenity=driving_school"));
+        assertEquals("{category_trades,category_work}", categoryOf("craft=caterer"));
+        assertEquals("{category_car_services}", categoryOf("amenity=vehicle_inspection"));
+        assertEquals("{category_pickup}", categoryOf("amenity=parcel_locker"));
+        assertEquals("{category_post}", categoryOf("amenity=post_office"));
     }
 
     @Test
@@ -925,6 +940,11 @@ class OrganicMapsPoiClassifierDataTest {
         assertEquals(List.of("natural-tree"), classifier.poiTypes(tags("natural=tree", "name=Карамзинский дуб")));
         assertEquals("{category_tourism}", categoryOf("natural=tree", "denotation=natural_monument", "name=Kaisereiche"));
         assertEquals(List.of(), classifier.poiTypes(tags("natural=tree", "denotation=natural_monument")));
+        for (String species : List.of("Eiche", "Stieleiche", "Stieleiche - Quercus robur", "Kirschbaum", "Ginkgo", "Palm Tree", "Дуб", "Дуб черешчатый")) {
+            assertEquals(List.of(), classifier.poiTypes(tags("natural=tree", "name=" + species)), species);
+        }
+        assertEquals(List.of("natural-tree"), classifier.poiTypes(tags("natural=tree", "name=Kaisereiche")));
+        assertEquals(List.of("natural-tree"), classifier.poiTypes(tags("natural=tree", "name=Дуб «Космос»")));
     }
 
     @Test
