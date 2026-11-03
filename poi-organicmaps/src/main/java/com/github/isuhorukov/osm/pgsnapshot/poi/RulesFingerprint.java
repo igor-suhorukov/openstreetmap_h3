@@ -15,7 +15,8 @@ final class RulesFingerprint {
             OrganicMapsPoiClassifier.REPLACED_TAGS_FILE, OrganicMapsPoiClassifier.CATEGORIES_FILE,
             OrganicMapsPoiClassifier.TYPE_NAMES_FILE);
     static final List<String> RESOURCES = List.of(OrganicMapsPoiClassifier.RULES_RESOURCE,
-            OrganicMapsPoiClassifier.MAPPING_RESOURCE, OrganicMapsPoiClassifier.TYPE_NAMES_RESOURCE);
+            OrganicMapsPoiClassifier.MAPPING_RESOURCE, OrganicMapsPoiClassifier.TYPE_NAMES_RESOURCE,
+            OrganicMapsPoiClassifier.REPLACED_TAGS_RESOURCE);
     private static final char[] HEX_DIGITS = "0123456789abcdef".toCharArray();
 
     private RulesFingerprint() {

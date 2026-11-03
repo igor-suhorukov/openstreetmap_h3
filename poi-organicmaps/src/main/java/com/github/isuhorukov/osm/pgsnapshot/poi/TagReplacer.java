@@ -64,6 +64,13 @@ final class TagReplacer {
         return tags;
     }
 
+    TagReplacer with(TagReplacer overrides) {
+        Map<String, Map<String, Replacement>> merged = new HashMap<>();
+        replacements.forEach((key, byValue) -> merged.put(key, new HashMap<>(byValue)));
+        overrides.replacements.forEach((key, byValue) -> merged.computeIfAbsent(key, k -> new HashMap<>()).putAll(byValue));
+        return new TagReplacer(merged);
+    }
+
     boolean replaces(String key, String value) {
         Map<String, Replacement> byValue = replacements.get(key);
         return byValue != null && byValue.containsKey(value);

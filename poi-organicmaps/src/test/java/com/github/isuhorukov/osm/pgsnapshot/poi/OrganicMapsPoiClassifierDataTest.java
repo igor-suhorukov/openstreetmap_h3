@@ -592,7 +592,8 @@ class OrganicMapsPoiClassifierDataTest {
         assertEquals(List.of(), classifier.poiTypes(tags("historic=bunker")));
         assertEquals(List.of(), classifier.poiTypes(tags("historic=bomb_crater")));
         assertEquals(List.of("historic-memorial-plaque"), classifier.poiTypes(tags("historic=epigraph")));
-        assertEquals(List.of("amenity-events_venue"), classifier.poiTypes(tags("amenity=music_venue")));
+        assertEquals(List.of("amenity-music_venue"), classifier.poiTypes(tags("amenity=music_venue")));
+        assertEquals(List.of("amenity-events_venue"), classifier.poiTypes(tags("amenity=concert_hall")));
         assertEquals("{category_tourism}", categoryOf("amenity=planetarium"));
         assertEquals("{category_tourism}", categoryOf("man_made=observatory"));
         assertEquals(List.of(), classifier.poiTypes(tags("historic=suburb")));
@@ -699,6 +700,30 @@ class OrganicMapsPoiClassifierDataTest {
         assertEquals(List.of("amenity-dive_centre"), classifier.poiTypes(tags("amenity=dive_centre;shelter")));
     }
 
+    @Test
+    void poiTags_nightlifeIsSplitIntoBarsClubsLiveMusicAndHookahLounges() {
+        assertEquals("{category_bar,category_eat}", categoryOf("amenity=bar"));
+        assertEquals("{category_bar,category_eat}", categoryOf("amenity=pub"));
+        assertEquals("{category_bar,category_eat}", categoryOf("amenity=biergarten"));
+        assertEquals(List.of("amenity-bar-karaoke"), classifier.poiTypes(tags("amenity=bar", "karaoke=yes")));
+        assertEquals("{category_bar,category_club,category_eat}", categoryOf("amenity=bar", "karaoke=only"));
+        assertEquals(List.of("amenity-bar"), classifier.poiTypes(tags("amenity=bar", "karaoke=no")));
+        assertEquals("{category_club,category_entertainment}", categoryOf("amenity=nightclub"));
+        assertEquals("{category_hookah}", categoryOf("amenity=hookah_lounge"));
+        assertEquals("{category_live_music}", categoryOf("amenity=music_venue"));
+        assertEquals("{category_events}", categoryOf("amenity=concert_hall"));
+    }
+
+    @Test
+    void poiTypes_danceSchoolsAreSeparateFromDanceVenues() {
+        assertEquals(List.of("leisure-dance"), classifier.poiTypes(tags("leisure=dance")));
+        assertEquals("{category_dance,category_entertainment}", categoryOf("leisure=dance"));
+        assertEquals(List.of("leisure-dance-school"), classifier.poiTypes(tags("leisure=dance", "dance:teaching=yes")));
+        assertEquals(List.of("leisure-dance"), classifier.poiTypes(tags("leisure=dance", "dance:teaching=no")));
+        assertEquals(List.of("leisure-dance-school"), classifier.poiTypes(tags("amenity=dancing_school")));
+        assertEquals("{category_courses,category_dance_school}", categoryOf("amenity=dancing_school"));
+    }
+
     private static String categoryOf(String... tag) {
         return classifier.poiTags(tags(tag)).stream()
                 .filter(poiTag -> poiTag.getKey().equals(OrganicMapsPoiClassifier.POI_CATEGORY_TAG))
@@ -780,7 +805,7 @@ class OrganicMapsPoiClassifierDataTest {
         assertEquals("{category_water_activities}", categoryOf("shop=fishing"));
         assertEquals("{category_events}", categoryOf("amenity=conference_centre"));
         assertEquals("{category_gambling}", categoryOf("shop=bookmaker"));
-        assertEquals("{category_gambling,category_nightlife}", categoryOf("amenity=casino"));
+        assertEquals("{category_gambling}", categoryOf("amenity=casino"));
         assertEquals("{category_adult}", categoryOf("amenity=stripclub"));
         assertEquals("{category_entertainment}", categoryOf("leisure=escape_game"));
         assertEquals("{category_community_centre}", categoryOf("leisure=hackerspace"));

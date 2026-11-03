@@ -225,6 +225,13 @@
 -amenity-cafe access=private;no
 -amenity-fast_food access=private;no
 -amenity-food_court access=private;no
++amenity-bar category_bar !category_nightlife
++amenity-bar-karaoke category_bar category_club !category_nightlife
++amenity-pub category_bar !category_nightlife
++amenity-biergarten category_bar !category_nightlife
++amenity-nightclub category_club !category_nightlife
++amenity-hookah_lounge category_hookah !category_nightlife
++amenity-music_venue category_live_music
 -amenity-bar access=private;no
 -amenity-pub access=private;no
 -amenity-biergarten access=private;no
@@ -286,7 +293,8 @@
 +amenity-language_school category_language_school
 +amenity-music_school category_music_school
 +amenity-driving_school category_driving_school
-+leisure-dance category_courses
++leisure-dance category_dance
++leisure-dance-school category_courses category_dance_school !category_entertainment
 +office-educational_institution category_work category_courses
 
 # Religion
@@ -484,7 +492,7 @@
 +amenity-exhibition_centre category_events
 +amenity-studio category_events
 +amenity-gambling category_gambling
-+amenity-casino category_gambling
++amenity-casino category_gambling !category_nightlife
 +leisure-adult_gaming_centre category_gambling
 +shop-bookmaker category_gambling
 +shop-lottery category_gambling

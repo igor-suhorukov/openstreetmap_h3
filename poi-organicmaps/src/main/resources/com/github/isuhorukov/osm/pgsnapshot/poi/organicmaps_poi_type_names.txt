@@ -796,3 +796,18 @@ th = ต้นไม้สำคัญ
 en = Ice Skating
 ru = Катание на коньках
 th = สเก็ตน้ำแข็ง
+
+[type.amenity.music_venue]
+en = Live Music Venue
+ru = Площадка живой музыки
+th = สถานที่แสดงดนตรีสด
+
+[type.leisure.dance.school]
+en = Dance School
+ru = Танцевальная школа
+th = โรงเรียนสอนเต้นรำ
+
+[type.amenity.bar.karaoke]
+en = Karaoke Bar
+ru = Караоке-бар
+th = คาราโอเกะบาร์

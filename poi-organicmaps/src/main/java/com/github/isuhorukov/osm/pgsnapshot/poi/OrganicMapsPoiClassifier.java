@@ -29,6 +29,7 @@ public final class OrganicMapsPoiClassifier {
     static final String RULES_RESOURCE = "organicmaps_poi_rules.txt";
     static final String MAPPING_RESOURCE = "organicmaps_poi_mapping.csv";
     static final String TYPE_NAMES_RESOURCE = "organicmaps_poi_type_names.txt";
+    static final String REPLACED_TAGS_RESOURCE = "organicmaps_poi_replaced_tags.txt";
 
     private static final Set<String> ONE_LEVEL_POI_CLASSES = Set.of("amenity", "craft", "emergency", "healthcare",
             "historic", "leisure", "mountain_pass", "office", "railway", "shop", "sport", "tourism");
@@ -146,6 +147,9 @@ public final class OrganicMapsPoiClassifier {
         TagReplacer tagReplacer;
         try (BufferedReader reader = Files.newBufferedReader(dataDirectory.resolve(REPLACED_TAGS_FILE))) {
             tagReplacer = TagReplacer.parse(reader);
+        }
+        try (BufferedReader reader = resourceReader(REPLACED_TAGS_RESOURCE)) {
+            tagReplacer = tagReplacer.with(TagReplacer.parse(reader));
         }
         List<MapcssMapping.Rule> rules;
         try (BufferedReader reader = Files.newBufferedReader(dataDirectory.resolve(MAPPING_FILE))) {
