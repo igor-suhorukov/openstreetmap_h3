@@ -190,6 +190,21 @@ class OrganicMapsPoiClassifierDataTest {
     }
 
     @Test
+    void poiTypes_heritageArea_onlyWithWikiLink() {
+        assertEquals(List.of("boundary-protected_area-22"), classifier.poiTypes(tags("boundary=protected_area", "protect_class=22", "name=Weiße Stadt", "wikidata=Q2554180")));
+        assertEquals(List.of("boundary-protected_area-22"), classifier.poiTypes(tags("boundary=protected_area", "protect_class=22", "heritage=1",
+                "name=Gartenstadt Falkenberg", "wikipedia=de:Gartenstadt Falkenberg")));
+        assertEquals("{category_tourism}", categoryOf("boundary=protected_area", "protect_class=22", "name=Weiße Stadt", "wikidata=Q2554180"));
+        assertEquals(List.of("boundary-protected_area-22", "leisure-park"), classifier.poiTypes(tags("boundary=protected_area", "protect_class=22",
+                "leisure=park", "name=Schillerpark", "wikidata=Q2240370")));
+        assertEquals(List.of(), classifier.poiTypes(tags("boundary=protected_area", "protect_class=22", "wikidata=Q2554180")));
+        assertEquals(List.of(), classifier.poiTypes(tags("boundary=protected_area", "protect_class=22", "heritage=4", "name=Wohnanlage Becherweg")));
+        assertEquals(List.of(), classifier.poiTypes(tags("boundary=protected_area", "protect_class=22", "heritage=1",
+                "name=Московский Кремль и Красная Площадь. Буферная зона")));
+        assertEquals(List.of(), classifier.poiTypes(tags("boundary=protected_area", "protect_class=12", "name=Wasserschutzgebiet", "wikidata=Q1")));
+    }
+
+    @Test
     void poiTypes_scenariosLeftOutAreNotPoi() {
         assertEquals(List.of(), classifier.poiTypes(tags("amenity=toilets", "name=WC")));
         assertEquals(List.of(), classifier.poiTypes(tags("amenity=toilets", "access=yes", "fee=no")));

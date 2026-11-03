@@ -153,6 +153,7 @@
 +boundary-protected_area-4 category_protected_area name=*
 +boundary-protected_area-5 category_protected_area name=*
 +boundary-protected_area-6 category_protected_area name=*
++boundary-protected_area-22 category_tourism name=*
 +leisure-fishing category_water_activities
 +leisure-horse_riding category_sport
 +leisure-spa category_wellness

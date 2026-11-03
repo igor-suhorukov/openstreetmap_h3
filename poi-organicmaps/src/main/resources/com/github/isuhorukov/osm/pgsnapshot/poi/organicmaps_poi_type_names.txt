@@ -741,3 +741,8 @@ th = ร้านถั่ว
 en = Frozen Food Shop
 ru = Магазин замороженных продуктов
 th = ร้านอาหารแช่แข็ง
+
+[type.boundary.protected_area.22]
+en = Heritage Area
+ru = Охраняемая территория памятника
+th = เขตอนุรักษ์มรดกทางวัฒนธรรม

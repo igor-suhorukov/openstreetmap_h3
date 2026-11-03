@@ -152,3 +152,4 @@ shop|spices;[shop=spices];;name;int_name;154;
 shop|honey;[shop=honey];;name;int_name;155;
 shop|nuts;[shop=nuts];;name;int_name;156;
 shop|frozen_food;[shop=frozen_food];;name;int_name;157;
+boundary|protected_area|22;[boundary=protected_area][protect_class=22][wikidata],[boundary=protected_area][protect_class=22][wikipedia];;name;int_name;158;
